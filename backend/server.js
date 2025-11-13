@@ -114,6 +114,8 @@ const requireProfessor = (req, res, next) => {
   next();
 };
 
+const VideoConference = require('./src/models/VideoConference');
+
 // ================================
 // RUTAS DE AUTENTICACIÓN
 // ================================
@@ -748,6 +750,94 @@ app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => 
   }
 });
 
+
+// ================================
+// RUTAS DE TAREAS/ASIGNACIONES
+// ================================
+
+const assignmentRoutes = require('./src/routes/assignments')(db, authenticateToken, requireProfessor, upload);
+app.use('/api', assignmentRoutes);
+
+
+// ================================
+// RUTAS DE PROGRESO
+// ================================
+
+const progressRoutes = require('./src/routes/progress')(db, authenticateToken);
+app.use('/api', progressRoutes);
+
+
+// ================================
+// RUTAS DE PAGOS MEJORADAS
+// ================================
+
+const paymentRoutes = require('./src/routes/payments')(db, authenticateToken, requireProfessor);
+app.use('/api', paymentRoutes);
+
+
+// ================================
+// RUTAS DE NOTIFICACIONES
+// ================================
+
+const notificationRoutes = require('./src/routes/notifications')(db, authenticateToken, io);
+app.use('/api', notificationRoutes);
+
+
+// ================================
+// RUTAS DE CERTIFICADOS
+// ================================
+
+const certificateRoutes = require('./src/routes/certificates')(db, authenticateToken);
+app.use('/api', certificateRoutes);
+
+// Servir archivos de certificados
+app.use('/certificates', express.static(path.join(__dirname, '../certificates')));
+
+// ================================
+// RUTAS DE VIDEOCONFERENCIAS
+// ================================
+
+const videoConferenceRoutes = require('./src/routes/videoConferences')(db, authenticateToken, requireProfessor);
+app.use('/api', videoConferenceRoutes);
+
+// ================================
+// RUTAS DE CHAT EN VIVO
+// ================================
+
+const Chat = require('./src/models/Chat');
+const chatRoutes = require('./src/routes/chat')(db, authenticateToken, io);
+app.use('/api', chatRoutes);
+
+// ================================
+// RUTAS DE FOROS
+// ================================
+
+const Forum = require('./src/models/Forum');
+const forumRoutes = require('./src/routes/forum')(db, authenticateToken, requireProfessor);
+app.use('/api', forumRoutes);
+
+// ================================
+// RUTAS DE GAMIFICACIÓN
+// ================================
+
+const Gamification = require('./src/models/Gamification');
+const gamificationRoutes = require('./src/routes/gamification')(db, authenticateToken);
+app.use('/api', gamificationRoutes);
+
+// ================================
+// RUTAS DE INSCRIPCIONES (Cursos Gratuitos)
+// ================================
+
+const enrollmentRoutes = require('./src/routes/enrollments')(db, authenticateToken);
+app.use('/api', enrollmentRoutes);
+
+// ================================
+// RUTAS DE ADMINISTRADOR
+// ================================
+
+const adminRoutes = require('./src/routes/admin')(db, authenticateToken, requireProfessor);
+app.use('/api', adminRoutes);
+
 // ================================
 // RUTAS DE SALUD
 // ================================
@@ -1201,3 +1291,12 @@ server.listen(PORT, () => {
 });
 
 module.exports = { app, server, io };
+
+
+
+
+
+
+
+
+
