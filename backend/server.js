@@ -842,12 +842,43 @@ app.use('/api', adminRoutes);
 // RUTAS DE SALUD
 // ================================
 
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development'
-  });
+app.get('/api/health', async (req, res) => {
+  try {
+    // Verificar conexión a la base de datos intentando obtener cursos
+    const courses = await db.getAllCourses();
+    const dbStatus = courses ? 'connected' : 'disconnected';
+
+    // Información del sistema
+    const uptime = process.uptime();
+    const memoryUsage = process.memoryUsage();
+
+    res.json({ 
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      uptime: Math.floor(uptime),
+      database: {
+        status: dbStatus,
+        type: 'SQLite'
+      },
+      memory: {
+        rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`,
+        heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
+        heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`
+      },
+      services: {
+        socketIO: io ? 'active' : 'inactive',
+        mercadoPago: !!process.env.MERCADOPAGO_ACCESS_TOKEN
+      }
+    });
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(503).json({ 
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
 });
 
 // ================================
