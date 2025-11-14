@@ -1,0 +1,18 @@
+version = "2"
+
+[build]
+builder = "nixpacks"
+buildCommand = "npm install"
+
+[start]
+cmd = "node server.js"
+
+[deploy]
+healthcheckPath = "/api/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+[[ports]]
+port = 5000
+protocol = "http"

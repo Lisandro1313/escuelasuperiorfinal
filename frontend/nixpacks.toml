@@ -1,0 +1,12 @@
+version = "2"
+
+[build]
+builder = "nixpacks"
+buildCommand = "npm install && npm run build"
+
+[start]
+cmd = "npx serve -s dist -p $PORT"
+
+[[ports]]
+port = 3000
+protocol = "http"
