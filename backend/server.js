@@ -16,7 +16,7 @@ const { Server } = require('socket.io');
 
 // Importar base de datos y servicios
 const db = require('../database/database');
-const mercadoPagoService = require('./services/mercadoPago');
+const mercadoPagoService = require('./services/mercadopago');
 const logger = require('./utils/logger');
 const NotificationHelper = require('./utils/notificationHelper');
 
