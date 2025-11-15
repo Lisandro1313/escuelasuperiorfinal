@@ -5,6 +5,7 @@
 Este manual te guiará para subir tu plataforma educativa a internet usando Railway.app de forma **GRATUITA** (con límites) o **PAGANDO $5/mes** por servicio.
 
 ### ¿Qué vamos a desplegar?
+
 - ✅ **Backend** (servidor Node.js)
 - ✅ **Frontend** (interfaz React)
 - ✅ **Base de datos** (SQLite o PostgreSQL)
@@ -146,6 +147,7 @@ VITE_API_URL=https://TU-BACKEND-URL.railway.app/api
 **⚠️ IMPORTANTE**: Reemplaza `TU-BACKEND-URL` con la URL real que copiaste en el Paso 3.4
 
 Ejemplo real:
+
 ```bash
 VITE_API_URL=https://backend-production-a1b2.up.railway.app/api
 ```
@@ -175,6 +177,7 @@ CORS_ORIGIN=https://TU-FRONTEND-URL.railway.app
 ```
 
 Ejemplo real:
+
 ```bash
 FRONTEND_URL=https://frontend-production-c3d4.up.railway.app
 CORS_ORIGIN=https://frontend-production-c3d4.up.railway.app
@@ -241,6 +244,7 @@ Si tu cliente tiene un dominio propio (ej: `escuelanorma.com`):
 ### Reiniciar Servicios
 
 Si algo falla:
+
 1. Ve al servicio en Railway
 2. Haz clic en los 3 puntos (⋮)
 3. Selecciona **"Restart"**
@@ -277,16 +281,19 @@ Si algo falla:
 ## 💰 COSTOS ESTIMADOS
 
 ### Plan Hobby (Gratis)
+
 - $5 USD de crédito mensual
 - Suficiente para 1-2 servicios pequeños
 - Perfecto para demo/pruebas
 
 ### Plan Developer ($5/mes)
+
 - $5 USD de crédito incluido
 - Más $0.000231 por GB-hora de uso
 - **Estimado**: $10-15/mes para esta aplicación con tráfico bajo-moderado
 
 ### Plan Team ($20/mes por miembro)
+
 - $10 USD de crédito incluido por miembro
 - Para equipos más grandes
 
@@ -315,26 +322,31 @@ Marca cada uno cuando lo completes:
 ## 🎥 PRÓXIMOS PASOS PARA VIDEOS TUTORIALES
 
 ### Video 1: "Cómo Acceder a tu Plataforma" (5 min)
+
 - Mostrar la URL
 - Cómo hacer login
 - Cómo registrarse
 
 ### Video 2: "Panel de Administrador - Primeros Pasos" (10 min)
+
 - Acceder al panel de admin
 - Crear primer curso
 - Subir contenido
 
 ### Video 3: "Gestión de Estudiantes" (8 min)
+
 - Ver estudiantes registrados
 - Inscribir estudiantes manualmente
 - Ver progreso de estudiantes
 
 ### Video 4: "Configurar Pagos con MercadoPago" (7 min)
+
 - Cómo funcionan los pagos
 - Verificar pagos recibidos
 - Inscribir estudiantes después del pago
 
 ### Video 5: "Crear y Gestionar Cursos" (15 min)
+
 - Crear curso completo
 - Subir videos
 - Crear evaluaciones
@@ -345,6 +357,7 @@ Marca cada uno cuando lo completes:
 ## 📞 SOPORTE
 
 Si tienes problemas:
+
 1. Revisa los logs en Railway
 2. Verifica las variables de entorno
 3. Consulta la documentación de Railway: https://docs.railway.app

@@ -24,7 +24,7 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
+    origin: process.env.NODE_ENV === 'production'
       ? ['https://campusnorma.com', 'https://www.campusnorma.com']
       : ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'],
     credentials: true
@@ -71,7 +71,7 @@ app.use(helmet({
 }));
 
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
+  origin: process.env.NODE_ENV === 'production'
     ? ['https://campusnorma.com', 'https://www.campusnorma.com']
     : ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'],
   credentials: true
@@ -98,14 +98,14 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|mp4|avi|mov/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-    
+
     if (mimetype && extname) {
       return cb(null, true);
     } else {
@@ -149,7 +149,7 @@ const VideoConference = require('./src/models/VideoConference');
 app.post('/api/auth/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     if (!email || !password) {
       return res.status(400).json({ error: 'Email y contraseña son requeridos' });
     }
@@ -206,7 +206,7 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
 app.post('/api/auth/register', authLimiter, async (req, res) => {
   try {
     const { email, password, nombre, tipo = 'alumno', teacherCode } = req.body;
-    
+
     if (!email || !password || !nombre) {
       return res.status(400).json({ error: 'Todos los campos son obligatorios' });
     }
@@ -295,14 +295,14 @@ app.get('/api/courses/:id', async (req, res) => {
 app.post('/api/courses', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const { nombre, descripcion, categoria, precio, duracion, imagen } = req.body;
-    
+
     if (!nombre || !descripcion) {
       return res.status(400).json({ error: 'Nombre y descripción son requeridos' });
     }
 
     // Obtener datos del profesor
     const profesor = await db.getUserById(req.user.userId);
-    
+
     const courseData = {
       nombre,
       descripcion,
@@ -315,7 +315,7 @@ app.post('/api/courses', authenticateToken, requireProfessor, async (req, res) =
     };
 
     const newCourse = await db.createCourse(courseData);
-    
+
     res.status(201).json({
       message: 'Curso creado exitosamente',
       course: newCourse
@@ -330,7 +330,7 @@ app.post('/api/courses', authenticateToken, requireProfessor, async (req, res) =
 app.get('/api/courses/my-courses', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const courses = await db.getCoursesByProfessor(req.user.userId);
-    
+
     // Contar estudiantes por curso
     const coursesWithStats = await Promise.all(courses.map(async (course) => {
       const enrollments = await db.getCourseEnrollments(course.id);
@@ -339,16 +339,16 @@ app.get('/api/courses/my-courses', authenticateToken, requireProfessor, async (r
         estudiantes: enrollments.length
       };
     }));
-    
+
     res.json({
       success: true,
       courses: coursesWithStats
     });
   } catch (error) {
     console.error('Error al obtener cursos del profesor:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      error: 'Error interno del servidor' 
+      error: 'Error interno del servidor'
     });
   }
 });
@@ -358,7 +358,7 @@ app.put('/api/courses/:id', authenticateToken, requireProfessor, async (req, res
   try {
     const courseId = req.params.id;
     const { nombre, descripcion, categoria, precio, duracion } = req.body;
-    
+
     // Verificar que el curso pertenece al profesor
     const course = await db.getCourseById(courseId);
     if (!course || course.profesor_id !== req.user.userId) {
@@ -387,7 +387,7 @@ app.put('/api/courses/:id', authenticateToken, requireProfessor, async (req, res
 app.delete('/api/courses/:id', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const courseId = req.params.id;
-    
+
     // Verificar que el curso pertenece al profesor
     const course = await db.getCourseById(courseId);
     if (!course || course.profesor_id !== req.user.userId) {
@@ -395,7 +395,7 @@ app.delete('/api/courses/:id', authenticateToken, requireProfessor, async (req, 
     }
 
     await db.deleteCourse(courseId);
-    
+
     res.json({ message: 'Curso eliminado exitosamente' });
   } catch (error) {
     console.error('Error al eliminar curso:', error);
@@ -476,10 +476,10 @@ app.post('/api/courses/:id/enroll', authenticateToken, async (req, res) => {
 
     // Inscribir al usuario
     await db.enrollUser(userId, courseId);
-    
-    res.json({ 
+
+    res.json({
       message: 'Inscripción exitosa',
-      enrolled: true 
+      enrolled: true
     });
   } catch (error) {
     console.error('Error al inscribir usuario:', error);
@@ -508,13 +508,13 @@ app.post('/api/courses/:id/modules', authenticateToken, requireProfessor, async 
   try {
     const courseId = req.params.id;
     const { titulo, descripcion, orden } = req.body;
-    
+
     // Verificar que el profesor sea dueño del curso
     const course = await db.getCourseById(courseId);
     if (!course || course.profesor_id !== req.user.userId) {
       return res.status(403).json({ error: 'No tienes permisos para editar este curso' });
     }
-    
+
     const module = await db.createModule({
       course_id: courseId,
       titulo,
@@ -522,7 +522,7 @@ app.post('/api/courses/:id/modules', authenticateToken, requireProfessor, async 
       orden: orden || 1,
       publicado: true
     });
-    
+
     res.status(201).json(module);
   } catch (error) {
     console.error('Error al crear módulo:', error);
@@ -535,14 +535,14 @@ app.put('/api/modules/:id', authenticateToken, requireProfessor, async (req, res
   try {
     const moduleId = req.params.id;
     const { titulo, descripcion, orden, publicado } = req.body;
-    
+
     const updatedModule = await db.updateModule(moduleId, {
       titulo,
       descripcion,
       orden,
       publicado
     });
-    
+
     res.json(updatedModule);
   } catch (error) {
     console.error('Error al actualizar módulo:', error);
@@ -579,7 +579,7 @@ app.post('/api/modules/:id/lessons', authenticateToken, requireProfessor, async 
   try {
     const moduleId = req.params.id;
     const { titulo, contenido, tipo, orden, duracion, recursos } = req.body;
-    
+
     const lesson = await db.createLesson({
       module_id: moduleId,
       titulo,
@@ -590,7 +590,7 @@ app.post('/api/modules/:id/lessons', authenticateToken, requireProfessor, async 
       recursos: recursos ? JSON.stringify(recursos) : null,
       publicado: true
     });
-    
+
     res.status(201).json(lesson);
   } catch (error) {
     console.error('Error al crear lección:', error);
@@ -603,7 +603,7 @@ app.put('/api/lessons/:id', authenticateToken, requireProfessor, async (req, res
   try {
     const lessonId = req.params.id;
     const { titulo, contenido, tipo, orden, duracion, recursos, publicado } = req.body;
-    
+
     const updatedLesson = await db.updateLesson(lessonId, {
       titulo,
       contenido,
@@ -613,7 +613,7 @@ app.put('/api/lessons/:id', authenticateToken, requireProfessor, async (req, res
       recursos: recursos ? JSON.stringify(recursos) : null,
       publicado
     });
-    
+
     res.json(updatedLesson);
   } catch (error) {
     console.error('Error al actualizar lección:', error);
@@ -638,7 +638,7 @@ app.post('/api/lessons/:id/complete', authenticateToken, async (req, res) => {
   try {
     const lessonId = req.params.id;
     const userId = req.user.userId;
-    
+
     await db.markLessonComplete(userId, lessonId);
     res.json({ message: 'Lección marcada como completada' });
   } catch (error) {
@@ -652,7 +652,7 @@ app.get('/api/courses/:id/progress', authenticateToken, async (req, res) => {
   try {
     const courseId = req.params.id;
     const userId = req.user.userId;
-    
+
     const progress = await db.getCourseProgress(userId, courseId);
     res.json(progress);
   } catch (error) {
@@ -669,7 +669,7 @@ app.get('/api/courses/:id/progress', authenticateToken, async (req, res) => {
 app.post('/api/payments/create-preference', authenticateToken, async (req, res) => {
   try {
     const { courseId } = req.body;
-    
+
     if (!courseId) {
       return res.status(400).json({ error: 'ID del curso es requerido' });
     }
@@ -718,15 +718,15 @@ app.post('/api/payments/create-preference', authenticateToken, async (req, res) 
 app.post('/api/payments/webhook', async (req, res) => {
   try {
     const paymentData = req.body;
-    
+
     if (paymentData.type === 'payment') {
       const paymentId = paymentData.data.id;
       const paymentInfo = await mercadoPagoService.getPaymentInfo(paymentId);
-      
+
       if (paymentInfo.status === 'approved') {
         // Actualizar estado del pago
         await db.updatePaymentStatus(paymentId, 'approved');
-        
+
         // Obtener información del pago para inscribir al usuario
         const payment = await db.getPaymentByPaymentId(paymentId);
         if (payment) {
@@ -735,7 +735,7 @@ app.post('/api/payments/webhook', async (req, res) => {
         }
       }
     }
-    
+
     res.status(200).send('OK');
   } catch (error) {
     console.error('Error en webhook:', error);
@@ -872,7 +872,7 @@ app.get('/api/health', async (req, res) => {
     const uptime = process.uptime();
     const memoryUsage = process.memoryUsage();
 
-    res.json({ 
+    res.json({
       status: 'healthy',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'development',
@@ -893,7 +893,7 @@ app.get('/api/health', async (req, res) => {
     });
   } catch (error) {
     console.error('Health check error:', error);
-    res.status(503).json({ 
+    res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
       error: error.message
@@ -911,10 +911,10 @@ app.use((err, req, res, next) => {
     method: req.method,
     ip: req.ip
   });
-  
+
   res.status(err.status || 500).json({
-    error: process.env.NODE_ENV === 'production' 
-      ? 'Error interno del servidor' 
+    error: process.env.NODE_ENV === 'production'
+      ? 'Error interno del servidor'
       : err.message
   });
 });
@@ -922,8 +922,9 @@ app.use((err, req, res, next) => {
 // Ruta para el frontend en producción
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../frontend/dist')));
-  
-  app.get('/*', (req, res) => {
+
+  // Catch-all route para SPA - debe ir al final
+  app.get(/.*/, (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
   });
 }
@@ -946,7 +947,7 @@ app.get('/api/events', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     const userType = req.user.tipo;
-    
+
     let events;
     if (userType === 'profesor' || userType === 'admin') {
       // Los profesores ven todos los eventos de sus cursos
@@ -955,7 +956,7 @@ app.get('/api/events', authenticateToken, async (req, res) => {
       // Los estudiantes ven eventos de cursos en los que están inscritos
       events = await db.getEventsForStudent(userId);
     }
-    
+
     res.json(events);
   } catch (error) {
     console.error('Error al obtener eventos:', error);
@@ -968,11 +969,11 @@ app.post('/api/events', authenticateToken, requireProfessor, async (req, res) =>
   try {
     const { title, description, startDate, endDate, type, courseId } = req.body;
     const instructorId = req.user.userId;
-    
+
     if (!title || !startDate || !endDate) {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
-    
+
     const eventId = await db.createEvent({
       title,
       description,
@@ -982,7 +983,7 @@ app.post('/api/events', authenticateToken, requireProfessor, async (req, res) =>
       courseId,
       instructorId
     });
-    
+
     const newEvent = await db.getEventById(eventId);
     res.status(201).json(newEvent);
   } catch (error) {
@@ -997,7 +998,7 @@ app.put('/api/events/:id', authenticateToken, requireProfessor, async (req, res)
     const eventId = req.params.id;
     const { title, description, startDate, endDate, type, status } = req.body;
     const instructorId = req.user.userId;
-    
+
     const updated = await db.updateEvent(eventId, {
       title,
       description,
@@ -1006,11 +1007,11 @@ app.put('/api/events/:id', authenticateToken, requireProfessor, async (req, res)
       type,
       status
     }, instructorId);
-    
+
     if (!updated) {
       return res.status(404).json({ error: 'Evento no encontrado o sin permisos' });
     }
-    
+
     const event = await db.getEventById(eventId);
     res.json(event);
   } catch (error) {
@@ -1024,13 +1025,13 @@ app.delete('/api/events/:id', authenticateToken, requireProfessor, async (req, r
   try {
     const eventId = req.params.id;
     const instructorId = req.user.userId;
-    
+
     const deleted = await db.deleteEvent(eventId, instructorId);
-    
+
     if (!deleted) {
       return res.status(404).json({ error: 'Evento no encontrado o sin permisos' });
     }
-    
+
     res.json({ message: 'Evento eliminado correctamente' });
   } catch (error) {
     console.error('Error al eliminar evento:', error);
@@ -1048,14 +1049,14 @@ app.get('/api/quizzes', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     const userType = req.user.tipo;
     const courseId = req.query.courseId;
-    
+
     let quizzes;
     if (userType === 'profesor' || userType === 'admin') {
       quizzes = await db.getQuizzesForProfessor(userId, courseId);
     } else {
       quizzes = await db.getQuizzesForStudent(userId, courseId);
     }
-    
+
     res.json(quizzes);
   } catch (error) {
     console.error('Error al obtener quizzes:', error);
@@ -1068,11 +1069,11 @@ app.post('/api/quizzes', authenticateToken, requireProfessor, async (req, res) =
   try {
     const { title, description, courseId, timeLimit, attemptsAllowed, passingScore, questions } = req.body;
     const instructorId = req.user.userId;
-    
+
     if (!title || !courseId || !questions || questions.length === 0) {
       return res.status(400).json({ error: 'Faltan campos obligatorios' });
     }
-    
+
     const quizId = await db.createQuiz({
       title,
       description,
@@ -1083,7 +1084,7 @@ app.post('/api/quizzes', authenticateToken, requireProfessor, async (req, res) =
       passingScore: passingScore || 70,
       questions
     });
-    
+
     const newQuiz = await db.getQuizById(quizId);
     res.status(201).json(newQuiz);
   } catch (error) {
@@ -1097,13 +1098,13 @@ app.get('/api/quizzes/:id', authenticateToken, async (req, res) => {
   try {
     const quizId = req.params.id;
     const userId = req.user.userId;
-    
+
     const quiz = await db.getQuizWithQuestions(quizId, userId);
-    
+
     if (!quiz) {
       return res.status(404).json({ error: 'Quiz no encontrado' });
     }
-    
+
     res.json(quiz);
   } catch (error) {
     console.error('Error al obtener quiz:', error);
@@ -1117,13 +1118,13 @@ app.post('/api/quizzes/:id/submit', authenticateToken, async (req, res) => {
     const quizId = req.params.id;
     const userId = req.user.userId;
     const { answers, timeSpent } = req.body;
-    
+
     if (!answers) {
       return res.status(400).json({ error: 'Las respuestas son obligatorias' });
     }
-    
+
     const result = await db.submitQuizAttempt(quizId, userId, answers, timeSpent);
-    
+
     res.json(result);
   } catch (error) {
     console.error('Error al enviar quiz:', error);
@@ -1137,7 +1138,7 @@ app.get('/api/quizzes/:id/attempts', authenticateToken, async (req, res) => {
     const quizId = req.params.id;
     const userId = req.user.userId;
     const userType = req.user.tipo;
-    
+
     let attempts;
     if (userType === 'profesor' || userType === 'admin') {
       // Los profesores ven todos los intentos
@@ -1146,7 +1147,7 @@ app.get('/api/quizzes/:id/attempts', authenticateToken, async (req, res) => {
       // Los estudiantes solo ven sus intentos
       attempts = await db.getUserQuizAttempts(quizId, userId);
     }
-    
+
     res.json(attempts);
   } catch (error) {
     console.error('Error al obtener intentos:', error);
@@ -1163,7 +1164,7 @@ app.get('/api/forum/posts', authenticateToken, async (req, res) => {
   try {
     // Por ahora retornamos array vacío, más tarde implementar en DB
     res.json([]);
-    
+
     // TODO: Implementar tabla de posts en la DB
     // const posts = await db.getForumPosts();
     // res.json(posts);
@@ -1178,7 +1179,7 @@ app.post('/api/forum/posts', authenticateToken, async (req, res) => {
   try {
     const { title, content, category, tags, courseId } = req.body;
     const userId = req.user.userId;
-    
+
     // TODO: Implementar creación de posts en DB
     const newPost = {
       id: Date.now(),
@@ -1197,7 +1198,7 @@ app.post('/api/forum/posts', authenticateToken, async (req, res) => {
       createdAt: new Date(),
       updatedAt: new Date()
     };
-    
+
     res.status(201).json(newPost);
   } catch (error) {
     console.error('Error al crear post:', error);
@@ -1213,7 +1214,7 @@ app.post('/api/forum/posts', authenticateToken, async (req, res) => {
 app.get('/api/gamification/stats', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
-    
+
     // Por ahora retornamos datos básicos, más tarde implementar en DB
     const stats = {
       totalPoints: 0,
@@ -1229,9 +1230,9 @@ app.get('/api/gamification/stats', authenticateToken, async (req, res) => {
       badges: [],
       achievements: []
     };
-    
+
     res.json(stats);
-    
+
     // TODO: Implementar tablas de gamificación en la DB
     // const stats = await db.getUserGamificationStats(userId);
     // res.json(stats);
@@ -1249,11 +1250,11 @@ app.get('/api/gamification/stats', authenticateToken, async (req, res) => {
 app.get('/api/analytics', authenticateToken, async (req, res) => {
   try {
     const userType = req.user.tipo;
-    
+
     if (userType !== 'profesor' && userType !== 'admin') {
       return res.status(403).json({ error: 'Acceso denegado' });
     }
-    
+
     // Por ahora retornamos datos básicos, más tarde implementar en DB
     const analytics = {
       overview: {
@@ -1270,9 +1271,9 @@ app.get('/api/analytics', authenticateToken, async (req, res) => {
       quizAnalytics: [],
       revenueData: []
     };
-    
+
     res.json(analytics);
-    
+
     // TODO: Implementar cálculos reales de analytics
   } catch (error) {
     console.error('Error al obtener analytics:', error);
@@ -1307,7 +1308,7 @@ app.delete('/api/admin/users/:id', authenticateToken, async (req, res) => {
     }
 
     const userId = parseInt(req.params.id);
-    
+
     // No permitir que el admin se elimine a sí mismo
     if (userId === req.user.userId) {
       return res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
@@ -1346,7 +1347,7 @@ app.get('/api/admin/stats', authenticateToken, async (req, res) => {
 
     const users = await db.getAllUsers();
     const courses = await db.getAllCourses();
-    
+
     const stats = {
       totalUsers: users.length,
       activeUsers: users.filter(u => u.activo !== false).length,
@@ -1398,10 +1399,10 @@ app.put('/api/profile', authenticateToken, async (req, res) => {
     }
 
     await db.updateUser(userId, { nombre, email, telefono, biografia });
-    
+
     const updatedUser = await db.getUserById(userId);
     const { password, ...userWithoutPassword } = updatedUser;
-    
+
     res.json({
       message: 'Perfil actualizado correctamente',
       user: userWithoutPassword
@@ -1563,15 +1564,15 @@ app.get('/api/admin/activity-stats', authenticateToken, async (req, res) => {
     logs.forEach(log => {
       // Por tipo de acción
       stats.byActionType[log.action_type] = (stats.byActionType[log.action_type] || 0) + 1;
-      
+
       // Por rol de usuario
       stats.byUserRole[log.user_role] = (stats.byUserRole[log.user_role] || 0) + 1;
-      
+
       // Por tipo de entidad
       if (log.entity_type) {
         stats.byEntityType[log.entity_type] = (stats.byEntityType[log.entity_type] || 0) + 1;
       }
-      
+
       // Usuarios más activos
       stats.topUsers[log.user_name] = (stats.topUsers[log.user_name] || 0) + 1;
     });
@@ -1605,7 +1606,7 @@ io.on('connection', (socket) => {
   // Enviar mensaje al curso
   socket.on('send-message', (data) => {
     const { courseId, message, userId, userName, timestamp } = data;
-    
+
     // Emitir el mensaje a todos los usuarios en la sala del curso
     io.to(`course-${courseId}`).emit('new-message', {
       id: Date.now(),
@@ -1631,7 +1632,7 @@ server.listen(PORT, () => {
   logger.info(`Entorno: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`Base de datos: SQLite iniciada`);
   logger.info(`Socket.IO habilitado para chat en tiempo real`);
-  
+
   if (process.env.NODE_ENV !== 'production') {
     console.log(`\n🚀 Servidor ejecutándose en puerto ${PORT}`);
     console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);

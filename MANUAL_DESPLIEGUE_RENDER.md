@@ -1,4 +1,5 @@
 # 🚀 MANUAL DE DESPLIEGUE EN RENDER.COM (GRATIS)
+
 ## Escuela de Norma - Despliegue Gratuito
 
 ---
@@ -149,6 +150,7 @@ Render puede leer el archivo `render.yaml` y desplegar todo automáticamente:
 ### 4.2 Esperar el Deploy
 
 Render va a:
+
 - Crear la base de datos PostgreSQL
 - Desplegar el backend
 - Desplegar el frontend
@@ -177,7 +179,7 @@ MERCADOPAGO_PUBLIC_KEY=APP_USR-0e6b9b97-3c0f-4d69-8a07-9c9ba3fc8769
 ### 5.2 Obtener URL del Backend
 
 1. En el servicio backend, copia la URL (algo como: `https://escuela-norma-backend.onrender.com`)
-2. Guárdala: ________________________________
+2. Guárdala: **************\_\_\_\_**************
 
 ### 5.3 Actualizar URL del Backend en el Frontend
 
@@ -240,7 +242,7 @@ Necesitas crear un usuario admin inicial. Hay dos formas:
 3. Cópialo y ejecútalo en tu terminal (necesitas PostgreSQL instalado)
 4. Ejecuta:
    ```sql
-   INSERT INTO users (name, email, password, role) 
+   INSERT INTO users (name, email, password, role)
    VALUES ('Admin', 'admin@escuelanorma.com', '$2b$10$...', 'admin');
    ```
 
@@ -309,6 +311,7 @@ Puedes usar un servicio gratuito como **UptimeRobot** para "pingear" tu backend 
 ### Problema: Backend no inicia
 
 **Solución**:
+
 1. Revisa los logs en Render
 2. Verifica que `package.json` tenga el script `start`
 3. Verifica que todas las variables de entorno estén configuradas
@@ -316,6 +319,7 @@ Puedes usar un servicio gratuito como **UptimeRobot** para "pingear" tu backend 
 ### Problema: Frontend no se conecta al Backend
 
 **Solución**:
+
 1. Verifica que `VITE_API_URL` sea correcta (debe terminar en `/api`)
 2. Verifica CORS en el backend
 3. Revisa la consola del navegador (F12) para ver errores
@@ -323,6 +327,7 @@ Puedes usar un servicio gratuito como **UptimeRobot** para "pingear" tu backend 
 ### Problema: Error de Base de Datos
 
 **Solución**:
+
 1. Verifica que la DB esté running en Render
 2. Verifica que `DATABASE_URL` esté configurada en el backend
 3. Ejecuta el script de inicialización si no lo hiciste
@@ -330,6 +335,7 @@ Puedes usar un servicio gratuito como **UptimeRobot** para "pingear" tu backend 
 ### Problema: "Service Unavailable" o 503
 
 **Solución**:
+
 - Es normal si el servicio estaba dormido
 - Espera 30-50 segundos
 - Recarga la página
@@ -358,6 +364,7 @@ Puedes usar un servicio gratuito como **UptimeRobot** para "pingear" tu backend 
 ### Cuando hagas cambios en el código:
 
 1. En tu computadora:
+
    ```powershell
    git add .
    git commit -m "Descripción de cambios"
@@ -414,10 +421,12 @@ Si tienes un dominio propio (ej: `escuelanorma.com`):
 ## 📞 SOPORTE
 
 ### Render
+
 - Documentación: https://render.com/docs
 - Comunidad: https://community.render.com
 
 ### Tu Proyecto
+
 - Repositorio: https://github.com/Lisandro1313/EscuelaDeNorma
 
 ---
@@ -427,10 +436,12 @@ Si tienes un dominio propio (ej: `escuelanorma.com`):
 Tu plataforma está en línea **GRATIS** y lista para mostrarle a tu cliente.
 
 **URLs a compartir**:
+
 - 🌐 Plataforma: `https://escuela-norma-frontend.onrender.com`
 - 🔐 Usuario Admin: (el que creaste)
 
-**Recuerda**: 
+**Recuerda**:
+
 - Primera carga después de inactividad: 30-50 seg (normal)
 - Después funciona rápido
 - Si necesitas que esté siempre activo: UptimeRobot (paso 9.1)
