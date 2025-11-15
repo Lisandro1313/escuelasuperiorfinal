@@ -5,7 +5,7 @@ services:
     env: node
     region: oregon
     plan: free
-    buildCommand: cd backend && npm install && cd .. && npm install
+    buildCommand: bash install.sh
     startCommand: cd backend && npm start
     healthCheckPath: /api/health
     envVars:
