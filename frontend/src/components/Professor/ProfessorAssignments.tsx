@@ -76,7 +76,8 @@ export const ProfessorAssignments: React.FC<Props> = ({ courseId }) => {
       setLoading(true);
       await createAssignment({
         course_id: courseId,
-        ...formData
+        ...formData,
+        attachments: formData.attachments || undefined
       });
       setIsCreating(false);
       setFormData({
