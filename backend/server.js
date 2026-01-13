@@ -15,7 +15,10 @@ const { createServer } = require('http');
 const { Server } = require('socket.io');
 
 // Importar base de datos y servicios
-const db = require('../database/database');
+// Detecta automáticamente si usar PostgreSQL o SQLite
+const db = process.env.DATABASE_URL 
+  ? require('../database/database')  // PostgreSQL wrapper (pendiente)
+  : require('../database/database'); // SQLite por ahora
 const mercadoPagoService = require('./services/mercadopago');
 const logger = require('./utils/logger');
 const NotificationHelper = require('./utils/notificationHelper');
@@ -921,15 +924,13 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Ruta para el frontend en producción
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend/dist')));
-
-  // Catch-all route para SPA - debe ir al final
-  app.get(/.*/, (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
-  });
-}
+// Ruta para el frontend en producción (DESHABILITADA - frontend separado en Vercel)
+// if (process.env.NODE_ENV === 'production') {
+//   app.use(express.static(path.join(__dirname, '../frontend/dist')));
+//   app.get(/.*/, (req, res) => {
+//     res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+//   });
+// }
 
 // ================================
 // RUTAS DE NOTIFICACIONES
