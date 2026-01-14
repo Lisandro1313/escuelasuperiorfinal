@@ -53,7 +53,7 @@ app.use('/api/', limiter);
 // Rate limiting más estricto para login/register
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5, // máximo 5 intentos
+  max: process.env.NODE_ENV === 'production' ? 5 : 50, // 50 intentos en desarrollo
   message: 'Demasiados intentos de acceso, por favor intente más tarde.',
 });
 
@@ -279,6 +279,33 @@ app.get('/api/courses', async (req, res) => {
   }
 });
 
+// Obtener cursos del profesor logueado - DEBE IR ANTES DE /api/courses/:id
+app.get('/api/courses/my-courses', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const courses = await db.getCoursesByProfessor(req.user.userId);
+
+    // Contar estudiantes por curso
+    const coursesWithStats = await Promise.all(courses.map(async (course) => {
+      const enrollments = await db.getCourseEnrollments(course.id);
+      return {
+        ...course,
+        estudiantes: enrollments.length
+      };
+    }));
+
+    res.json({
+      success: true,
+      courses: coursesWithStats
+    });
+  } catch (error) {
+    console.error('Error al obtener cursos del profesor:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
+  }
+});
+
 // Obtener curso por ID
 app.get('/api/courses/:id', async (req, res) => {
   try {
@@ -325,33 +352,6 @@ app.post('/api/courses', authenticateToken, requireProfessor, async (req, res) =
   } catch (error) {
     console.error('Error al crear curso:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-// Obtener cursos del profesor logueado
-app.get('/api/courses/my-courses', authenticateToken, requireProfessor, async (req, res) => {
-  try {
-    const courses = await db.getCoursesByProfessor(req.user.userId);
-
-    // Contar estudiantes por curso
-    const coursesWithStats = await Promise.all(courses.map(async (course) => {
-      const enrollments = await db.getCourseEnrollments(course.id);
-      return {
-        ...course,
-        estudiantes: enrollments.length
-      };
-    }));
-
-    res.json({
-      success: true,
-      courses: coursesWithStats
-    });
-  } catch (error) {
-    console.error('Error al obtener cursos del profesor:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Error interno del servidor'
-    });
   }
 });
 
