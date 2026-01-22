@@ -1228,6 +1228,175 @@ class Database {
     });
   }
 
+  // ================================
+  // MÉTODOS PARA CHAT DE CURSO
+  // ================================
+
+  getCourseMessages(courseId) {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT cm.*, u.nombre as user_name 
+        FROM course_messages cm
+        LEFT JOIN users u ON cm.user_id = u.id
+        WHERE cm.course_id = ?
+        ORDER BY cm.timestamp ASC
+      `;
+      this.db.all(sql, [courseId], (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows || []);
+        }
+      });
+    });
+  }
+
+  createCourseMessage(messageData) {
+    return new Promise((resolve, reject) => {
+      const { course_id, user_id, message, timestamp } = messageData;
+      const sql = `INSERT INTO course_messages (course_id, user_id, message, timestamp) VALUES (?, ?, ?, ?)`;
+      
+      this.db.run(sql, [course_id, user_id, message, timestamp], function(err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve({ id: this.lastID, ...messageData });
+        }
+      });
+    });
+  }
+
+  // ================================
+  // MÉTODOS PARA RECURSOS DEL CURSO
+  // ================================
+
+  getCourseResources(courseId) {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT cr.*, u.nombre as uploaded_by_name 
+        FROM course_resources cr
+        LEFT JOIN users u ON cr.uploaded_by = u.id
+        WHERE cr.course_id = ?
+        ORDER BY cr.created_at DESC
+      `;
+      this.db.all(sql, [courseId], (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows || []);
+        }
+      });
+    });
+  }
+
+  createCourseResource(resourceData) {
+    return new Promise((resolve, reject) => {
+      const { course_id, title, description, type, url, uploaded_by } = resourceData;
+      const sql = `
+        INSERT INTO course_resources (course_id, title, description, type, url, uploaded_by, created_at) 
+        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+      `;
+      
+      this.db.run(sql, [course_id, title, description, type, url, uploaded_by], function(err) {
+        if (err) {
+          reject(err);
+        } else {
+          resolve({ id: this.lastID, ...resourceData });
+        }
+      });
+    });
+  }
+
+  // ================================
+  // MÉTODOS PARA CALIFICACIONES
+  // ================================
+
+  getCourseGrades(courseId) {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT g.*, u.nombre as student_name, p.nombre as professor_name, c.nombre as course_name
+        FROM grades g
+        LEFT JOIN users u ON g.user_id = u.id
+        LEFT JOIN users p ON g.professor_id = p.id
+        LEFT JOIN courses c ON g.course_id = c.id
+        WHERE g.course_id = ?
+        ORDER BY g.created_at DESC
+      `;
+      this.db.all(sql, [courseId], (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows || []);
+        }
+      });
+    });
+  }
+
+  getUserCourseGrades(courseId, userId) {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT g.*, p.nombre as professor_name, c.nombre as course_name
+        FROM grades g
+        LEFT JOIN users p ON g.professor_id = p.id
+        LEFT JOIN courses c ON g.course_id = c.id
+        WHERE g.course_id = ? AND g.user_id = ?
+        ORDER BY g.created_at DESC
+      `;
+      this.db.all(sql, [courseId, userId], (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows || []);
+        }
+      });
+    });
+  }
+
+  createOrUpdateGrade(gradeData) {
+    return new Promise((resolve, reject) => {
+      const { course_id, user_id, professor_id, grade, feedback, assignment_type } = gradeData;
+      
+      // Primero verificar si ya existe una calificación
+      const checkSql = `SELECT id FROM grades WHERE course_id = ? AND user_id = ? AND assignment_type = ?`;
+      
+      this.db.get(checkSql, [course_id, user_id, assignment_type || 'general'], (err, row) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        if (row) {
+          // Actualizar calificación existente
+          const updateSql = `
+            UPDATE grades 
+            SET grade = ?, feedback = ?, professor_id = ?, updated_at = datetime('now')
+            WHERE id = ?
+          `;
+          this.db.run(updateSql, [grade, feedback, professor_id, row.id], function(err) {
+            if (err) {
+              reject(err);
+            } else {
+              resolve({ id: row.id, ...gradeData, updated: true });
+            }
+          });
+        } else {
+          // Crear nueva calificación
+          const insertSql = `
+            INSERT INTO grades (course_id, user_id, professor_id, grade, feedback, assignment_type, created_at) 
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+          `;
+          this.db.run(insertSql, [course_id, user_id, professor_id, grade, feedback, assignment_type || 'general'], function(err) {
+            if (err) {
+              reject(err);
+            } else {
+              resolve({ id: this.lastID, ...gradeData, created: true });
+            }
+          });
+        }
+      });
+    });
+  }
+
   close() {
     return new Promise((resolve) => {
       this.db.close((err) => {

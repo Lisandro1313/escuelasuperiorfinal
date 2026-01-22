@@ -3,17 +3,14 @@ import { useAuth } from '../../context/AuthContext';
 import socketService from '../../services/socket';
 
 interface Notification {
-  id: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  id: number;
+  type: string;
   title: string;
   message: string;
-  timestamp: Date;
+  timestamp: string;
   read: boolean;
-  icon: string;
-  action?: {
-    label: string;
-    url: string;
-  };
+  icon?: string;
+  action_url?: string;
 }
 
 const NotificationCenter: React.FC = () => {
@@ -86,9 +83,10 @@ const NotificationCenter: React.FC = () => {
     }
   };
 
-  const formatTimeAgo = (timestamp: Date) => {
+  const formatTimeAgo = (timestamp: string) => {
     const now = new Date();
-    const diff = now.getTime() - timestamp.getTime();
+    const date = new Date(timestamp);
+    const diff = now.getTime() - date.getTime();
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
@@ -99,7 +97,7 @@ const NotificationCenter: React.FC = () => {
     return `${days}d`;
   };
 
-  const markAsRead = async (notificationId: string) => {
+  const markAsRead = async (notificationId: number) => {
     try {
       const response = await fetch(`http://localhost:5000/api/notifications/${notificationId}/read`, {
         method: 'PUT',
@@ -141,7 +139,7 @@ const NotificationCenter: React.FC = () => {
     }
   };
 
-  const deleteNotification = async (notificationId: string) => {
+  const deleteNotification = async (notificationId: number) => {
     try {
       const response = await fetch(`http://localhost:5000/api/notifications/${notificationId}`, {
         method: 'DELETE',
@@ -218,7 +216,7 @@ const NotificationCenter: React.FC = () => {
                 >
                   <div className="flex items-start space-x-3">
                     <div className={`p-2 rounded-full ${getTypeColor(notification.type)}`}>
-                      <span>{notification.icon}</span>
+                      <span>{notification.icon || '📢'}</span>
                     </div>
                     
                     <div className="flex-1 min-w-0">
@@ -233,10 +231,13 @@ const NotificationCenter: React.FC = () => {
                             {notification.message}
                           </p>
                           
-                          {notification.action && (
-                            <button className="mt-2 text-xs text-blue-600 hover:text-blue-800">
-                              {notification.action.label}
-                            </button>
+                          {notification.action_url && (
+                            <a 
+                              href={notification.action_url}
+                              className="mt-2 text-xs text-blue-600 hover:text-blue-800 block"
+                            >
+                              Ver más →
+                            </a>
                           )}
                         </div>
                         

@@ -86,6 +86,7 @@ const Navbar: React.FC = () => {
                     <Link to="/certificados" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">🏆 Certificados</Link>
                     <Link to="/foros" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">💬 Foros</Link>
                     <Link to="/gamificacion" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">🎮 Gamificación</Link>
+                    <Link to="/about-system" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 border-t">ℹ️ Sobre el Sistema</Link>
                     {usuario?.tipo === 'admin' && (
                       <>
                         <Link to="/admin" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 border-t">🏛️ Panel Admin</Link>

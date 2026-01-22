@@ -99,6 +99,14 @@ CREATE TABLE IF NOT EXISTS lesson_progress (
 INSERT OR IGNORE INTO users (id, email, password, nombre, tipo) VALUES 
 (1, 'admin@campusnorma.com', '$2b$10$8K1p/a0drcZmxSLb4fA.M.QtJ5mKGf5L4tGe8/W9/WkVb2kP7mKOy', 'Administrador', 'admin');
 
+-- Inscripciones de ejemplo para Ana López (usuario 3) en cursos gratuitos
+-- Nota: Estos INSERT se ejecutarán si existen los cursos y el usuario
+INSERT OR IGNORE INTO enrollments (user_id, course_id, progress, enrolled_at) 
+SELECT 3, 1, 25, datetime('now', '-5 days') WHERE EXISTS (SELECT 1 FROM users WHERE id = 3) AND EXISTS (SELECT 1 FROM courses WHERE id = 1 AND precio = 0);
+
+INSERT OR IGNORE INTO enrollments (user_id, course_id, progress, enrolled_at) 
+SELECT 3, 2, 60, datetime('now', '-10 days') WHERE EXISTS (SELECT 1 FROM users WHERE id = 3) AND EXISTS (SELECT 1 FROM courses WHERE id = 2 AND precio = 0);
+
 -- Tabla de eventos/calendario
 CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -388,4 +396,92 @@ CREATE TABLE IF NOT EXISTS activity_logs (
 CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_date ON activity_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_type ON activity_logs(action_type);
+
+-- ================================
+-- TABLAS PARA CHAT DE CURSO
+-- ================================
+
+CREATE TABLE IF NOT EXISTS course_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    message TEXT NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_course_messages_course ON course_messages(course_id);
+CREATE INDEX IF NOT EXISTS idx_course_messages_timestamp ON course_messages(timestamp);
+
+-- ================================
+-- TABLAS PARA RECURSOS DEL CURSO
+-- ================================
+
+CREATE TABLE IF NOT EXISTS course_resources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    type VARCHAR(50) NOT NULL, -- 'pdf', 'video', 'link', 'document', etc.
+    url TEXT NOT NULL,
+    uploaded_by INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+    FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_course_resources_course ON course_resources(course_id);
+
+-- ================================
+-- TABLAS PARA CALIFICACIONES
+-- ================================
+
+CREATE TABLE IF NOT EXISTS grades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    professor_id INTEGER NOT NULL,
+    grade DECIMAL(5,2) NOT NULL,
+    feedback TEXT,
+    assignment_type VARCHAR(100) DEFAULT 'general', -- 'quiz', 'assignment', 'exam', 'general'
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (professor_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_grades_course ON grades(course_id);
+CREATE INDEX IF NOT EXISTS idx_grades_user ON grades(user_id);
+CREATE INDEX IF NOT EXISTS idx_grades_course_user ON grades(course_id, user_id);
+
+-- ================================
+-- TABLAS PARA NOTIFICACIONES
+-- ================================
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    tipo VARCHAR(100) NOT NULL, -- 'inscripcion', 'mensaje', 'calificacion', 'recurso', etc.
+    titulo VARCHAR(255) NOT NULL,
+    mensaje TEXT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    type VARCHAR(50) DEFAULT 'info',
+    related_type VARCHAR(50),
+    related_id INTEGER,
+    leida BOOLEAN DEFAULT 0,
+    read BOOLEAN DEFAULT 0,
+    relacionado_id INTEGER, -- ID del elemento relacionado (curso, mensaje, etc.)
+    relacionado_tipo VARCHAR(50), -- 'course', 'message', 'grade', etc.
+    action_url VARCHAR(500),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    read_at DATETIME,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_leida ON notifications(leida);
+CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
 

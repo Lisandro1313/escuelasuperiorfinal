@@ -131,20 +131,41 @@ const CourseViewer: React.FC = () => {
   const markLessonComplete = async (lessonId: number) => {
     try {
       const token = localStorage.getItem('token');
-      await fetch(`http://localhost:5000/api/lessons/${lessonId}/complete`, {
+      const response = await fetch(`http://localhost:5000/api/lessons/${lessonId}/complete`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      // Actualizar progreso local
-      setProgress(prev => prev.map(moduleProgress => ({
-        ...moduleProgress,
-        lessons: moduleProgress.lessons.map(lesson => 
-          lesson.lessonId === lessonId 
-            ? { ...lesson, completed: true }
-            : lesson
-        )
-      })));
+      if (response.ok) {
+        // Actualizar progreso local
+        setProgress(prev => prev.map(moduleProgress => ({
+          ...moduleProgress,
+          lessons: moduleProgress.lessons.map(lesson => 
+            lesson.lessonId === lessonId 
+              ? { ...lesson, completed: true }
+              : lesson
+          )
+        })));
+
+        // Recargar el progreso del curso desde el servidor
+        const progressResponse = await fetch(`http://localhost:5000/api/courses/${id}/progress`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (progressResponse.ok) {
+          const updatedProgress = await progressResponse.json();
+          console.log('✅ Progreso del curso actualizado:', updatedProgress);
+          
+          // Actualizar el progreso en el AuthContext
+          if (updatedProgress.courseProgress !== undefined) {
+            console.log(`📊 Nuevo progreso: ${updatedProgress.courseProgress}%`);
+            // Importar y usar el contexto para actualizar
+            window.dispatchEvent(new CustomEvent('courseProgressUpdated', {
+              detail: { courseId: id, progress: updatedProgress.courseProgress }
+            }));
+          }
+        }
+      }
     } catch (error) {
       console.error('Error al marcar lección como completada:', error);
     }
