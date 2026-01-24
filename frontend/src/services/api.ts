@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Configuración del API - cambia automáticamente entre desarrollo y producción
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 // Crear instancia de axios con configuración base
 const api = axios.create({
@@ -42,7 +42,7 @@ api.interceptors.response.use(
 // Servicios de autenticación
 export const authService = {
   login: async (email: string, password: string) => {
-    const response = await api.post('/auth/login', { email, password });
+    const response = await api.post('/api/auth/login', { email, password });
     const { user, token } = response.data;
     
     localStorage.setItem('token', token);
@@ -57,7 +57,7 @@ export const authService = {
       requestData.teacherCode = teacherCode;
     }
     
-    const response = await api.post('/auth/register', requestData);
+    const response = await api.post('/api/auth/register', requestData);
     const { user, token } = response.data;
     
     localStorage.setItem('token', token);
@@ -72,7 +72,7 @@ export const authService = {
   },
 
   getCurrentUser: async () => {
-    const response = await api.get('/users/me');
+    const response = await api.get('/api/users/me');
     return response.data;
   }
 };
@@ -80,87 +80,87 @@ export const authService = {
 // Servicios de cursos
 export const courseService = {
   getAllCourses: async () => {
-    const response = await api.get('/courses');
+    const response = await api.get('/api/courses');
     return response.data;
   },
 
   getCourse: async (id: number) => {
-    const response = await api.get(`/courses/${id}`);
+    const response = await api.get(`/api/courses/${id}`);
     return response.data;
   },
 
   createCourse: async (courseData: any) => {
-    const response = await api.post('/courses', courseData);
+    const response = await api.post('/api/courses', courseData);
     return response.data;
   },
 
   enrollCourse: async (id: number) => {
-    const response = await api.post(`/courses/${id}/enroll`);
+    const response = await api.post(`/api/courses/${id}/enroll`);
     return response.data;
   },
 
   getCourseClasses: async (id: number) => {
-    const response = await api.get(`/courses/${id}/classes`);
+    const response = await api.get(`/api/courses/${id}/classes`);
     return response.data;
   },
 
   // Gestión de contenido del curso
   getCourseContent: async (id: number) => {
-    const response = await api.get(`/courses/${id}/content`);
+    const response = await api.get(`/api/courses/${id}/content`);
     return response.data;
   },
 
   publishCourse: async (id: number, publicado: boolean) => {
-    const response = await api.put(`/courses/${id}/publish`, { publicado });
+    const response = await api.put(`/api/courses/${id}/publish`, { publicado });
     return response.data;
   },
 
   // Módulos
   getModules: async (courseId: number) => {
-    const response = await api.get(`/courses/${courseId}/modules`);
+    const response = await api.get(`/api/courses/${courseId}/modules`);
     return response.data;
   },
 
   createModule: async (courseId: number, moduleData: any) => {
-    const response = await api.post(`/courses/${courseId}/modules`, moduleData);
+    const response = await api.post(`/api/courses/${courseId}/modules`, moduleData);
     return response.data;
   },
 
   updateModule: async (moduleId: number, moduleData: any) => {
-    const response = await api.put(`/modules/${moduleId}`, moduleData);
+    const response = await api.put(`/api/modules/${moduleId}`, moduleData);
     return response.data;
   },
 
   // Lecciones
   getLessons: async (moduleId: number) => {
-    const response = await api.get(`/modules/${moduleId}/lessons`);
+    const response = await api.get(`/api/modules/${moduleId}/lessons`);
     return response.data;
   },
 
   createLesson: async (moduleId: number, lessonData: any) => {
-    const response = await api.post(`/modules/${moduleId}/lessons`, lessonData);
+    const response = await api.post(`/api/modules/${moduleId}/lessons`, lessonData);
     return response.data;
   },
 
   updateLesson: async (lessonId: number, lessonData: any) => {
-    const response = await api.put(`/lessons/${lessonId}`, lessonData);
+    const response = await api.put(`/api/lessons/${lessonId}`, lessonData);
     return response.data;
   },
 
   // Recursos
   addResource: async (lessonId: number, resourceData: any) => {
-    const response = await api.post(`/lessons/${lessonId}/resources`, resourceData);
+    const response = await api.post(`/api/lessons/${lessonId}/resources`, resourceData);
     return response.data;
   },
 
   // Progreso
   markLessonComplete: async (lessonId: number, tiempoVisto?: number) => {
-    const response = await api.post(`/lessons/${lessonId}/complete`, { tiempoVisto });
+    const response = await api.post(`/api/lessons/${lessonId}/complete`, { tiempoVisto });
     return response.data;
   },
 
   getCourseProgress: async (courseId: number) => {
-    const response = await api.get(`/courses/${courseId}/progress`);
+    const response = await api.get(`/api/courses/${courseId}/progress`);
     return response.data;
   }
 };
@@ -168,7 +168,7 @@ export const courseService = {
 // Servicios de clases
 export const classService = {
   reserveClass: async (classId: number) => {
-    const response = await api.post(`/classes/${classId}/reserve`);
+    const response = await api.post(`/api/classes/${classId}/reserve`);
     return response.data;
   }
 };
@@ -179,7 +179,7 @@ export const fileService = {
     const formData = new FormData();
     formData.append('file', file);
     
-    const response = await api.post('/upload', formData, {
+    const response = await api.post('/api/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -192,7 +192,7 @@ export const fileService = {
 // Servicio para verificar salud del servidor
 export const healthService = {
   checkHealth: async () => {
-    const response = await api.get('/health');
+    const response = await api.get('/api/health');
     return response.data;
   }
 };

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import ActivityLogs from './ActivityLogs';
-import { CourseManagement } from '../CourseManagement';
+import CourseManagement from '../CourseManagement';
 
 interface SystemStats {
   totalUsers: number;

@@ -51,21 +51,55 @@ export const StudentDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchStudentData();
+
+    // Escuchar eventos de actualización de progreso
+    const handleProgressUpdate = (event: any) => {
+      console.log('🔄 Evento de actualización de progreso recibido:', event.detail);
+      fetchStudentData(); // Recargar datos
+    };
+
+    window.addEventListener('courseProgressUpdated', handleProgressUpdate);
+
+    return () => {
+      window.removeEventListener('courseProgressUpdated', handleProgressUpdate);
+    };
   }, []);
 
   const fetchStudentData = async () => {
     try {
-      const [cursosRes, progresoRes, logrosRes, notifRes] = await Promise.all([
-        api.get('/student/courses'),
-        api.get('/student/progress'),
-        api.get('/student/achievements'),
-        api.get('/student/notifications')
-      ]);
-
-      setCursos(cursosRes.data || []);
-      setProgreso(progresoRes.data || []);
-      setLogros(logrosRes.data || []);
-      setNotificaciones(notifRes.data || []);
+      console.log('🔍 Datos del usuario:', usuario);
+      console.log('📚 Cursos inscritos del usuario:', usuario?.cursosInscritos);
+      
+      // Obtener todos los cursos
+      const cursosRes = await api.get('/courses');
+      const todosCursos = cursosRes.data || [];
+      console.log('📖 Todos los cursos disponibles:', todosCursos.length);
+      
+      // Filtrar solo los cursos en los que está inscrito el estudiante
+      const cursosInscritos = todosCursos.filter((curso: Course) => {
+        const isEnrolled = usuario?.cursosInscritos?.includes(curso.id);
+        if (isEnrolled) {
+          console.log(`✅ Usuario inscrito en: ${curso.nombre} (ID: ${curso.id})`);
+        }
+        return isEnrolled;
+      });
+      
+      console.log('🎓 Total cursos inscritos encontrados:', cursosInscritos.length);
+      setCursos(cursosInscritos);
+      
+      // Calcular progreso basado en los cursos inscritos
+      const progresoData = cursosInscritos.map((curso: Course) => ({
+        cursoId: curso.id,
+        nombreCurso: curso.nombre,
+        progreso: usuario?.progreso?.[curso.id] || 0,
+        ultimaActividad: 'Hace 2 días',
+        proximaClase: undefined
+      }));
+      setProgreso(progresoData);
+      
+      // Por ahora dejamos logros y notificaciones vacías
+      setLogros([]);
+      setNotificaciones([]);
     } catch (error) {
       console.error('Error fetching student data:', error);
     } finally {
@@ -180,22 +214,25 @@ export const StudentDashboard: React.FC = () => {
               {progreso.length > 0 ? (
                 <div className="space-y-4">
                   {progreso.map((curso) => (
-                    <div key={curso.cursoId} className="border rounded-lg p-4">
+                    <div key={curso.cursoId} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="font-medium text-gray-900">{curso.nombreCurso}</h3>
                         <span className="text-sm text-gray-500">{curso.progreso}%</span>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
                         <div 
                           className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                           style={{ width: `${curso.progreso}%` }}
                         ></div>
                       </div>
-                      <div className="flex justify-between text-xs text-gray-500 mt-2">
+                      <div className="flex justify-between items-center text-xs text-gray-500">
                         <span>Última actividad: {curso.ultimaActividad}</span>
-                        {curso.proximaClase && (
-                          <span>Próxima clase: {curso.proximaClase}</span>
-                        )}
+                        <Link
+                          to={`/course/${curso.cursoId}/view`}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                        >
+                          Continuar Aprendiendo →
+                        </Link>
                       </div>
                     </div>
                   ))}

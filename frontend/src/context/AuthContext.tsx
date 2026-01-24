@@ -26,13 +26,14 @@ interface AuthContextType {
   logout: () => void;
   isAuthenticated: boolean;
   actualizarUsuario: (usuarioActualizado: Usuario) => void;
+  actualizarProgresoCurso: (cursoId: number, nuevoProgreso: number) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
@@ -69,6 +70,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const actualizarUsuario = (usuarioActualizado: Usuario) => {
     setUsuario(usuarioActualizado);
+    // También actualizar en localStorage
+    localStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
+  };
+
+  const actualizarProgresoCurso = (cursoId: number, nuevoProgreso: number) => {
+    if (usuario) {
+      const usuarioActualizado = {
+        ...usuario,
+        progreso: {
+          ...usuario.progreso,
+          [cursoId]: nuevoProgreso
+        }
+      };
+      setUsuario(usuarioActualizado);
+      localStorage.setItem('usuario', JSON.stringify(usuarioActualizado));
+      console.log(`📊 Progreso actualizado en contexto: Curso ${cursoId} = ${nuevoProgreso}%`);
+    }
   };
 
   // Verificar si hay usuario en localStorage al cargar
@@ -77,16 +95,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const usuarioGuardado = localStorage.getItem('usuario');
       const token = localStorage.getItem('token');
       
+      console.log('🔐 Verificando autenticación...');
+      console.log('📦 Usuario en localStorage:', usuarioGuardado ? 'Sí' : 'No');
+      console.log('🎫 Token en localStorage:', token ? 'Sí' : 'No');
+      
       if (usuarioGuardado && token) {
         try {
           // Verificar que el token siga siendo válido
+          console.log('🔄 Obteniendo usuario actualizado del servidor...');
           const currentUser = await authService.getCurrentUser();
+          console.log('✅ Usuario obtenido:', currentUser);
+          console.log('📚 Cursos inscritos:', currentUser.cursosInscritos);
           setUsuario(currentUser);
         } catch (error) {
           // Token inválido, limpiar localStorage
+          console.log('❌ Token inválido, limpiando sesión', error);
           authService.logout();
+          setUsuario(null);
         }
+      } else {
+        console.log('⚠️ No hay sesión guardada');
       }
+      setLoading(false);
     };
 
     checkAuth();
@@ -99,7 +129,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     register,
     logout,
     isAuthenticated: !!usuario,
-    actualizarUsuario
+    actualizarUsuario,
+    actualizarProgresoCurso
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

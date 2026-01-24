@@ -19,6 +19,7 @@ import CertificatesPage from './pages/CertificatesPage';
 import ForumPage from './pages/ForumPage';
 import GamificationPage from './pages/GamificationPage';
 import UsersManagement from './pages/UsersManagement';
+import AboutSystemPage from './pages/AboutSystemPage';
 import Profile from './components/Profile/Profile';
 import MisClases from './pages/MisClases';
 import MiProgreso from './pages/MiProgreso';
@@ -30,7 +31,18 @@ import { PaymentSuccess, PaymentFailure, PaymentPending } from './components/Pay
 import Navbar from './components/Layout/Navbar';
 
 function AppContent() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Router>
@@ -105,6 +117,10 @@ function AppContent() {
           <Route 
             path="/gamificacion" 
             element={isAuthenticated ? <div className="bg-gray-50"><GamificationPage /></div> : <Navigate to="/login" />} 
+          />
+          <Route 
+            path="/about-system" 
+            element={isAuthenticated ? <div className="bg-gray-50"><AboutSystemPage /></div> : <Navigate to="/login" />} 
           />
           <Route 
             path="/profile" 

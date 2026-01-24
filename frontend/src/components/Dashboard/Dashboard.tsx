@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { courseService } from '../../services/api';
 import socketService from '../../services/socket';
-import SystemStatus from '../System/SystemStatus';
+
 import { StudentDashboard } from '../Student/StudentDashboard';
 import EnrolledStudents from '../Professor/EnrolledStudents';
 
@@ -62,8 +62,9 @@ const Dashboard: React.FC = () => {
   // Datos específicos según el tipo de usuario
   const getStatsForUser = () => {
     if (usuario?.tipo === 'profesor') {
+      const misCursos = courses.filter(c => c.profesor_id === usuario.id);
       return {
-        cursosActivos: usuario.cursosDictados?.length || 0,
+        cursosActivos: misCursos.length,
         estudiantesTotales: 0, // Se actualizará con datos reales
         proximaClase: "No hay clases programadas",
         ingresosMes: 0 // Se calculará con datos reales
@@ -612,7 +613,7 @@ const Dashboard: React.FC = () => {
                         to={`/course/${curso.id}`}
                         className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded-md text-sm transition duration-200"
                       >
-                        {usuario?.tipo === 'profesor' ? 'Gestionar' : 'Ver Curso'}
+                        {usuario?.tipo === 'profesor' ? 'Ver' : 'Ver Curso'}
                       </Link>
                       {usuario?.tipo === 'profesor' && curso.profesor_id === usuario.id && (
                         <Link
@@ -631,36 +632,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Estado del Sistema */}
-      <div className="mt-8">
-        <SystemStatus />
-      </div>
 
-      {/* Acceso Rápido */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white">
-          <h3 className="text-lg font-semibold mb-2">🎯 Sistema en Tiempo Real</h3>
-          <p className="text-blue-100 mb-4">
-            {usuario?.tipo === 'profesor' 
-              ? 'Conectado con tus estudiantes en tiempo real'
-              : 'Chat, notificaciones y clases en vivo funcionando'
-            }
-          </p>
-          <button className="bg-white text-blue-600 px-4 py-2 rounded-md hover:bg-gray-100 transition duration-200">
-            {usuario?.tipo === 'profesor' ? 'Ver Actividad' : 'Ver Notificaciones'}
-          </button>
-        </div>
-
-        <div className="bg-gradient-to-r from-green-500 to-teal-600 rounded-lg p-6 text-white">
-          <h3 className="text-lg font-semibold mb-2">📈 Backend Completo</h3>
-          <p className="text-green-100 mb-4">
-            JWT, Socket.IO, APIs REST y base de datos funcionando
-          </p>
-          <button className="bg-white text-green-600 px-4 py-2 rounded-md hover:bg-gray-100 transition duration-200">
-            Ver Estadísticas
-          </button>
-        </div>
-      </div>
 
       {/* Modal para Crear Curso */}
       {showCreateCourse && (

@@ -56,7 +56,7 @@ app.use('/api/', limiter);
 // Rate limiting más estricto para login/register
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5, // máximo 5 intentos
+  max: process.env.NODE_ENV === 'production' ? 5 : 50, // 50 intentos en desarrollo
   message: 'Demasiados intentos de acceso, por favor intente más tarde.',
 });
 
@@ -197,9 +197,21 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       userAgent: req.get('user-agent')
     });
 
+    // Obtener cursos inscritos y progreso
+    const enrollments = await db.getUserEnrollments(user.id);
+    const cursosInscritos = enrollments.map(e => e.id);
+    const progreso = {};
+    enrollments.forEach(e => {
+      progreso[e.id] = e.progress || 0;
+    });
+
     const { password: _, ...userWithoutPassword } = user;
     res.json({
-      user: userWithoutPassword,
+      user: {
+        ...userWithoutPassword,
+        cursosInscritos,
+        progreso
+      },
       token
     });
   } catch (error) {
@@ -259,7 +271,11 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
     });
 
     res.status(201).json({
-      user: newUser,
+      user: {
+        ...newUser,
+        cursosInscritos: [],
+        progreso: {}
+      },
       token
     });
   } catch (error) {
@@ -279,6 +295,33 @@ app.get('/api/courses', async (req, res) => {
   } catch (error) {
     console.error('Error al obtener cursos:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Obtener cursos del profesor logueado - DEBE IR ANTES DE /api/courses/:id
+app.get('/api/courses/my-courses', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const courses = await db.getCoursesByProfessor(req.user.userId);
+
+    // Contar estudiantes por curso
+    const coursesWithStats = await Promise.all(courses.map(async (course) => {
+      const enrollments = await db.getCourseEnrollments(course.id);
+      return {
+        ...course,
+        estudiantes: enrollments.length
+      };
+    }));
+
+    res.json({
+      success: true,
+      courses: coursesWithStats
+    });
+  } catch (error) {
+    console.error('Error al obtener cursos del profesor:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error interno del servidor'
+    });
   }
 });
 
@@ -328,33 +371,6 @@ app.post('/api/courses', authenticateToken, requireProfessor, async (req, res) =
   } catch (error) {
     console.error('Error al crear curso:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-// Obtener cursos del profesor logueado
-app.get('/api/courses/my-courses', authenticateToken, requireProfessor, async (req, res) => {
-  try {
-    const courses = await db.getCoursesByProfessor(req.user.userId);
-
-    // Contar estudiantes por curso
-    const coursesWithStats = await Promise.all(courses.map(async (course) => {
-      const enrollments = await db.getCourseEnrollments(course.id);
-      return {
-        ...course,
-        estudiantes: enrollments.length
-      };
-    }));
-
-    res.json({
-      success: true,
-      courses: coursesWithStats
-    });
-  } catch (error) {
-    console.error('Error al obtener cursos del profesor:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Error interno del servidor'
-    });
   }
 });
 
@@ -482,12 +498,250 @@ app.post('/api/courses/:id/enroll', authenticateToken, async (req, res) => {
     // Inscribir al usuario
     await db.enrollUser(userId, courseId);
 
+    // Crear notificación para el profesor
+    if (course.profesor_id) {
+      const Notification = require('./src/models/Notification');
+      const notificationModel = new Notification(db);
+      await notificationModel.create({
+        user_id: course.profesor_id,
+        title: '🎓 Nuevo estudiante inscrito',
+        message: `${req.user.nombre} se ha inscrito en tu curso "${course.nombre}"`,
+        type: 'inscripcion',
+        related_type: 'course',
+        related_id: courseId,
+        action_url: `/course/${courseId}`
+      });
+
+      // Emitir notificación en tiempo real
+      io.emit('newNotification', {
+        userId: course.profesor_id,
+        notification: {
+          id: Date.now(),
+          tipo: 'inscripcion',
+          titulo: '🎓 Nuevo estudiante inscrito',
+          mensaje: `${req.user.nombre} se ha inscrito en tu curso "${course.nombre}"`,
+          timestamp: new Date()
+        }
+      });
+    }
+
     res.json({
       message: 'Inscripción exitosa',
       enrolled: true
     });
   } catch (error) {
     console.error('Error al inscribir usuario:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ================================
+// RUTAS DE CHAT DE CURSO
+// ================================
+
+// Obtener mensajes de un curso
+app.get('/api/courses/:id/messages', authenticateToken, async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const messages = await db.getCourseMessages(courseId);
+    res.json(messages);
+  } catch (error) {
+    console.error('Error al obtener mensajes:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Enviar mensaje a un curso
+app.post('/api/courses/:id/messages', authenticateToken, async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const { message } = req.body;
+    const userId = req.user.userId;
+
+    const newMessage = await db.createCourseMessage({
+      course_id: courseId,
+      user_id: userId,
+      message,
+      timestamp: new Date().toISOString()
+    });
+
+    // Emitir mensaje por Socket.IO
+    io.to(`course-${courseId}`).emit('new-message', {
+      id: newMessage.id,
+      message: newMessage.message,
+      userId: newMessage.user_id,
+      userName: req.user.nombre,
+      timestamp: newMessage.timestamp
+    });
+
+    // Obtener el curso y crear notificaciones para otros participantes
+    const course = await db.getCourseById(courseId);
+    if (course && course.profesor_id && course.profesor_id !== userId) {
+      const Notification = require('./src/models/Notification');
+      const notificationModel = new Notification(db);
+      
+      await notificationModel.create({
+        user_id: course.profesor_id,
+        title: '💬 Nuevo mensaje en el chat',
+        message: `${req.user.nombre} escribió en "${course.nombre}"`,
+        type: 'mensaje',
+        related_type: 'course',
+        related_id: courseId,
+        action_url: `/course/${courseId}`
+      });
+
+      // Emitir notificación en tiempo real
+      io.emit('newNotification', {
+        userId: course.profesor_id,
+        notification: {
+          id: Date.now(),
+          tipo: 'mensaje',
+          titulo: '💬 Nuevo mensaje en el chat',
+          mensaje: `${req.user.nombre} escribió en "${course.nombre}"`,
+          icon: '💬',
+          type: 'info',
+          timestamp: new Date()
+        }
+      });
+    }
+
+    res.status(201).json(newMessage);
+  } catch (error) {
+    console.error('Error al enviar mensaje:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ================================
+// RUTAS DE RECURSOS DEL CURSO
+// ================================
+
+// Obtener recursos de un curso
+app.get('/api/courses/:id/resources', authenticateToken, async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const resources = await db.getCourseResources(courseId);
+    res.json(resources);
+  } catch (error) {
+    console.error('Error al obtener recursos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Agregar recurso a un curso (solo profesores)
+app.post('/api/courses/:id/resources', authenticateToken, requireProfessor, upload.single('file'), async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const { title, description, type, url } = req.body;
+    const userId = req.user.userId;
+
+    // Verificar que el profesor sea dueño del curso
+    const course = await db.getCourseById(courseId);
+    if (!course || course.profesor_id !== userId) {
+      return res.status(403).json({ error: 'No tienes permisos para editar este curso' });
+    }
+
+    let fileUrl = url;
+    if (req.file) {
+      fileUrl = `/uploads/${req.file.filename}`;
+    }
+
+    const resource = await db.createCourseResource({
+      course_id: courseId,
+      title,
+      description,
+      type,
+      url: fileUrl,
+      uploaded_by: userId
+    });
+
+    res.status(201).json(resource);
+  } catch (error) {
+    console.error('Error al agregar recurso:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ================================
+// RUTAS DE CALIFICACIONES
+// ================================
+
+// Obtener calificaciones de un estudiante en un curso
+app.get('/api/courses/:id/grades', authenticateToken, async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const userId = req.user.userId;
+    const userType = req.user.tipo;
+
+    let grades;
+    if (userType === 'profesor' || userType === 'admin') {
+      // Profesores ven todas las calificaciones del curso
+      grades = await db.getCourseGrades(courseId);
+    } else {
+      // Estudiantes solo ven sus calificaciones
+      grades = await db.getUserCourseGrades(courseId, userId);
+    }
+
+    res.json(grades);
+  } catch (error) {
+    console.error('Error al obtener calificaciones:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Agregar o actualizar calificación (solo profesores)
+app.post('/api/courses/:courseId/grades/:userId', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const { courseId, userId } = req.params;
+    const { grade, feedback, assignmentType } = req.body;
+    const professorId = req.user.userId;
+
+    // Verificar que el profesor sea dueño del curso
+    const course = await db.getCourseById(courseId);
+    if (!course || course.profesor_id !== professorId) {
+      return res.status(403).json({ error: 'No tienes permisos para calificar en este curso' });
+    }
+
+    const gradeRecord = await db.createOrUpdateGrade({
+      course_id: courseId,
+      user_id: userId,
+      professor_id: professorId,
+      grade,
+      feedback,
+      assignment_type: assignmentType
+    });
+
+    // Crear notificación para el estudiante
+    const Notification = require('./src/models/Notification');
+    const notificationModel = new Notification(db);
+    
+    await notificationModel.create({
+      user_id: userId,
+      title: '📊 Nueva Calificación',
+      message: `Has recibido una calificación de ${grade} en ${course.nombre}`,
+      type: 'calificacion',
+      related_type: 'grade',
+      related_id: courseId,
+      action_url: `/course/${courseId}`
+    });
+
+    // Emitir notificación en tiempo real
+    io.emit('newNotification', {
+      userId: userId,
+      notification: {
+        id: Date.now(),
+        tipo: 'calificacion',
+        titulo: '📊 Nueva Calificación',
+        mensaje: `Has recibido una calificación de ${grade} en ${course.nombre}`,
+        icon: '📊',
+        type: 'success',
+        timestamp: new Date()
+      }
+    });
+
+    res.status(201).json(gradeRecord);
+  } catch (error) {
+    console.error('Error al guardar calificación:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -1370,6 +1624,37 @@ app.get('/api/admin/stats', authenticateToken, async (req, res) => {
 // ================================
 // RUTAS DE PERFIL DE USUARIO
 // ================================
+
+// Obtener información del usuario actual (usado para verificar token)
+app.get('/api/users/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await db.getUserById(req.user.userId);
+    if (!user) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // Obtener los IDs de cursos inscritos
+    const enrollments = await db.getUserEnrollments(req.user.userId);
+    const cursosInscritos = enrollments.map(e => e.id); // El ID del curso viene directamente
+
+    // Construir objeto de progreso
+    const progreso = {};
+    enrollments.forEach(e => {
+      progreso[e.id] = e.progress || 0;
+    });
+
+    const { password, ...userWithoutPassword } = user;
+    
+    res.json({
+      ...userWithoutPassword,
+      cursosInscritos,
+      progreso
+    });
+  } catch (error) {
+    console.error('Error al obtener usuario:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
 // Obtener perfil del usuario actual
 app.get('/api/profile', authenticateToken, async (req, res) => {
