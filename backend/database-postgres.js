@@ -500,6 +500,33 @@ class Database {
   }
 
   // ==========================================
+  // PROGRESS METHODS
+  // ==========================================
+
+  async getStudentCourseProgress(userId, courseId) {
+    try {
+      const query = `
+        SELECT 
+          COUNT(DISTINCT l.id) as total_lessons,
+          COUNT(DISTINCT CASE WHEN sp.completed = true THEN sp.lesson_id END) as completed_lessons,
+          MAX(sp.last_accessed) as last_activity
+        FROM modules m
+        LEFT JOIN lessons l ON m.id = l.module_id
+        LEFT JOIN student_progress sp ON l.id = sp.lesson_id 
+          AND sp.student_id = $1
+          AND sp.course_id = $2
+        WHERE m.course_id = $3
+      `;
+      
+      const result = await this.pool.query(query, [userId, courseId, courseId]);
+      return result.rows[0] || { total_lessons: 0, completed_lessons: 0, last_activity: null };
+    } catch (error) {
+      console.error('Error en getStudentCourseProgress:', error);
+      return { total_lessons: 0, completed_lessons: 0, last_activity: null };
+    }
+  }
+
+  // ==========================================
   // CLOSE CONNECTION
   // ==========================================
 

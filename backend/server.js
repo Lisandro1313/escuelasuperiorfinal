@@ -549,9 +549,12 @@ app.post('/api/courses/:id/enroll', authenticateToken, async (req, res) => {
 app.get('/api/student/detailed-progress', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
+    console.log('📊 Solicitando progreso para userId:', userId);
+    console.log('📊 Token user object:', req.user);
     
     // Obtener todos los enrollments del usuario
     const enrollments = await db.getUserEnrollments(userId);
+    console.log('📚 Enrollments encontrados:', enrollments.length);
     
     // Para cada curso inscrito, obtener el progreso detallado
     const detailedProgress = await Promise.all(enrollments.map(async (enrollment) => {
@@ -574,20 +577,23 @@ app.get('/api/student/detailed-progress', authenticateToken, async (req, res) =>
           totalLessons += lessons.length;
         }
         
-        // Calcular progreso (por ahora básico)
-        const completedLessons = 0; // TODO: implementar sistema de lecciones completadas
+        // Obtener progreso real del estudiante usando la tabla student_progress
+        const progressData = await db.getStudentCourseProgress(userId, enrollment.course_id);
+        const completedLessons = progressData ? progressData.completed_lessons : 0;
         const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+        const lastActivity = progressData?.last_activity || enrollment.fecha_inscripcion;
         
         return {
-          courseId: course.id,
-          courseName: course.nombre,
+          cursoId: course.id,
+          nombreCurso: course.nombre,
           courseImage: course.imagen,
-          progress: progress,
-          totalLessons: totalLessons,
-          completedLessons: completedLessons,
-          lastActivity: enrollment.fecha_inscripcion,
-          nextLesson: totalLessons > 0 ? 'Próxima lección disponible' : 'No hay lecciones disponibles',
-          estimatedCompletion: course.duracion
+          progreso: progress,
+          leccionesTotales: totalLessons,
+          leccionesCompletadas: completedLessons,
+          ultimaActividad: lastActivity,
+          proximaClase: totalLessons > 0 ? 'Próxima lección disponible' : 'No hay lecciones disponibles',
+          tiempoEstudio: course.duracion,
+          profesor: course.profesor || 'No asignado'
         };
       } catch (err) {
         console.error(`Error procesando curso ${enrollment.course_id}:`, err);
@@ -604,6 +610,70 @@ app.get('/api/student/detailed-progress', authenticateToken, async (req, res) =>
     });
   } catch (error) {
     console.error('Error al obtener progreso detallado:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Error interno del servidor' 
+    });
+  }
+});
+
+// Obtener progreso detallado por módulos de un curso específico
+app.get('/api/student/course/:courseId/modules-progress', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const courseId = parseInt(req.params.courseId);
+    
+    // Verificar que el usuario está inscrito en este curso
+    const enrollments = await db.getUserEnrollments(userId);
+    const isEnrolled = enrollments.some(e => e.course_id === courseId);
+    
+    if (!isEnrolled) {
+      return res.status(403).json({ 
+        success: false,
+        error: 'No estás inscrito en este curso' 
+      });
+    }
+    
+    // Obtener módulos del curso
+    const modules = await db.getCourseModules(courseId);
+    
+    // Para cada módulo, obtener lecciones y progreso
+    const modulesWithProgress = await Promise.all(modules.map(async (module) => {
+      const lessons = await db.getModuleLessons(module.id);
+      
+      // Verificar cuántas lecciones de este módulo están completadas
+      let completedCount = 0;
+      for (const lesson of lessons) {
+        const stmt = db.db.prepare(`
+          SELECT COUNT(*) as count 
+          FROM student_progress 
+          WHERE user_id = ? AND lesson_id = ? AND completed = 1
+        `);
+        const result = stmt.get(userId, lesson.id);
+        if (result.count > 0) {
+          completedCount++;
+        }
+      }
+      
+      const totalLessons = lessons.length;
+      const percentage = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
+      
+      return {
+        moduleId: module.id,
+        moduleName: module.titulo,
+        totalLessons,
+        completedLessons: completedCount,
+        percentage,
+        status: percentage === 100 ? 'completed' : percentage > 0 ? 'in-progress' : 'pending'
+      };
+    }));
+    
+    res.json({
+      success: true,
+      modules: modulesWithProgress
+    });
+  } catch (error) {
+    console.error('Error al obtener progreso de módulos:', error);
     res.status(500).json({ 
       success: false,
       error: 'Error interno del servidor' 

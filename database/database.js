@@ -272,9 +272,26 @@ class Database {
   async getUserEnrollments(userId) {
     return new Promise((resolve, reject) => {
       const sql = `
-        SELECT c.*, e.enrolled_at, e.progress, e.completed 
-        FROM courses c 
-        INNER JOIN enrollments e ON c.id = e.course_id 
+        SELECT 
+          e.id as enrollment_id,
+          e.course_id,
+          e.enrolled_at,
+          e.enrolled_at as fecha_inscripcion,
+          e.progress,
+          e.completed,
+          c.id,
+          c.nombre,
+          c.descripcion,
+          c.profesor,
+          c.profesor_id,
+          c.imagen,
+          c.categoria,
+          c.precio,
+          c.duracion,
+          c.estudiantes,
+          c.rating
+        FROM enrollments e 
+        INNER JOIN courses c ON c.id = e.course_id 
         WHERE e.user_id = ? 
         ORDER BY e.enrolled_at DESC
       `;
@@ -1392,6 +1409,32 @@ class Database {
               resolve({ id: this.lastID, ...gradeData, created: true });
             }
           });
+        }
+      });
+    });
+  }
+
+  // Obtener progreso del estudiante en un curso específico
+  async getStudentCourseProgress(userId, courseId) {
+    return new Promise((resolve, reject) => {
+      const query = `
+        SELECT 
+          COUNT(DISTINCT l.id) as total_lessons,
+          COUNT(DISTINCT CASE WHEN sp.completed = 1 THEN sp.lesson_id END) as completed_lessons,
+          MAX(sp.last_accessed) as last_activity
+        FROM modules m
+        LEFT JOIN lessons l ON m.id = l.module_id
+        LEFT JOIN student_progress sp ON l.id = sp.lesson_id 
+          AND sp.student_id = ? 
+          AND sp.course_id = ?
+        WHERE m.course_id = ?
+      `;
+      
+      this.db.get(query, [userId, courseId, courseId], (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row || { total_lessons: 0, completed_lessons: 0, last_activity: null });
         }
       });
     });

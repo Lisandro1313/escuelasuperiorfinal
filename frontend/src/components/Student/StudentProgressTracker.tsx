@@ -14,11 +14,21 @@ interface CourseProgress {
   profesor: string;
 }
 
+interface ModuleProgress {
+  moduleId: number;
+  moduleName: string;
+  totalLessons: number;
+  completedLessons: number;
+  percentage: number;
+  status: 'completed' | 'in-progress' | 'pending';
+}
+
 export const StudentProgressTracker: React.FC = () => {
   const { usuario } = useAuth();
   const [progreso, setProgreso] = useState<CourseProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCourse, setSelectedCourse] = useState<number | null>(null);
+  const [modulesProgress, setModulesProgress] = useState<{ [courseId: number]: ModuleProgress[] }>({});
 
   useEffect(() => {
     fetchDetailedProgress();
@@ -26,7 +36,13 @@ export const StudentProgressTracker: React.FC = () => {
 
   const fetchDetailedProgress = async () => {
     try {
-      const response = await api.get('/api/student/detailed-progress');
+      // Agregar timestamp para evitar cache
+      const timestamp = new Date().getTime();
+      const response = await api.get(`/api/student/detailed-progress?t=${timestamp}`);
+      console.log('📊 Response completo:', response);
+      console.log('📊 Response.data:', response.data);
+      console.log('📊 Progress array:', response.data.progress);
+      
       // La API devuelve { success: true, progress: [...] }
       setProgreso(response.data.progress || []);
     } catch (error) {
@@ -34,6 +50,56 @@ export const StudentProgressTracker: React.FC = () => {
       setProgreso([]); // Set empty array on error
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchModulesProgress = async (courseId: number) => {
+    try {
+      const timestamp = new Date().getTime();
+      const response = await api.get(`/api/student/course/${courseId}/modules-progress?t=${timestamp}`);
+      console.log('📚 Módulos del curso', courseId, ':', response.data);
+      
+      setModulesProgress(prev => ({
+        ...prev,
+        [courseId]: response.data.modules || []
+      }));
+    } catch (error) {
+      console.error('Error fetching modules progress:', error);
+    }
+  };
+
+  const handleToggleCourseDetails = (courseId: number) => {
+    if (selectedCourse === courseId) {
+      setSelectedCourse(null);
+    } else {
+      setSelectedCourse(courseId);
+      // Si no tenemos los módulos cargados, obtenerlos
+      if (!modulesProgress[courseId]) {
+        fetchModulesProgress(courseId);
+      }
+    }
+  };
+
+  const getModuleStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return '✓';
+      case 'in-progress':
+        return '📝';
+      case 'pending':
+        return '⏳';
+      default:
+        return '📄';
+    }
+  };
+
+  const getModuleStatusText = (module: ModuleProgress) => {
+    if (module.status === 'completed') {
+      return <span className="text-green-600">✓ Completado</span>;
+    } else if (module.status === 'in-progress') {
+      return <span className="text-yellow-600">📝 En Progreso ({module.percentage}%)</span>;
+    } else {
+      return <span className="text-gray-400">⏳ Pendiente</span>;
     }
   };
 
@@ -147,7 +213,7 @@ export const StudentProgressTracker: React.FC = () => {
                 {/* Botones de Acción */}
                 <div className="flex space-x-3 mt-4">
                   <button 
-                    onClick={() => setSelectedCourse(selectedCourse === curso.cursoId ? null : curso.cursoId)}
+                    onClick={() => handleToggleCourseDetails(curso.cursoId)}
                     className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
                   >
                     {selectedCourse === curso.cursoId ? 'Ocultar Detalles' : 'Ver Detalles'}
@@ -161,39 +227,33 @@ export const StudentProgressTracker: React.FC = () => {
                 {selectedCourse === curso.cursoId && (
                   <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                     <h4 className="font-medium text-gray-900 mb-3">Detalles del Progreso</h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Módulo 1: Introducción</span>
-                        <span className="text-green-600">✓ Completado</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Módulo 2: Conceptos Básicos</span>
-                        <span className="text-green-600">✓ Completado</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Módulo 3: Práctica Avanzada</span>
-                        <span className="text-yellow-600">📝 En Progreso (75%)</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Módulo 4: Evaluación Final</span>
-                        <span className="text-gray-400">⏳ Pendiente</span>
-                      </div>
-                    </div>
                     
-                    <div className="mt-4 pt-3 border-t border-gray-200">
-                      <h5 className="font-medium text-gray-900 mb-2">Logros en este Curso</h5>
-                      <div className="flex space-x-2">
-                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
-                          🎯 Primera Lección
-                        </span>
-                        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
-                          📚 Estudiante Consistente
-                        </span>
-                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
-                          ⭐ Excelente Rendimiento
-                        </span>
+                    {modulesProgress[curso.cursoId] ? (
+                      <>
+                        <div className="space-y-2">
+                          {modulesProgress[curso.cursoId].map((module) => (
+                            <div key={module.moduleId} className="flex justify-between text-sm">
+                              <span>{module.moduleName}</span>
+                              {getModuleStatusText(module)}
+                            </div>
+                          ))}
+                        </div>
+                        
+                        {curso.leccionesCompletadas === 0 && (
+                          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+                            <p className="text-sm text-blue-800">
+                              💡 <strong>Tip:</strong> Comienza por la primera lección para empezar a acumular progreso. 
+                              ¡Cada lección completada suma!
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-center py-4">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                        <p className="text-sm text-gray-500 mt-2">Cargando módulos...</p>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>
