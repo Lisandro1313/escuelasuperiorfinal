@@ -71,7 +71,7 @@ export const StudentDashboard: React.FC = () => {
       console.log('📚 Cursos inscritos del usuario:', usuario?.cursosInscritos);
       
       // Obtener todos los cursos
-      const cursosRes = await api.get('/courses');
+      const cursosRes = await api.get('/api/courses');
       const todosCursos = cursosRes.data || [];
       console.log('📖 Todos los cursos disponibles:', todosCursos.length);
       

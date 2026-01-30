@@ -31,7 +31,7 @@ const MisPagos: React.FC = () => {
   const loadPayments = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/payments/my-payments');
+      const response = await api.get('/api/payments/my-payments');
       const data = response.data;
       
       if (data.success) {

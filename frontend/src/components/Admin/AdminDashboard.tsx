@@ -12,6 +12,7 @@ interface SystemStats {
   totalCertificates: number;
   monthlyRevenue: number;
   newUsersThisMonth: number;
+  systemUptime?: string;
 }
 
 interface User {
@@ -50,8 +51,8 @@ export const AdminDashboard: React.FC = () => {
     try {
       setLoading(true);
       const [statsResponse, usersResponse] = await Promise.all([
-        api.get('/admin/stats').catch(() => ({ data: getDefaultStats() })),
-        api.get('/users').catch(() => ({ data: [] }))
+        api.get('/api/admin/stats').catch(() => ({ data: getDefaultStats() })),
+        api.get('/api/users').catch(() => ({ data: [] }))
       ]);
       
       setStats(statsResponse.data);
@@ -59,7 +60,7 @@ export const AdminDashboard: React.FC = () => {
 
       // Fetch payments if on payments tab
       if (selectedTab === 'payments') {
-        const paymentsResponse = await api.get('/payments').catch(() => ({ data: [] }));
+        const paymentsResponse = await api.get('/api/payments').catch(() => ({ data: [] }));
         setPayments(paymentsResponse.data);
       }
     } catch (error) {

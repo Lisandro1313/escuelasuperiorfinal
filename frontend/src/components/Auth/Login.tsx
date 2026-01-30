@@ -15,7 +15,9 @@ const Login: React.FC = () => {
     
     try {
       const success = await login(email, password);
-      if (!success) {
+      if (success) {
+        navigate('/dashboard');
+      } else {
         setError('Email o contraseña incorrectos');
       }
     } catch (error) {

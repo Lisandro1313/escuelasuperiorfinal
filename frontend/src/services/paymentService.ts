@@ -1,5 +1,5 @@
 class PaymentService {
-  private apiUrl = 'http://localhost:5000/api';
+  private apiUrl = import.meta.env.VITE_API_URL || '/api';
 
   // Crear pago para un curso
   async createCoursePayment(courseId: number) {

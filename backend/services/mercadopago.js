@@ -21,13 +21,13 @@ class MercadoPagoService {
       const preferenceData = {
         items: [
           {
-            id: courseData.id.toString(),
-            title: courseData.nombre,
-            description: courseData.descripcion,
+            id: (courseData.id || 1).toString(),
+            title: courseData.nombre || courseData.courseName || 'Curso',
+            description: courseData.descripcion || 'Curso en Campus Norma',
             picture_url: courseData.imagen || '',
-            category_id: courseData.categoria,
+            category_id: courseData.categoria || 'education',
             quantity: 1,
-            unit_price: parseFloat(courseData.precio),
+            unit_price: parseFloat(courseData.precio || courseData.price || 0),
             currency_id: 'ARS' // Peso Argentino
           }
         ],

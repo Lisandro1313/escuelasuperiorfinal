@@ -26,10 +26,12 @@ export const StudentProgressTracker: React.FC = () => {
 
   const fetchDetailedProgress = async () => {
     try {
-      const response = await api.get('/student/detailed-progress');
-      setProgreso(response.data);
+      const response = await api.get('/api/student/detailed-progress');
+      // La API devuelve { success: true, progress: [...] }
+      setProgreso(response.data.progress || []);
     } catch (error) {
       console.error('Error fetching detailed progress:', error);
+      setProgreso([]); // Set empty array on error
     } finally {
       setLoading(false);
     }

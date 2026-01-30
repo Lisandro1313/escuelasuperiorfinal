@@ -66,7 +66,7 @@ const PaymentPage: React.FC = () => {
       setError('');
 
       // Crear preferencia de pago en MercadoPago
-      const response = await api.post('/payments/create-preference', {
+      const response = await api.post('/api/payments/create-preference', {
         courseId: course.id,
         courses: [course]
       });

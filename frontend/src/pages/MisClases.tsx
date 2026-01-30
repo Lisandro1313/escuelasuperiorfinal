@@ -33,7 +33,7 @@ const MisClases: React.FC = () => {
   const loadMyCourses = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/courses/my-courses');
+      const response = await api.get('/api/courses/my-courses');
       const data = response.data;
       
       if (data.success) {

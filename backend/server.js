@@ -17,8 +17,8 @@ const { Server } = require('socket.io');
 // Importar base de datos y servicios
 // Detecta automáticamente si usar PostgreSQL o SQLite
 const db = process.env.DATABASE_URL 
-  ? require('../database/database')  // PostgreSQL wrapper (pendiente)
-  : require('../database/database'); // SQLite por ahora
+  ? require('./database-postgres')  // PostgreSQL (Supabase)
+  : require('../database/database'); // SQLite como fallback
 const mercadoPagoService = require('./services/mercadopago');
 const logger = require('./utils/logger');
 const NotificationHelper = require('./utils/notificationHelper');
@@ -44,7 +44,7 @@ app.use(compression());
 // Rate limiting - protección contra ataques
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // límite de 100 requests por IP
+  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // 1000 requests en desarrollo
   message: 'Demasiadas solicitudes desde esta IP, por favor intente más tarde.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -500,29 +500,35 @@ app.post('/api/courses/:id/enroll', authenticateToken, async (req, res) => {
 
     // Crear notificación para el profesor
     if (course.profesor_id) {
-      const Notification = require('./src/models/Notification');
-      const notificationModel = new Notification(db);
-      await notificationModel.create({
-        user_id: course.profesor_id,
-        title: '🎓 Nuevo estudiante inscrito',
-        message: `${req.user.nombre} se ha inscrito en tu curso "${course.nombre}"`,
-        type: 'inscripcion',
-        related_type: 'course',
-        related_id: courseId,
-        action_url: `/course/${courseId}`
-      });
+      try {
+        const Notification = require('./src/models/Notification');
+        const notificationModel = new Notification(db);
+        await notificationModel.create({
+          user_id: course.profesor_id,
+          title: '🎓 Nuevo estudiante inscrito',
+          message: `${req.user.nombre} se ha inscrito en tu curso "${course.nombre}"`,
+          type: 'inscripcion',
+          tipo: 'inscripcion', // Agregar para compatibilidad
+          related_type: 'course',
+          related_id: courseId,
+          action_url: `/course/${courseId}`
+        });
 
-      // Emitir notificación en tiempo real
-      io.emit('newNotification', {
-        userId: course.profesor_id,
-        notification: {
-          id: Date.now(),
-          tipo: 'inscripcion',
-          titulo: '🎓 Nuevo estudiante inscrito',
-          mensaje: `${req.user.nombre} se ha inscrito en tu curso "${course.nombre}"`,
-          timestamp: new Date()
-        }
-      });
+        // Emitir notificación en tiempo real
+        io.emit('newNotification', {
+          userId: course.profesor_id,
+          notification: {
+            id: Date.now(),
+            tipo: 'inscripcion',
+            titulo: '🎓 Nuevo estudiante inscrito',
+            mensaje: `${req.user.nombre} se ha inscrito en tu curso "${course.nombre}"`,
+            timestamp: new Date()
+          }
+        });
+      } catch (notifError) {
+        console.error('Error creando notificación:', notifError.message);
+        // No fallar la inscripción si falla la notificación
+      }
     }
 
     res.json({
@@ -532,6 +538,76 @@ app.post('/api/courses/:id/enroll', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error al inscribir usuario:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ================================
+// RUTAS DE PROGRESO DEL ESTUDIANTE
+// ================================
+
+// Obtener progreso detallado del estudiante
+app.get('/api/student/detailed-progress', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    
+    // Obtener todos los enrollments del usuario
+    const enrollments = await db.getUserEnrollments(userId);
+    
+    // Para cada curso inscrito, obtener el progreso detallado
+    const detailedProgress = await Promise.all(enrollments.map(async (enrollment) => {
+      try {
+        const course = await db.getCourseById(enrollment.course_id);
+        
+        // Si el curso no existe, saltar
+        if (!course) {
+          console.warn(`Curso no encontrado: ${enrollment.course_id}`);
+          return null;
+        }
+        
+        // Obtener módulos del curso
+        const modules = await db.getCourseModules(enrollment.course_id);
+        
+        // Contar lecciones totales de todos los módulos
+        let totalLessons = 0;
+        for (const module of modules) {
+          const lessons = await db.getModuleLessons(module.id);
+          totalLessons += lessons.length;
+        }
+        
+        // Calcular progreso (por ahora básico)
+        const completedLessons = 0; // TODO: implementar sistema de lecciones completadas
+        const progress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+        
+        return {
+          courseId: course.id,
+          courseName: course.nombre,
+          courseImage: course.imagen,
+          progress: progress,
+          totalLessons: totalLessons,
+          completedLessons: completedLessons,
+          lastActivity: enrollment.fecha_inscripcion,
+          nextLesson: totalLessons > 0 ? 'Próxima lección disponible' : 'No hay lecciones disponibles',
+          estimatedCompletion: course.duracion
+        };
+      } catch (err) {
+        console.error(`Error procesando curso ${enrollment.course_id}:`, err);
+        return null;
+      }
+    }));
+    
+    // Filtrar cursos nulos
+    const validProgress = detailedProgress.filter(p => p !== null);
+    
+    res.json({
+      success: true,
+      progress: validProgress
+    });
+  } catch (error) {
+    console.error('Error al obtener progreso detallado:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Error interno del servidor' 
+    });
   }
 });
 
@@ -949,13 +1025,21 @@ app.post('/api/payments/create-preference', authenticateToken, async (req, res) 
     const user = await db.getUserById(req.user.userId);
 
     // Crear preferencia de pago
-    const preference = await mercadoPagoService.createPreference({
-      courseId: course.id,
-      courseName: course.nombre,
-      price: course.precio,
-      userEmail: user.email,
-      userId: user.id
-    });
+    const preference = await mercadoPagoService.createPreference(
+      {
+        id: course.id,
+        nombre: course.nombre || course.title,
+        descripcion: course.descripcion || course.description,
+        precio: course.precio,
+        categoria: course.categoria,
+        imagen: course.image_url
+      },
+      {
+        id: user.id,
+        nombre: user.nombre,
+        email: user.email
+      }
+    );
 
     // Guardar información del pago
     await db.createPayment({
@@ -1927,6 +2011,25 @@ server.listen(PORT, () => {
     console.log(`💾 Base de datos: SQLite iniciada`);
     console.log(`💬 Socket.IO habilitado para chat en tiempo real`);
     console.log(`🏥 Health check: http://localhost:${PORT}/api/health\n`);
+  }
+});
+
+// Manejo de errores no capturados
+process.on('uncaughtException', (error) => {
+  console.error('💥 ERROR NO CAPTURADO:', error);
+  logger.error('Uncaught Exception', error);
+  // No cerramos el servidor en desarrollo para debugging
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 PROMESA RECHAZADA NO MANEJADA:', reason);
+  logger.error('Unhandled Rejection', { reason, promise });
+  // No cerramos el servidor en desarrollo para debugging
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
   }
 });
 

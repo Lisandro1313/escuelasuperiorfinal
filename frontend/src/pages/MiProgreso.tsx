@@ -33,7 +33,7 @@ const MiProgreso: React.FC = () => {
   const loadProgress = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/enrollments/my-enrollments');
+      const response = await api.get('/api/enrollments/my-enrollments');
       const data = response.data;
       
       if (data.success) {

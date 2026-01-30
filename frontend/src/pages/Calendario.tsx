@@ -28,7 +28,7 @@ const Calendario: React.FC = () => {
       setLoading(true);
       // Aquí cargarías eventos reales de la API
       // Por ahora, eventos de ejemplo basados en cursos inscritos
-      const response = await api.get('/enrollments/my-enrollments');
+      const response = await api.get('/api/enrollments/my-enrollments');
       if (response.data.success) {
         // Generar eventos de ejemplo para los próximos días
         const enrollments = response.data.enrollments || [];

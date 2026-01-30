@@ -47,6 +47,11 @@ const CourseDetail: React.FC = () => {
   const [resources, setResources] = useState<any[]>([]);
   const [grades, setGrades] = useState<any[]>([]);
 
+  // Calcular si el usuario es instructor del curso
+  const isInstructor = useMemo(() => {
+    return course && usuario?.tipo === 'profesor' && course.profesor_id === usuario.id;
+  }, [course, usuario]);
+
   useEffect(() => {
     const loadCourseData = async () => {
       if (!id) return;
@@ -63,47 +68,57 @@ const CourseDetail: React.FC = () => {
             setCourse(courseData);
             
             // Verificar si el usuario está inscrito en este curso
-            if (usuario) {
-              const enrollmentResponse = await fetch(`http://localhost:5000/api/courses/${courseId}/enrollment`, {
-                headers: {
-                  'Authorization': `Bearer ${localStorage.getItem('token')}`
+            if (usuario && localStorage.getItem('token')) {
+              try {
+                const enrollmentResponse = await fetch(`http://localhost:5000/api/courses/${courseId}/enrollment`, {
+                  headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`
+                  }
+                });
+                if (enrollmentResponse.ok) {
+                  const enrollmentData = await enrollmentResponse.json();
+                  setEnrolled(enrollmentData.enrolled);
                 }
-              });
-              if (enrollmentResponse.ok) {
-                const enrollmentData = await enrollmentResponse.json();
-                setEnrolled(enrollmentData.enrolled);
+              } catch (enrollErr) {
+                console.log('No se pudo verificar inscripción');
               }
             }
           } else {
             console.error('Curso no encontrado');
-            navigate('/courses');
+            setError('Curso no encontrado');
             return;
           }
           
-          // Cargar módulos y lecciones
-          try {
-            const modulesResponse = await fetch(`http://localhost:5000/api/courses/${courseId}/modules`, {
-              headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
-            if (modulesResponse.ok) {
-              const modulesData = await modulesResponse.json();
-              setModules(modulesData);
-              
-              // Contar lecciones totales
-              let lessonsCount = 0;
-              for (const module of modulesData) {
-                const lessonsResponse = await fetch(`http://localhost:5000/api/modules/${module.id}/lessons`, {
-                  headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                });
-                if (lessonsResponse.ok) {
-                  const lessons = await lessonsResponse.json();
-                  lessonsCount += lessons.length;
+          // Cargar módulos y lecciones solo si está autenticado
+          if (usuario && localStorage.getItem('token')) {
+            try {
+              const modulesResponse = await fetch(`http://localhost:5000/api/courses/${courseId}/modules`, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+              });
+              if (modulesResponse.ok) {
+                const modulesData = await modulesResponse.json();
+                setModules(modulesData);
+                
+                // Contar lecciones totales
+                let lessonsCount = 0;
+                for (const module of modulesData) {
+                  try {
+                    const lessonsResponse = await fetch(`http://localhost:5000/api/modules/${module.id}/lessons`, {
+                      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    });
+                    if (lessonsResponse.ok) {
+                      const lessons = await lessonsResponse.json();
+                      lessonsCount += lessons.length;
+                    }
+                  } catch (lessonErr) {
+                    console.log('Error cargando lecciones del módulo:', module.id);
+                  }
                 }
+                setTotalLessons(lessonsCount);
               }
-              setTotalLessons(lessonsCount);
+            } catch (err) {
+              console.log('No se pudieron cargar módulos - requiere autenticación');
             }
-          } catch (err) {
-            console.log('No se pudieron cargar módulos');
           }
           
           // Por ahora, las clases estarán vacías hasta implementar módulos
@@ -111,8 +126,7 @@ const CourseDetail: React.FC = () => {
           
         } catch (error) {
           console.error('Error al cargar curso:', error);
-          navigate('/courses');
-          return;
+          setError('Error cargando los datos del curso');
         }
       } catch (error) {
         console.error('Error cargando curso:', error);
@@ -184,10 +198,6 @@ const CourseDetail: React.FC = () => {
       }
     }
   }, [enrolled, id, isInstructor]);
-
-  const isInstructor = useMemo(() => {
-    return course && usuario?.tipo === 'profesor' && course.profesor_id === usuario.id;
-  }, [course, usuario]);
 
   const handleEnroll = async () => {
     if (!course) return;

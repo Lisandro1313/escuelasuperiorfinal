@@ -9,7 +9,7 @@ class SocketService {
       return;
     }
 
-    this.socket = io('http://localhost:5000', {
+    this.socket = io(import.meta.env.VITE_SOCKET_URL || '', {
       auth: {
         token
       },
