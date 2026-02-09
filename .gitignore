@@ -82,3 +82,4 @@ test_*.py
 *.backup
 *.bak
 .vercel
+.env*.local

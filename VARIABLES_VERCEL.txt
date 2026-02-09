@@ -1,0 +1,69 @@
+=== VARIABLES DE ENTORNO PARA VERCEL ===
+Copia y pega estas variables en: 
+https://vercel.com/lisandro1313s-projects/escuelasuperiorfinal/settings/environment-variables
+
+IMPORTANTE: Marca todas como "Production", "Preview" y "Development"
+
+=== FRONTEND (VITE) ===
+
+Variable 1:
+Nombre: VITE_API_URL
+Valor: https://escuelasuperiorfinal.vercel.app
+
+Variable 2:
+Nombre: VITE_SOCKET_URL
+Valor: https://escuelasuperiorfinal.vercel.app
+
+=== BACKEND/API ===
+
+Variable 3:
+Nombre: DATABASE_URL
+Valor: postgresql://postgres:Cocoliso13!@db.gdanglqcwvuknzxohfhy.supabase.co:5432/postgres
+
+Variable 4:
+Nombre: DB_HOST
+Valor: db.gdanglqcwvuknzxohfhy.supabase.co
+
+Variable 5:
+Nombre: DB_PORT
+Valor: 5432
+
+Variable 6:
+Nombre: DB_NAME
+Valor: postgres
+
+Variable 7:
+Nombre: DB_USER
+Valor: postgres
+
+Variable 8:
+Nombre: DB_PASSWORD
+Valor: Cocoliso13!
+
+Variable 9:
+Nombre: JWT_SECRET
+Valor: campus_norma_secret_key_production_2025
+
+Variable 10:
+Nombre: NODE_ENV
+Valor: production
+
+Variable 11:
+Nombre: MERCADOPAGO_ACCESS_TOKEN
+Valor: APP_USR-6695050923550599-110410-56bc2e79fc9f3b8f20aa40ddd97c65f0-2095898034
+
+Variable 12:
+Nombre: MERCADOPAGO_PUBLIC_KEY
+Valor: APP_USR-0e6b9b97-2bb9-42ab-8aab-a31bbcaaad12
+
+Variable 13:
+Nombre: FRONTEND_URL
+Valor: https://escuelasuperiorfinal.vercel.app
+
+=== DESPUÉS DE AGREGAR TODAS LAS VARIABLES ===
+
+Ejecutar en PowerShell:
+cd c:\Users\Usuario\OneDrive\Escritorio\campusnorma\escuelasuperiorfinal
+vercel --prod
+
+Esto re-deployará con las variables configuradas.
