@@ -1390,39 +1390,54 @@ app.use('/api', adminRoutes);
 
 app.get('/api/health', async (req, res) => {
   try {
-    // Verificar conexión a la base de datos intentando obtener cursos
     const courses = await db.getAllCourses();
     const dbStatus = courses ? 'connected' : 'disconnected';
 
-    // Información del sistema
+    // Chequeo de configuracion. Reporta que falta para que el deploy
+    // sea visible desde el browser (sin necesidad de leer logs).
+    const missing = [];
+    if (!process.env.JWT_SECRET) missing.push('JWT_SECRET');
+    if (!process.env.ADMIN_PASSWORD) missing.push('ADMIN_PASSWORD (sin esto no se crea el admin)');
+    if (!process.env.MERCADOPAGO_ACCESS_TOKEN) missing.push('MERCADOPAGO_ACCESS_TOKEN (los pagos no funcionaran)');
+    if (!process.env.FRONTEND_URL && process.env.NODE_ENV === 'production') {
+      missing.push('FRONTEND_URL (CORS y back_urls de pago)');
+    }
+    if (!process.env.BACKEND_URL && process.env.NODE_ENV === 'production') {
+      missing.push('BACKEND_URL (notification_url de webhook MP)');
+    }
+
     const uptime = process.uptime();
     const memoryUsage = process.memoryUsage();
 
     res.json({
-      status: 'healthy',
+      status: missing.length === 0 ? 'healthy' : 'degraded',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'development',
       uptime: Math.floor(uptime),
       database: {
         status: dbStatus,
-        type: 'SQLite'
+        type: 'SQLite',
+        path: process.env.DB_FILE || 'backend/database/campus_norma.db',
+      },
+      uploads: {
+        path: process.env.UPLOADS_DIR || 'backend/uploads',
       },
       memory: {
         rss: `${Math.round(memoryUsage.rss / 1024 / 1024)}MB`,
         heapUsed: `${Math.round(memoryUsage.heapUsed / 1024 / 1024)}MB`,
-        heapTotal: `${Math.round(memoryUsage.heapTotal / 1024 / 1024)}MB`
       },
       services: {
         socketIO: io ? 'active' : 'inactive',
-        mercadoPago: !!process.env.MERCADOPAGO_ACCESS_TOKEN
-      }
+        mercadoPago: process.env.MERCADOPAGO_ACCESS_TOKEN ? 'configured' : 'missing',
+      },
+      configMissing: missing,
     });
   } catch (error) {
     console.error('Health check error:', error);
     res.status(503).json({
       status: 'unhealthy',
       timestamp: new Date().toISOString(),
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -2183,17 +2198,30 @@ io.on('connection', (socket) => {
 // ================================
 
 server.listen(PORT, () => {
-  logger.success(`Servidor ejecutándose en puerto ${PORT}`);
-  logger.info(`Entorno: ${process.env.NODE_ENV || 'development'}`);
-  logger.info(`Base de datos: SQLite iniciada`);
-  logger.info(`Socket.IO habilitado para chat en tiempo real`);
+  console.log('\n========================================');
+  console.log('  Campus Norma - Backend');
+  console.log('========================================');
+  console.log(`  Puerto:   ${PORT}`);
+  console.log(`  Entorno:  ${process.env.NODE_ENV || 'development'}`);
+  console.log(`  DB file:  ${process.env.DB_FILE || 'backend/database/campus_norma.db'}`);
+  console.log(`  Uploads:  ${process.env.UPLOADS_DIR || 'backend/uploads'}`);
+  console.log(`  Health:   /api/health`);
+  console.log('========================================');
 
-  if (process.env.NODE_ENV !== 'production') {
-    console.log(`\n🚀 Servidor ejecutándose en puerto ${PORT}`);
-    console.log(`🌍 Entorno: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`💾 Base de datos: SQLite iniciada`);
-    console.log(`💬 Socket.IO habilitado para chat en tiempo real`);
-    console.log(`🏥 Health check: http://localhost:${PORT}/api/health\n`);
+  // Reportar configuracion faltante para que sea OBVIO al ver los logs.
+  const warnings = [];
+  if (!process.env.ADMIN_PASSWORD) warnings.push('ADMIN_PASSWORD no definido → no se crea admin automaticamente.');
+  if (!process.env.MERCADOPAGO_ACCESS_TOKEN) warnings.push('MERCADOPAGO_ACCESS_TOKEN no definido → los pagos no van a funcionar.');
+  if (process.env.NODE_ENV === 'production') {
+    if (!process.env.FRONTEND_URL) warnings.push('FRONTEND_URL no definido → CORS y back_urls de MP van a fallar.');
+    if (!process.env.BACKEND_URL) warnings.push('BACKEND_URL no definido → MP no va a poder mandar webhooks.');
+  }
+  if (warnings.length) {
+    console.log('\n⚠️  Configuracion incompleta:');
+    warnings.forEach((w) => console.log('   - ' + w));
+    console.log('   Editar las env vars del servicio (Render → Settings → Environment)\n');
+  } else {
+    console.log('✅ Configuracion completa.\n');
   }
 });
 

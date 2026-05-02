@@ -1,14 +1,23 @@
+# Blueprint de Render para Campus Norma.
+# Deploy: New → Blueprint → seleccionar este repo. Render lee este archivo y crea TODO.
+#
+# Costo total: USD 7/mes (solo el backend en plan starter, por el disk persistente).
+# El frontend es estatico y va gratis. Ver DEPLOY.md para los pasos exactos.
+
 services:
-  # Backend API (Express + Socket.IO + SQLite)
+  # Backend: Express + Socket.IO + SQLite + uploads.
+  # Plan starter porque necesita disk persistente (SQLite + videos).
   - type: web
     name: campus-norma-backend
     env: node
     region: oregon
-    plan: free
+    plan: starter
     rootDir: backend
     buildCommand: npm install
     startCommand: node server.js
     healthCheckPath: /api/health
+    autoDeploy: true
+    numInstances: 1  # SQLite no tolera multiples writers
     disk:
       name: campus-norma-data
       mountPath: /var/data
@@ -19,11 +28,11 @@ services:
       - key: PORT
         value: 10000
       - key: JWT_SECRET
-        generateValue: true
+        generateValue: true  # Render genera uno aleatorio
       - key: ADMIN_EMAIL
         value: admin@campusnorma.com
       - key: ADMIN_PASSWORD
-        sync: false
+        sync: false  # ← te lo pide en el dashboard
       - key: DB_FILE
         value: /var/data/campus_norma.db
       - key: UPLOADS_DIR
@@ -35,11 +44,12 @@ services:
       - key: MERCADOPAGO_WEBHOOK_SECRET
         sync: false
       - key: FRONTEND_URL
-        sync: false
+        sync: false  # ← URL del frontend (la pones tras el primer deploy)
       - key: BACKEND_URL
-        sync: false
+        sync: false  # ← URL de este mismo backend
 
-  # Frontend (Vite build estatico)
+  # Frontend: build estatico de Vite.
+  # Plan free (sin disk, solo HTML/CSS/JS).
   - type: web
     name: campus-norma-frontend
     env: static
@@ -48,9 +58,10 @@ services:
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
+    autoDeploy: true
     envVars:
       - key: VITE_API_URL
-        sync: false
+        sync: false  # ← URL del backend
       - key: VITE_MERCADOPAGO_PUBLIC_KEY
         sync: false
     routes:
