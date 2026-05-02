@@ -189,35 +189,123 @@ const CourseViewer: React.FC = () => {
     return Math.round((completed / moduleProgress.lessons.length) * 100);
   };
 
+  // Helper: convierte una URL a un nodo embeddable.
+  // Soporta: YouTube, Vimeo, MP4/WebM/MOV (archivos), PDF, links externos.
+  const renderEmbed = (rawUrl: string): React.ReactNode => {
+    if (!rawUrl) return null;
+    const url = rawUrl.trim();
+
+    // Prefijo del backend para uploads relativos (en prod frontend y backend pueden estar en distintos origenes)
+    const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+    const absoluteUrl = url.startsWith('/uploads')
+      ? (apiBase ? apiBase + url : url)
+      : url;
+
+    // YouTube
+    const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{11})/);
+    if (yt) {
+      return (
+        <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 8 }}>
+          <iframe
+            src={`https://www.youtube.com/embed/${yt[1]}`}
+            title="YouTube video"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+          />
+        </div>
+      );
+    }
+
+    // Vimeo
+    const vimeo = url.match(/vimeo\.com\/(\d+)/);
+    if (vimeo) {
+      return (
+        <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 8 }}>
+          <iframe
+            src={`https://player.vimeo.com/video/${vimeo[1]}`}
+            title="Vimeo video"
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowFullScreen
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+          />
+        </div>
+      );
+    }
+
+    // Archivo de video subido o externo
+    if (/\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i.test(url)) {
+      return (
+        <video controls src={absoluteUrl} style={{ width: '100%', maxHeight: 600, borderRadius: 8, background: '#000' }}>
+          Tu navegador no soporta el reproductor de video.
+        </video>
+      );
+    }
+
+    // Audio
+    if (/\.(mp3|wav|m4a|ogg)(\?.*)?$/i.test(url)) {
+      return <audio controls src={absoluteUrl} style={{ width: '100%' }} />;
+    }
+
+    // PDF
+    if (/\.pdf(\?.*)?$/i.test(url)) {
+      return (
+        <iframe
+          src={absoluteUrl}
+          title="PDF"
+          style={{ width: '100%', height: 700, border: '1px solid #e5e7eb', borderRadius: 8 }}
+        />
+      );
+    }
+
+    // Link generico
+    return (
+      <a href={absoluteUrl} target="_blank" rel="noopener noreferrer" className="resource-link">
+        Abrir recurso ↗
+      </a>
+    );
+  };
+
   const renderLessonContent = (lesson: Lesson) => {
     if (!lesson) return null;
+    const completed = getLessonProgress(lesson.id);
+    const isUrl = lesson.contenido && /^(https?:\/\/|\/uploads\/)/.test(lesson.contenido.trim());
 
     return (
       <div className="lesson-content">
         <div className="lesson-header">
           <div className="lesson-title-section">
-            <span className={`lesson-type lesson-type-${lesson.tipo}`}>
-              {lesson.tipo.toUpperCase()}
-            </span>
+            <span className={`lesson-type lesson-type-${lesson.tipo}`}>{lesson.tipo.toUpperCase()}</span>
             <h2>{lesson.titulo}</h2>
-            {lesson.duracion > 0 && (
-              <span className="lesson-duration">{lesson.duracion} min</span>
-            )}
+            {lesson.duracion > 0 && <span className="lesson-duration">{lesson.duracion} min</span>}
           </div>
-          <button 
-            className={`btn ${getLessonProgress(lesson.id) ? 'btn-secondary' : 'btn-primary'}`}
+          <button
+            className={`btn ${completed ? 'btn-secondary' : 'btn-primary'}`}
             onClick={() => markLessonComplete(lesson.id)}
-            disabled={getLessonProgress(lesson.id)}
+            disabled={completed}
           >
-            {getLessonProgress(lesson.id) ? '✓ Completada' : 'Marcar como completada'}
+            {completed ? '✓ Completada' : 'Marcar como completada'}
           </button>
         </div>
 
         <div className="lesson-body">
-          {lesson.contenido && (
-            <div className="lesson-text">
-              <p>{lesson.contenido}</p>
+          {/* Si el contenido es URL y la leccion es video/pdf, embedear el reproductor */}
+          {isUrl && (lesson.tipo === 'video' || lesson.tipo === 'pdf') && (
+            <div style={{ marginBottom: 16 }}>{renderEmbed(lesson.contenido)}</div>
+          )}
+
+          {/* Texto descriptivo / lecciones de tipo texto */}
+          {lesson.contenido && (lesson.tipo === 'texto' || !isUrl) && (
+            <div className="lesson-text" style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+              {lesson.contenido}
             </div>
+          )}
+
+          {/* Si es URL pero el tipo es 'texto', mostrar tambien el link */}
+          {isUrl && lesson.tipo === 'texto' && (
+            <p style={{ marginTop: 8 }}>
+              <a href={lesson.contenido} target="_blank" rel="noopener noreferrer">{lesson.contenido}</a>
+            </p>
           )}
 
           {lesson.recursos && lesson.recursos.length > 0 && (
@@ -227,23 +315,14 @@ const CourseViewer: React.FC = () => {
                 {lesson.recursos.map((resource, index) => (
                   <div key={index} className="resource-card">
                     <div className="resource-header">
-                      <span className={`resource-type resource-type-${resource.tipo}`}>
-                        {resource.tipo.toUpperCase()}
-                      </span>
+                      <span className={`resource-type resource-type-${resource.tipo}`}>{resource.tipo.toUpperCase()}</span>
                       <h4>{resource.titulo}</h4>
                     </div>
-                    {resource.descripcion && (
-                      <p className="resource-description">{resource.descripcion}</p>
-                    )}
-                    <a 
-                      href={resource.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="resource-link"
-                    >
-                      {resource.tipo === 'video' ? 'Ver video' : 
-                       resource.tipo === 'pdf' ? 'Abrir PDF' : 
-                       resource.tipo === 'archivo' ? 'Descargar archivo' : 'Abrir enlace'}
+                    {resource.descripcion && <p className="resource-description">{resource.descripcion}</p>}
+                    <a href={resource.url} target="_blank" rel="noopener noreferrer" className="resource-link">
+                      {resource.tipo === 'video' ? 'Ver video' :
+                        resource.tipo === 'pdf' ? 'Abrir PDF' :
+                          resource.tipo === 'archivo' ? 'Descargar archivo' : 'Abrir enlace'}
                     </a>
                   </div>
                 ))}

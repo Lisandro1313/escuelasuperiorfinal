@@ -52,38 +52,36 @@ const PaymentPage: React.FC = () => {
 
   const handlePayment = async () => {
     if (!course) return;
-    
     try {
       setProcessing(true);
       setError('');
 
-      try {
-        // Crear preferencia de pago con MercadoPago
-        const response = await fetch('/api/payments/create-preference', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          },
-          body: JSON.stringify({ courseId: course.id })
-        });
+      const response = await fetch('/api/payments/create-preference', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ courseId: course.id }),
+      });
 
-        if (response.ok) {
-          const data = await response.json();
-          // Redirigir a MercadoPago
-          window.location.href = `https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=${data.preferenceId}`;
-        } else {
-          const errorData = await response.json();
-          setError(errorData.error || 'Error al procesar el pago');
-        }
-      } catch (fetchError) {
-        console.error('Error en la solicitud de pago:', fetchError);
-        setError('Error de conexión. Intenta nuevamente.');
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error || data.detail || 'Error al iniciar el pago');
+        return;
       }
 
-    } catch (error) {
-      console.error('Error procesando pago:', error);
-      setError('Error al procesar el pago. Por favor, intenta nuevamente.');
+      // El backend devuelve initPoint (prod) y sandboxInitPoint (test).
+      // Si el access token es de sandbox, MP devuelve ambos pero initPoint redirige al sandbox.
+      const checkoutUrl = data.initPoint || data.sandboxInitPoint;
+      if (!checkoutUrl) {
+        setError('No se recibio la URL de pago de MercadoPago');
+        return;
+      }
+      window.location.href = checkoutUrl;
+    } catch (err) {
+      console.error('Error procesando pago:', err);
+      setError('Error de conexion. Intenta nuevamente.');
     } finally {
       setProcessing(false);
     }
@@ -160,27 +158,6 @@ const PaymentPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Course Content Preview */}
-              <div className="mt-6">
-                <h4 className="font-medium text-gray-900 mb-3">Contenido del Curso</h4>
-                <div className="space-y-2">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
-                    Introducción a la Programación Avanzada
-                  </div>
-                  <div className="flex items-center text-sm text-gray-600">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
-                    Estructuras de Datos Complejas
-                  </div>
-                  <div className="flex items-center text-sm text-gray-600">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
-                    Algoritmos de Optimización
-                  </div>
-                  <div className="text-sm text-gray-500 ml-5">
-                    +5 módulos más
-                  </div>
-                </div>
-              </div>
             </div>
 
             {/* What you'll get */}

@@ -74,6 +74,37 @@ const CourseManagement: React.FC = () => {
     descripcion: ''
   });
 
+  const [uploading, setUploading] = useState<'lesson' | 'resource' | null>(null);
+  const [uploadError, setUploadError] = useState<string>('');
+
+  // Sube un archivo al backend y devuelve la URL servida (/uploads/xxx).
+  const uploadFile = async (file: File): Promise<string | null> => {
+    setUploadError('');
+    if (file.size > 500 * 1024 * 1024) {
+      setUploadError('El archivo supera los 500MB.');
+      return null;
+    }
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setUploadError(data.error || 'Error al subir el archivo');
+        return null;
+      }
+      return data.url as string;
+    } catch (err) {
+      console.error(err);
+      setUploadError('Error de conexion al subir el archivo');
+      return null;
+    }
+  };
+
   useEffect(() => {
     fetchCourseData();
   }, [id]);
@@ -682,15 +713,53 @@ const CourseManagement: React.FC = () => {
               {/* Contenido */}
               <div>
                 <label className="block text-gray-700 font-semibold mb-2 text-sm">
-                  📄 Contenido de la lección
+                  {lessonForm.tipo === 'video' ? '🎥 URL del video o subir archivo' :
+                    lessonForm.tipo === 'pdf' ? '📋 URL del PDF o subir archivo' :
+                      '📄 Contenido de la lección'}
                 </label>
-                <textarea
-                  value={lessonForm.contenido}
-                  onChange={(e) => setLessonForm(prev => ({ ...prev, contenido: e.target.value }))}
-                  placeholder="Describe el contenido de esta lección..."
-                  rows={6}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-green-500 focus:ring focus:ring-green-200 transition duration-200 text-base resize-none"
-                />
+                {(lessonForm.tipo === 'video' || lessonForm.tipo === 'pdf') ? (
+                  <div className="space-y-2">
+                    <input
+                      type="text"
+                      value={lessonForm.contenido}
+                      onChange={(e) => setLessonForm(prev => ({ ...prev, contenido: e.target.value }))}
+                      placeholder={lessonForm.tipo === 'video' ? 'https://youtu.be/... o /uploads/clase.mp4' : 'https://... o /uploads/apunte.pdf'}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-green-500 text-base"
+                    />
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <label className={`inline-flex items-center px-4 py-2 rounded-xl border-2 border-dashed border-green-400 bg-green-50 text-green-700 font-semibold cursor-pointer hover:bg-green-100 transition ${uploading === 'lesson' ? 'opacity-60 cursor-wait' : ''}`}>
+                        {uploading === 'lesson' ? '⏳ Subiendo...' : '⬆️ Subir desde mi PC'}
+                        <input
+                          type="file"
+                          accept={lessonForm.tipo === 'video' ? 'video/*' : '.pdf'}
+                          className="hidden"
+                          disabled={uploading !== null}
+                          onChange={async (e) => {
+                            const f = e.target.files?.[0];
+                            if (!f) return;
+                            setUploading('lesson');
+                            const url = await uploadFile(f);
+                            setUploading(null);
+                            if (url) setLessonForm(prev => ({ ...prev, contenido: url }));
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                      {lessonForm.contenido && (
+                        <span className="text-xs text-gray-500 truncate flex-1">📎 {lessonForm.contenido}</span>
+                      )}
+                    </div>
+                    {uploadError && <p className="text-sm text-red-600">{uploadError}</p>}
+                  </div>
+                ) : (
+                  <textarea
+                    value={lessonForm.contenido}
+                    onChange={(e) => setLessonForm(prev => ({ ...prev, contenido: e.target.value }))}
+                    placeholder="Texto o explicacion de la leccion..."
+                    rows={6}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-green-500 text-base resize-none"
+                  />
+                )}
               </div>
 
               {/* Sección de Recursos */}
@@ -765,17 +834,41 @@ const CourseManagement: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-gray-600 text-xs font-medium mb-1">URL</label>
+                      <label className="block text-gray-600 text-xs font-medium mb-1">URL o subir archivo</label>
                       <input
-                        type="url"
+                        type="text"
                         value={newResource.url}
                         onChange={(e) => setNewResource(prev => ({ ...prev, url: e.target.value }))}
-                        placeholder="https://..."
+                        placeholder="https://... o usa el boton de abajo"
                         className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-green-500 text-sm"
                       />
                     </div>
                   </div>
-                  <button 
+                  <div className="flex gap-3 items-center mb-3">
+                    <label className={`inline-flex items-center px-3 py-2 rounded-lg border border-dashed border-blue-400 bg-blue-50 text-blue-700 text-sm font-semibold cursor-pointer hover:bg-blue-100 ${uploading === 'resource' ? 'opacity-60 cursor-wait' : ''}`}>
+                      {uploading === 'resource' ? '⏳ Subiendo...' : '⬆️ Subir desde mi PC'}
+                      <input
+                        type="file"
+                        className="hidden"
+                        disabled={uploading !== null}
+                        onChange={async (e) => {
+                          const f = e.target.files?.[0];
+                          if (!f) return;
+                          setUploading('resource');
+                          const url = await uploadFile(f);
+                          setUploading(null);
+                          if (url) setNewResource(prev => ({
+                            ...prev,
+                            url,
+                            titulo: prev.titulo || f.name,
+                          }));
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    {uploadError && <span className="text-xs text-red-600">{uploadError}</span>}
+                  </div>
+                  <button
                     onClick={addResource}
                     disabled={!newResource.titulo || !newResource.url}
                     className="w-full bg-green-100 text-green-700 px-4 py-2 rounded-lg font-semibold hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed transition duration-200"
