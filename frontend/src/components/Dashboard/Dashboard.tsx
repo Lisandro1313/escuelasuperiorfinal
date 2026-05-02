@@ -127,7 +127,7 @@ const Dashboard: React.FC = () => {
               <h3 className="text-red-800 font-medium">Error de Conexión</h3>
               <p className="text-red-600">{error}</p>
               <p className="text-sm text-red-500 mt-2">
-                Verifica que el backend esté funcionando en http://localhost:5000
+                Verifica que el backend esté funcionando en 
               </p>
             </div>
           </div>

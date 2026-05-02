@@ -83,7 +83,7 @@ const CourseManagement: React.FC = () => {
       const token = localStorage.getItem('token');
       
       // Obtener datos del curso
-      const courseResponse = await fetch(`http://localhost:5000/api/courses/${id}`, {
+      const courseResponse = await fetch(`/api/courses/${id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const courseData = await courseResponse.json();
@@ -96,7 +96,7 @@ const CourseManagement: React.FC = () => {
       }
 
       // Obtener módulos
-      const modulesResponse = await fetch(`http://localhost:5000/api/courses/${id}/modules`, {
+      const modulesResponse = await fetch(`/api/courses/${id}/modules`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const modulesData = await modulesResponse.json();
@@ -105,7 +105,7 @@ const CourseManagement: React.FC = () => {
       // Obtener lecciones para cada módulo
       const lessonsData: { [moduleId: number]: Lesson[] } = {};
       for (const module of modulesData) {
-        const lessonsResponse = await fetch(`http://localhost:5000/api/modules/${module.id}/lessons`, {
+        const lessonsResponse = await fetch(`/api/modules/${module.id}/lessons`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const moduleLinks = await lessonsResponse.json();
@@ -123,7 +123,7 @@ const CourseManagement: React.FC = () => {
   const handleCreateModule = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/courses/${id}/modules`, {
+      const response = await fetch(`/api/courses/${id}/modules`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -147,7 +147,7 @@ const CourseManagement: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/modules/${editingModule.id}`, {
+      const response = await fetch(`/api/modules/${editingModule.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -172,7 +172,7 @@ const CourseManagement: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/modules/${moduleId}`, {
+      const response = await fetch(`/api/modules/${moduleId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -190,7 +190,7 @@ const CourseManagement: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/modules/${selectedModuleId}/lessons`, {
+      const response = await fetch(`/api/modules/${selectedModuleId}/lessons`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -221,7 +221,7 @@ const CourseManagement: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/lessons/${editingLesson.id}`, {
+      const response = await fetch(`/api/lessons/${editingLesson.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -253,7 +253,7 @@ const CourseManagement: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/lessons/${lessonId}`, {
+      const response = await fetch(`/api/lessons/${lessonId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

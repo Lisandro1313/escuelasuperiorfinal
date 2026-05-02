@@ -1,7 +1,7 @@
 // Helper para registrar actividades en el sistema
 // Este middleware puede ser usado en cualquier ruta para loggear acciones
 
-const db = require('../../database/database');
+const db = require('../database/database');
 
 /**
  * Registra una actividad en el sistema

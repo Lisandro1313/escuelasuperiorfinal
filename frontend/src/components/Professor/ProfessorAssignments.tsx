@@ -329,7 +329,7 @@ export const ProfessorAssignments: React.FC<Props> = ({ courseId }) => {
 
                 {submission.file_path && (
                   <a
-                    href={`http://localhost:5000${submission.file_path}`}
+                    href={`${submission.file_path}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-sm text-blue-600 hover:underline block mb-3"

@@ -25,7 +25,7 @@ const NotificationCenter: React.FC = () => {
       if (!usuario) return;
       
       try {
-        const response = await fetch('http://localhost:5000/api/notifications', {
+        const response = await fetch('/api/notifications', {
           headers: { 
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
             'Content-Type': 'application/json'
@@ -99,7 +99,7 @@ const NotificationCenter: React.FC = () => {
 
   const markAsRead = async (notificationId: number) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/notifications/${notificationId}/read`, {
+      const response = await fetch(`/api/notifications/${notificationId}/read`, {
         method: 'PUT',
         headers: { 
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -122,7 +122,7 @@ const NotificationCenter: React.FC = () => {
 
   const markAllAsRead = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/notifications/mark-all-read', {
+      const response = await fetch('/api/notifications/mark-all-read', {
         method: 'PUT',
         headers: { 
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -141,7 +141,7 @@ const NotificationCenter: React.FC = () => {
 
   const deleteNotification = async (notificationId: number) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/notifications/${notificationId}`, {
+      const response = await fetch(`/api/notifications/${notificationId}`, {
         method: 'DELETE',
         headers: { 
           'Authorization': `Bearer ${localStorage.getItem('token')}`,

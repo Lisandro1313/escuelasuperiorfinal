@@ -8,7 +8,11 @@ class Database {
   }
 
   init() {
-    const dbPath = path.join(__dirname, 'campus_norma.db');
+    // DB_FILE permite apuntar a un volumen persistente (Render: /var/data/campus_norma.db).
+    const dbPath = process.env.DB_FILE || path.join(__dirname, 'campus_norma.db');
+    const fs = require('fs');
+    const dbDir = path.dirname(dbPath);
+    if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
     this.db = new sqlite3.Database(dbPath, (err) => {
       if (err) {
         console.error('Error al conectar con la base de datos:', err);
@@ -60,23 +64,29 @@ class Database {
 
   async createDefaultAdmin() {
     try {
-      // Verificar si ya existe un admin
-      const existingAdmin = await this.getUserByEmail('norma.admin@escuelanorma.com');
-      if (existingAdmin) {
-        console.log('✅ Usuario administrador ya existe');
+      const adminEmail = process.env.ADMIN_EMAIL || 'admin@campusnorma.com';
+      const adminPassword = process.env.ADMIN_PASSWORD;
+
+      if (!adminPassword) {
+        console.warn('⚠️  ADMIN_PASSWORD no definido en .env — no se crea admin por defecto.');
         return;
       }
 
-      // Crear usuario administrador
-      const bcrypt = require('bcrypt');
-      const hashedPassword = await bcrypt.hash('Norma2025!Secure', 10);
-      
+      const existingAdmin = await this.getUserByEmail(adminEmail);
+      if (existingAdmin) {
+        console.log('✅ Usuario administrador ya existe:', adminEmail);
+        return;
+      }
+
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
+
       const sql = `INSERT INTO users (email, password, nombre, tipo) VALUES (?, ?, ?, ?)`;
-      this.db.run(sql, ['norma.admin@escuelanorma.com', hashedPassword, 'Norma Silva', 'admin'], function(err) {
+      this.db.run(sql, [adminEmail, hashedPassword, 'Administrador', 'admin'], function (err) {
         if (err) {
           console.error('Error creando usuario administrador:', err);
         } else {
-          console.log('✅ Usuario administrador creado: norma.admin@escuelanorma.com / Norma2025!Secure');
+          console.log('✅ Usuario administrador creado:', adminEmail);
         }
       });
     } catch (error) {
@@ -329,7 +339,7 @@ class Database {
   async isUserEnrolled(userId, courseId) {
     return new Promise((resolve, reject) => {
       const sql = `SELECT * FROM enrollments WHERE user_id = ? AND course_id = ?`;
-      
+
       this.db.get(sql, [userId, courseId], (err, row) => {
         if (err) {
           reject(err);
@@ -337,6 +347,27 @@ class Database {
           resolve(!!row);
         }
       });
+    });
+  }
+
+  // Resuelve el course_id de un modulo (usado por el paywall)
+  async getModuleCourseId(moduleId) {
+    return new Promise((resolve, reject) => {
+      this.db.get('SELECT course_id FROM modules WHERE id = ?', [moduleId], (err, row) => {
+        if (err) reject(err);
+        else resolve(row ? row.course_id : null);
+      });
+    });
+  }
+
+  // Resuelve el course_id de una leccion
+  async getLessonCourseId(lessonId) {
+    return new Promise((resolve, reject) => {
+      this.db.get(
+        `SELECT m.course_id FROM lessons l JOIN modules m ON m.id = l.module_id WHERE l.id = ?`,
+        [lessonId],
+        (err, row) => (err ? reject(err) : resolve(row ? row.course_id : null))
+      );
     });
   }
 
@@ -359,21 +390,47 @@ class Database {
   async updatePaymentStatus(paymentId, status) {
     return new Promise((resolve, reject) => {
       const sql = `UPDATE payments SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE payment_id = ?`;
-      
-      this.db.run(sql, [status, paymentId], function(err) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve({ updated: true });
-        }
+
+      this.db.run(sql, [status, paymentId], function (err) {
+        if (err) reject(err);
+        else resolve({ updated: this.changes > 0 });
       });
+    });
+  }
+
+  // Asocia un payment_id de MercadoPago a un payment ya creado (lookup por preference_id)
+  // y opcionalmente actualiza el estado.
+  async updatePaymentByPreferenceId(preferenceId, { payment_id, status }) {
+    return new Promise((resolve, reject) => {
+      const sets = [];
+      const params = [];
+      if (payment_id !== undefined) { sets.push('payment_id = ?'); params.push(payment_id); }
+      if (status !== undefined) { sets.push('status = ?'); params.push(status); }
+      sets.push('updated_at = CURRENT_TIMESTAMP');
+      const sql = `UPDATE payments SET ${sets.join(', ')} WHERE preference_id = ?`;
+      params.push(preferenceId);
+
+      this.db.run(sql, params, function (err) {
+        if (err) reject(err);
+        else resolve({ updated: this.changes > 0 });
+      });
+    });
+  }
+
+  getPaymentByPreferenceId(preferenceId) {
+    return new Promise((resolve, reject) => {
+      this.db.get(
+        'SELECT * FROM payments WHERE preference_id = ? ORDER BY id DESC LIMIT 1',
+        [preferenceId],
+        (err, row) => (err ? reject(err) : resolve(row))
+      );
     });
   }
 
   getPaymentByPaymentId(paymentId) {
     return new Promise((resolve, reject) => {
       const sql = `SELECT * FROM payments WHERE payment_id = ?`;
-      
+
       this.db.get(sql, [paymentId], (err, row) => {
         if (err) {
           reject(err);
@@ -1016,10 +1073,9 @@ class Database {
   getAllUsers() {
     return new Promise((resolve, reject) => {
       this.db.all(
-        `SELECT id, nombre, email, telefono, biografia, foto, rol, activo, 
-                fecha_creacion, ultimo_acceso 
-         FROM usuarios 
-         ORDER BY fecha_creacion DESC`,
+        `SELECT id, nombre, email, telefono, biografia, tipo, activo, created_at, updated_at
+         FROM users
+         ORDER BY created_at DESC`,
         [],
         (err, rows) => {
           if (err) {
@@ -1036,9 +1092,9 @@ class Database {
   deleteUser(userId) {
     return new Promise((resolve, reject) => {
       this.db.run(
-        'DELETE FROM usuarios WHERE id = ?',
+        'DELETE FROM users WHERE id = ?',
         [userId],
-        function(err) {
+        function (err) {
           if (err) {
             reject(err);
           } else {
@@ -1053,60 +1109,9 @@ class Database {
   toggleUserStatus(userId) {
     return new Promise((resolve, reject) => {
       this.db.run(
-        'UPDATE usuarios SET activo = NOT activo WHERE id = ?',
+        'UPDATE users SET activo = NOT activo, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
         [userId],
-        function(err) {
-          if (err) {
-            reject(err);
-          } else {
-            resolve({ changes: this.changes });
-          }
-        }
-      );
-    });
-  }
-
-  // Perfil - Actualizar datos del usuario
-  updateUser(userId, data) {
-    return new Promise((resolve, reject) => {
-      const fields = [];
-      const values = [];
-
-      if (data.nombre !== undefined) {
-        fields.push('nombre = ?');
-        values.push(data.nombre);
-      }
-      if (data.email !== undefined) {
-        fields.push('email = ?');
-        values.push(data.email);
-      }
-      if (data.telefono !== undefined) {
-        fields.push('telefono = ?');
-        values.push(data.telefono);
-      }
-      if (data.biografia !== undefined) {
-        fields.push('biografia = ?');
-        values.push(data.biografia);
-      }
-      if (data.foto !== undefined) {
-        fields.push('foto = ?');
-        values.push(data.foto);
-      }
-      if (data.password !== undefined) {
-        fields.push('password = ?');
-        values.push(data.password);
-      }
-
-      if (fields.length === 0) {
-        return resolve({ changes: 0 });
-      }
-
-      values.push(userId);
-
-      this.db.run(
-        `UPDATE usuarios SET ${fields.join(', ')} WHERE id = ?`,
-        values,
-        function(err) {
+        function (err) {
           if (err) {
             reject(err);
           } else {

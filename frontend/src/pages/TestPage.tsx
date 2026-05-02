@@ -175,7 +175,7 @@ const APIStatusCard: React.FC<{ name: string; endpoint: string; method: string }
     const checkAPI = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:5000${endpoint}`, {
+        const response = await fetch(`${endpoint}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         

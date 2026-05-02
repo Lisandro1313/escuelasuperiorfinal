@@ -100,7 +100,7 @@ const Forum: React.FC<ForumProps> = ({ courseId, category }) => {
       setPosts([]);
       
       // TODO: Implementar API para cargar posts del foro
-      // const response = await fetch('http://localhost:5000/api/forum/posts', {
+      // const response = await fetch('/api/forum/posts', {
       //   headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       // });
       // if (response.ok) {

@@ -29,7 +29,7 @@ const PaymentPage: React.FC = () => {
   const fetchCourse = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/courses/${courseId}`, {
+      const response = await fetch(`/api/courses/${courseId}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -59,7 +59,7 @@ const PaymentPage: React.FC = () => {
 
       try {
         // Crear preferencia de pago con MercadoPago
-        const response = await fetch('http://localhost:5000/api/payments/create-preference', {
+        const response = await fetch('/api/payments/create-preference', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

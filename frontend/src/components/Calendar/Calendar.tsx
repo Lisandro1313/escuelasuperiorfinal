@@ -41,7 +41,7 @@ const Calendar: React.FC = () => {
       
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5000/api/events', {
+        const response = await fetch('/api/events', {
           headers: { 
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -84,7 +84,7 @@ const Calendar: React.FC = () => {
       
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5000/api/courses', {
+        const response = await fetch('/api/courses', {
           headers: { 
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -159,7 +159,7 @@ const Calendar: React.FC = () => {
       const startDateTime = new Date(`${newEvent.date}T${newEvent.startTime}`);
       const endDateTime = new Date(`${newEvent.date}T${newEvent.endTime}`);
 
-      const response = await fetch('http://localhost:5000/api/events', {
+      const response = await fetch('/api/events', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

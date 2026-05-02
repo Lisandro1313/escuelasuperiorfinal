@@ -82,7 +82,7 @@ const Gamification: React.FC<GamificationProps> = ({ userId }) => {
       setUserStats(stats);
       
       // TODO: Implementar API para cargar estadísticas reales
-      // const response = await fetch('http://localhost:5000/api/gamification/stats', {
+      // const response = await fetch('/api/gamification/stats', {
       //   headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       // });
       // if (response.ok) {

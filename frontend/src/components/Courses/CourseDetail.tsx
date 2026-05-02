@@ -62,7 +62,7 @@ const CourseDetail: React.FC = () => {
         
         try {
           // Cargar datos reales del curso desde la API
-          const response = await fetch(`http://localhost:5000/api/courses/${courseId}`);
+          const response = await fetch(`/api/courses/${courseId}`);
           if (response.ok) {
             const courseData = await response.json();
             setCourse(courseData);
@@ -70,7 +70,7 @@ const CourseDetail: React.FC = () => {
             // Verificar si el usuario está inscrito en este curso
             if (usuario && localStorage.getItem('token')) {
               try {
-                const enrollmentResponse = await fetch(`http://localhost:5000/api/courses/${courseId}/enrollment`, {
+                const enrollmentResponse = await fetch(`/api/courses/${courseId}/enrollment`, {
                   headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`
                   }
@@ -92,7 +92,7 @@ const CourseDetail: React.FC = () => {
           // Cargar módulos y lecciones solo si está autenticado
           if (usuario && localStorage.getItem('token')) {
             try {
-              const modulesResponse = await fetch(`http://localhost:5000/api/courses/${courseId}/modules`, {
+              const modulesResponse = await fetch(`/api/courses/${courseId}/modules`, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
               });
               if (modulesResponse.ok) {
@@ -103,7 +103,7 @@ const CourseDetail: React.FC = () => {
                 let lessonsCount = 0;
                 for (const module of modulesData) {
                   try {
-                    const lessonsResponse = await fetch(`http://localhost:5000/api/modules/${module.id}/lessons`, {
+                    const lessonsResponse = await fetch(`/api/modules/${module.id}/lessons`, {
                       headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
                     });
                     if (lessonsResponse.ok) {
@@ -150,7 +150,7 @@ const CourseDetail: React.FC = () => {
         socketService.joinCourse(courseId);
         
         // Cargar mensajes existentes
-        fetch(`http://localhost:5000/api/courses/${courseId}/messages`, {
+        fetch(`/api/courses/${courseId}/messages`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         .then(res => res.json())
@@ -174,7 +174,7 @@ const CourseDetail: React.FC = () => {
     if ((enrolled || isInstructor) && id) {
       const token = localStorage.getItem('token');
       if (token) {
-        fetch(`http://localhost:5000/api/courses/${id}/resources`, {
+        fetch(`/api/courses/${id}/resources`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         .then(res => res.json())
@@ -189,7 +189,7 @@ const CourseDetail: React.FC = () => {
     if ((enrolled || isInstructor) && id) {
       const token = localStorage.getItem('token');
       if (token) {
-        fetch(`http://localhost:5000/api/courses/${id}/grades`, {
+        fetch(`/api/courses/${id}/grades`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
         .then(res => res.json())
@@ -213,7 +213,7 @@ const CourseDetail: React.FC = () => {
     if (course.precio === 0) {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:5000/api/courses/${course.id}/enroll`, {
+        const response = await fetch(`/api/courses/${course.id}/enroll`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -245,7 +245,7 @@ const CourseDetail: React.FC = () => {
     
     try {
       const token = localStorage.getItem('token');
-      await fetch(`http://localhost:5000/api/courses/${course.id}/messages`, {
+      await fetch(`/api/courses/${course.id}/messages`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -31,7 +31,7 @@ const CourseCatalog: React.FC = () => {
         setLoading(true);
         
         // Obtener cursos reales del backend
-        const response = await fetch('http://localhost:5000/api/courses');
+        const response = await fetch('/api/courses');
         if (response.ok) {
           const coursesData = await response.json();
           setCourses(coursesData);

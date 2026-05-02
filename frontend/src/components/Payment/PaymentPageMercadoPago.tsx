@@ -32,7 +32,7 @@ const PaymentPage: React.FC = () => {
         if (courseId) {
           // Obtener datos reales del curso
           try {
-            const response = await fetch(`http://localhost:5000/api/courses/${courseId}`);
+            const response = await fetch(`/api/courses/${courseId}`);
             if (response.ok) {
               const courseData = await response.json();
               setCourse(courseData);

@@ -134,7 +134,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onQuizCompleted }) => {
   }, [quizId]);
 
   useEffect(() => {
-    let interval: number;
+    let interval: ReturnType<typeof setInterval> | undefined;
     
     if (isQuizStarted && !isQuizCompleted && timeRemaining > 0) {
       interval = setInterval(() => {
@@ -152,7 +152,7 @@ const QuizTaker: React.FC<QuizTakerProps> = ({ quizId, onQuizCompleted }) => {
   }, [isQuizStarted, isQuizCompleted, timeRemaining]);
 
   useEffect(() => {
-    let interval: number;
+    let interval: ReturnType<typeof setInterval> | undefined;
     
     if (isQuizStarted && !isQuizCompleted && questionTimeRemaining > 0) {
       interval = setInterval(() => {

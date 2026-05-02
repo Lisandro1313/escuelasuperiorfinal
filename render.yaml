@@ -1,13 +1,18 @@
 services:
-  # Backend API
+  # Backend API (Express + Socket.IO + SQLite)
   - type: web
-    name: escuela-norma-backend
+    name: campus-norma-backend
     env: node
     region: oregon
     plan: free
-    buildCommand: bash install.sh
-    startCommand: cd backend && npm start
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
     healthCheckPath: /api/health
+    disk:
+      name: campus-norma-data
+      mountPath: /var/data
+      sizeGB: 5
     envVars:
       - key: NODE_ENV
         value: production
@@ -15,31 +20,40 @@ services:
         value: 10000
       - key: JWT_SECRET
         generateValue: true
+      - key: ADMIN_EMAIL
+        value: admin@campusnorma.com
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: DB_FILE
+        value: /var/data/campus_norma.db
+      - key: UPLOADS_DIR
+        value: /var/data/uploads
       - key: MERCADOPAGO_ACCESS_TOKEN
         sync: false
       - key: MERCADOPAGO_PUBLIC_KEY
         sync: false
-      - key: DATABASE_URL
-        fromDatabase:
-          name: escuela-norma-db
-          property: connectionString
+      - key: MERCADOPAGO_WEBHOOK_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: BACKEND_URL
+        sync: false
 
-  # Frontend React App
+  # Frontend (Vite build estatico)
   - type: web
-    name: escuela-norma-frontend
+    name: campus-norma-frontend
     env: static
     region: oregon
     plan: free
     rootDir: frontend
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_MERCADOPAGO_PUBLIC_KEY
+        sync: false
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
-
-databases:
-  - name: escuela-norma-db
-    databaseName: escuelanorma
-    user: escuelanorma
-    plan: free

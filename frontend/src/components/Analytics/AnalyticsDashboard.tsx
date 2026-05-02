@@ -255,7 +255,7 @@ const AnalyticsDashboard: React.FC = () => {
         setAnalyticsData(emptyData);
         
         // TODO: Implementar API para cargar analytics reales
-        // const response = await fetch('http://localhost:5000/api/analytics', {
+        // const response = await fetch('/api/analytics', {
         //   headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
         // });
         // if (response.ok) {

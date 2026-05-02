@@ -1,83 +1,111 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import api from '../../services/api';
+
+type StatusResp = { status: string; enrolled: boolean; courseId?: number };
 
 export const PaymentSuccess: React.FC = () => {
   const navigate = useNavigate();
-  const { usuario } = useAuth();
   const [searchParams] = useSearchParams();
-  const [paymentData, setPaymentData] = useState<any>(null);
+  const payment_id = searchParams.get('payment_id') || searchParams.get('collection_id');
+  const preference_id = searchParams.get('preference_id');
+
+  const [state, setState] = useState<'checking' | 'enrolled' | 'pending' | 'unknown' | 'failed'>('checking');
+  const [courseId, setCourseId] = useState<number | undefined>();
+  const [attempts, setAttempts] = useState(0);
 
   useEffect(() => {
-    // Obtener parámetros de la URL de MercadoPago
-    const collection_id = searchParams.get('collection_id');
-    const collection_status = searchParams.get('collection_status');
-    const payment_id = searchParams.get('payment_id');
-    const status = searchParams.get('status');
-    const external_reference = searchParams.get('external_reference');
-    const payment_type = searchParams.get('payment_type');
-    const merchant_order_id = searchParams.get('merchant_order_id');
-    const preference_id = searchParams.get('preference_id');
-    const site_id = searchParams.get('site_id');
-    const processing_mode = searchParams.get('processing_mode');
-    const merchant_account_id = searchParams.get('merchant_account_id');
+    let cancelled = false;
+    const params = new URLSearchParams();
+    if (payment_id) params.set('payment_id', payment_id);
+    if (preference_id) params.set('preference_id', preference_id);
 
-    setPaymentData({
-      collection_id,
-      collection_status,
-      payment_id,
-      status,
-      external_reference,
-      payment_type,
-      merchant_order_id,
-      preference_id,
-      site_id,
-      processing_mode,
-      merchant_account_id
-    });
-  }, [searchParams]);
+    const poll = async (n: number) => {
+      try {
+        const r = await api.get<StatusResp>(`/api/payments/status?${params.toString()}`);
+        if (cancelled) return;
+        setCourseId(r.data.courseId);
+        if (r.data.enrolled || r.data.status === 'approved') {
+          setState('enrolled');
+          return;
+        }
+        if (r.data.status === 'rejected' || r.data.status === 'cancelled') {
+          setState('failed');
+          return;
+        }
+        setAttempts(n);
+        if (n < 6) setTimeout(() => poll(n + 1), 1500);
+        else setState(r.data.status === 'unknown' ? 'unknown' : 'pending');
+      } catch {
+        if (!cancelled) {
+          setAttempts(n);
+          if (n < 6) setTimeout(() => poll(n + 1), 1500);
+          else setState('unknown');
+        }
+      }
+    };
+    poll(1);
+    return () => { cancelled = true; };
+  }, [payment_id, preference_id]);
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="max-w-md w-full bg-white rounded-lg shadow-sm p-8 text-center">
-        <div className="text-6xl mb-4">✅</div>
-        <h1 className="text-2xl font-bold text-green-600 mb-2">¡Pago Exitoso!</h1>
-        <p className="text-gray-600 mb-6">
-          Tu pago ha sido procesado correctamente. Ya tienes acceso al curso.
-        </p>
-
-        {paymentData?.payment_id && (
-          <div className="bg-gray-50 p-4 rounded-lg mb-6 text-left">
-            <h3 className="font-medium text-gray-900 mb-2">Detalles del Pago</h3>
-            <div className="text-sm text-gray-600 space-y-1">
-              <div>ID de Pago: {paymentData.payment_id}</div>
-              <div>Estado: {paymentData.status}</div>
-              {paymentData.external_reference && (
-                <div>Referencia: {paymentData.external_reference}</div>
-              )}
-            </div>
-          </div>
+        {state === 'checking' && (
+          <>
+            <div className="text-6xl mb-4">⏳</div>
+            <h1 className="text-2xl font-bold mb-2">Confirmando tu pago...</h1>
+            <p className="text-gray-600 mb-2">Estamos verificando tu inscripción con MercadoPago.</p>
+            <p className="text-sm text-gray-500">Intento {attempts}/6</p>
+          </>
         )}
-
-        <div className="space-y-3">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
-            Ir a Mi Dashboard
-          </button>
-          <button
-            onClick={() => navigate('/courses')}
-            className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-          >
-            Ver Más Cursos
-          </button>
-        </div>
-
-        <div className="mt-6 text-xs text-gray-500">
-          <p>Recibirás un email de confirmación en breve.</p>
-          <p>Si tienes alguna duda, contacta a soporte.</p>
-        </div>
+        {state === 'enrolled' && (
+          <>
+            <div className="text-6xl mb-4">✅</div>
+            <h1 className="text-2xl font-bold text-green-600 mb-2">¡Pago confirmado!</h1>
+            <p className="text-gray-600 mb-6">Quedaste inscripto. Ya podes acceder al contenido del curso.</p>
+            <div className="space-y-3">
+              {courseId && (
+                <button onClick={() => navigate(`/course/${courseId}`)} className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                  Ir al curso
+                </button>
+              )}
+              <button onClick={() => navigate('/dashboard')} className="w-full px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50">
+                Mi dashboard
+              </button>
+            </div>
+          </>
+        )}
+        {state === 'pending' && (
+          <>
+            <div className="text-6xl mb-4">🕒</div>
+            <h1 className="text-2xl font-bold text-yellow-600 mb-2">Pago en proceso</h1>
+            <p className="text-gray-600 mb-6">MercadoPago todavia no nos confirmo el pago. Cuando se acredite, vas a ver el curso en tu dashboard.</p>
+            <button onClick={() => navigate('/dashboard')} className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+              Mi dashboard
+            </button>
+          </>
+        )}
+        {state === 'unknown' && (
+          <>
+            <div className="text-6xl mb-4">❓</div>
+            <h1 className="text-2xl font-bold text-gray-700 mb-2">No pudimos confirmar el pago</h1>
+            <p className="text-gray-600 mb-6">Si tu pago salio bien, vas a ver el curso disponible en tu dashboard en unos minutos.</p>
+            <button onClick={() => navigate('/dashboard')} className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+              Mi dashboard
+            </button>
+          </>
+        )}
+        {state === 'failed' && (
+          <>
+            <div className="text-6xl mb-4">❌</div>
+            <h1 className="text-2xl font-bold text-red-600 mb-2">El pago fue rechazado</h1>
+            <p className="text-gray-600 mb-6">Probá de nuevo o usá otro medio de pago.</p>
+            <button onClick={() => navigate('/courses')} className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+              Ver cursos
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

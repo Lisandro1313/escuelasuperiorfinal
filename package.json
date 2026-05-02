@@ -1,24 +1,20 @@
 {
-  "name": "campus-virtual-deploy",
+  "name": "campus-norma",
   "version": "1.0.0",
-  "description": "Scripts de deployment para Campus Virtual Norma",
+  "private": true,
+  "description": "Campus Norma - Plataforma de cursos online (frontend + backend Express + SQLite)",
   "scripts": {
-    "build:frontend": "cd frontend && npm run build",
-    "build:backend": "cd backend && npm install --production",
-    "deploy:prepare": "npm run build:frontend && npm run build:backend",
-    "dev:full": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && node server.js",
-    "dev:frontend": "cd frontend && npx vite --port 3000",
-    "start:production": "cd backend && npm start",
-    "test:api": "cd backend && npm test",
-    "test:frontend": "cd frontend && npm test"
-  },
-  "dependencies": {
-    "bcrypt": "^6.0.0",
-    "mercadopago": "^2.9.0",
-    "sqlite3": "^5.1.7"
+    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend",
+    "dev": "concurrently -n backend,frontend -c blue,magenta \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "start": "npm --prefix backend start",
+    "init:db": "cd backend && node scripts/init-db.js",
+    "seed": "cd backend && node scripts/seed.js",
+    "lint:check": "echo 'lint placeholder'"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^9.1.0"
   }
 }

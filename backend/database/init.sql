@@ -95,17 +95,8 @@ CREATE TABLE IF NOT EXISTS lesson_progress (
     UNIQUE(user_id, lesson_id)
 );
 
--- Crear usuario administrador por defecto
-INSERT OR IGNORE INTO users (id, email, password, nombre, tipo) VALUES 
-(1, 'admin@campusnorma.com', '$2b$10$8K1p/a0drcZmxSLb4fA.M.QtJ5mKGf5L4tGe8/W9/WkVb2kP7mKOy', 'Administrador', 'admin');
-
--- Inscripciones de ejemplo para Ana López (usuario 3) en cursos gratuitos
--- Nota: Estos INSERT se ejecutarán si existen los cursos y el usuario
-INSERT OR IGNORE INTO enrollments (user_id, course_id, progress, enrolled_at) 
-SELECT 3, 1, 25, datetime('now', '-5 days') WHERE EXISTS (SELECT 1 FROM users WHERE id = 3) AND EXISTS (SELECT 1 FROM courses WHERE id = 1 AND precio = 0);
-
-INSERT OR IGNORE INTO enrollments (user_id, course_id, progress, enrolled_at) 
-SELECT 3, 2, 60, datetime('now', '-10 days') WHERE EXISTS (SELECT 1 FROM users WHERE id = 3) AND EXISTS (SELECT 1 FROM courses WHERE id = 2 AND precio = 0);
+-- El admin lo crea backend/database/database.js (createDefaultAdmin)
+-- usando ADMIN_EMAIL y ADMIN_PASSWORD del .env. NO insertarlo aqui.
 
 -- Tabla de eventos/calendario
 CREATE TABLE IF NOT EXISTS events (

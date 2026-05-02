@@ -134,7 +134,7 @@ const QuizCreator: React.FC<QuizCreatorProps> = ({ courseId, onQuizCreated }) =>
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/quizzes', {
+      const response = await fetch('/api/quizzes', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

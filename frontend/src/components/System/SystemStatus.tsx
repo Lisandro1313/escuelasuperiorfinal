@@ -173,7 +173,7 @@ const SystemStatus: React.FC = () => {
           <h4 className="font-medium text-gray-900 mb-3">🔗 Enlaces de Desarrollo</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             <a 
-              href="http://localhost:3000" 
+              href="" 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-sm text-blue-600 hover:text-blue-800"
@@ -181,7 +181,7 @@ const SystemStatus: React.FC = () => {
               🌐 Frontend (Puerto 3000)
             </a>
             <a 
-              href="http://localhost:5000/api" 
+              href="/api" 
               target="_blank" 
               rel="noopener noreferrer"
               className="text-sm text-blue-600 hover:text-blue-800"

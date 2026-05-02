@@ -68,7 +68,7 @@ const CourseViewer: React.FC = () => {
       const token = localStorage.getItem('token');
       
       // Verificar inscripción
-      const enrollmentResponse = await fetch(`http://localhost:5000/api/courses/${id}/enrollment`, {
+      const enrollmentResponse = await fetch(`/api/courses/${id}/enrollment`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const enrollmentData = await enrollmentResponse.json();
@@ -82,14 +82,14 @@ const CourseViewer: React.FC = () => {
       setIsEnrolled(true);
       
       // Obtener datos del curso
-      const courseResponse = await fetch(`http://localhost:5000/api/courses/${id}`, {
+      const courseResponse = await fetch(`/api/courses/${id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const courseData = await courseResponse.json();
       setCourse(courseData);
 
       // Obtener módulos
-      const modulesResponse = await fetch(`http://localhost:5000/api/courses/${id}/modules`, {
+      const modulesResponse = await fetch(`/api/courses/${id}/modules`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const modulesData = await modulesResponse.json();
@@ -99,7 +99,7 @@ const CourseViewer: React.FC = () => {
       const lessonsData: { [moduleId: number]: Lesson[] } = {};
       for (const module of modulesData) {
         if (module.publicado) {
-          const lessonsResponse = await fetch(`http://localhost:5000/api/modules/${module.id}/lessons`, {
+          const lessonsResponse = await fetch(`/api/modules/${module.id}/lessons`, {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           const moduleLinks = await lessonsResponse.json();
@@ -109,7 +109,7 @@ const CourseViewer: React.FC = () => {
       setLessons(lessonsData);
 
       // Obtener progreso del estudiante
-      const progressResponse = await fetch(`http://localhost:5000/api/courses/${id}/progress`, {
+      const progressResponse = await fetch(`/api/courses/${id}/progress`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const progressData = await progressResponse.json();
@@ -131,7 +131,7 @@ const CourseViewer: React.FC = () => {
   const markLessonComplete = async (lessonId: number) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:5000/api/lessons/${lessonId}/complete`, {
+      const response = await fetch(`/api/lessons/${lessonId}/complete`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -148,7 +148,7 @@ const CourseViewer: React.FC = () => {
         })));
 
         // Recargar el progreso del curso desde el servidor
-        const progressResponse = await fetch(`http://localhost:5000/api/courses/${id}/progress`, {
+        const progressResponse = await fetch(`/api/courses/${id}/progress`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         

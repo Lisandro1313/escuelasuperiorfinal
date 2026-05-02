@@ -14,11 +14,8 @@ const fs = require('fs');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 
-// Importar base de datos y servicios
-// Detecta automáticamente si usar PostgreSQL o SQLite
-const db = process.env.DATABASE_URL 
-  ? require('./database-postgres')  // PostgreSQL (Supabase)
-  : require('../database/database'); // SQLite como fallback
+// Base de datos: SQLite (local). Para Postgres se debe portar el adapter.
+const db = require('./database/database');
 const mercadoPagoService = require('./services/mercadopago');
 const logger = require('./utils/logger');
 const NotificationHelper = require('./utils/notificationHelper');
@@ -36,7 +33,11 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 5000;
-const JWT_SECRET = process.env.JWT_SECRET || 'campus_norma_secret_key_2024';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET no esta definido. Configurar en .env o variables de entorno.');
+  process.exit(1);
+}
 
 // Middleware de compresión
 app.use(compression());
@@ -85,38 +86,37 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Servir archivos estáticos
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// Servir archivos estaticos. UPLOADS_DIR es configurable para soportar
+// disks persistentes (Render: /var/data/uploads). Default: backend/uploads.
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
-// Configuración de multer para subida de archivos
+// Permitir que el frontend (otro origen) embeba videos/PDFs servidos desde /uploads.
+// Sin esto, helmet pone Cross-Origin-Resource-Policy: same-origin y rompe el <video> tag.
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  next();
+});
+app.use('/uploads', express.static(UPLOADS_DIR));
+
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
-    const uniqueName = Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname);
-    cb(null, uniqueName);
-  }
+    const safe = path.extname(file.originalname).toLowerCase().replace(/[^.\w]/g, '');
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${safe}`);
+  },
 });
 
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx|mp4|avi|mov/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
+const ALLOWED_EXT = /\.(jpe?g|png|gif|webp|pdf|docx?|pptx?|xlsx?|mp4|webm|mov|avi|mkv|mp3|wav|m4a|zip)$/i;
 
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Tipo de archivo no permitido'));
-    }
-  }
+const upload = multer({
+  storage,
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB para videos de clases
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_EXT.test(file.originalname)) return cb(null, true);
+    cb(new Error('Tipo de archivo no permitido. Extensiones validas: imagenes, PDF, Office, video, audio, ZIP.'));
+  },
 });
 
 // Middleware de autenticación
@@ -144,6 +144,50 @@ const requireProfessor = (req, res, next) => {
   }
   next();
 };
+
+// Paywall: verifica que el usuario pueda acceder al contenido del curso.
+// Reglas:
+//   - admin y el profesor del curso siempre pueden acceder
+//   - curso gratuito (precio = 0) requiere solo estar autenticado
+//   - curso de pago requiere estar inscrito (enrollment existente)
+// Resuelve el courseId desde req.params usando los keys configurados.
+function requireCourseAccess({ courseParam, moduleParam, lessonParam } = { courseParam: 'id' }) {
+  return async (req, res, next) => {
+    try {
+      let courseId = null;
+      if (courseParam && req.params[courseParam]) courseId = Number(req.params[courseParam]);
+      else if (moduleParam && req.params[moduleParam]) courseId = await db.getModuleCourseId(req.params[moduleParam]);
+      else if (lessonParam && req.params[lessonParam]) courseId = await db.getLessonCourseId(req.params[lessonParam]);
+
+      if (!courseId) return res.status(404).json({ error: 'Recurso no encontrado' });
+
+      const course = await db.getCourseById(courseId);
+      if (!course) return res.status(404).json({ error: 'Curso no encontrado' });
+
+      const u = req.user;
+      if (u.tipo === 'admin' || course.profesor_id === u.userId) {
+        req.course = course;
+        return next();
+      }
+
+      if (Number(course.precio) === 0) {
+        req.course = course;
+        return next();
+      }
+
+      const enrolled = await db.isUserEnrolled(u.userId, courseId);
+      if (!enrolled) {
+        return res.status(402).json({ error: 'Debes inscribirte y pagar para acceder a este contenido', courseId });
+      }
+
+      req.course = course;
+      next();
+    } catch (err) {
+      console.error('Error en requireCourseAccess:', err);
+      res.status(500).json({ error: 'Error verificando acceso al curso' });
+    }
+  };
+}
 
 const VideoConference = require('./src/models/VideoConference');
 
@@ -175,18 +219,6 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    // Registrar actividad de login
-    await db.logActivity({
-      userId: user.id,
-      userName: user.nombre,
-      userRole: user.tipo,
-      actionType: 'auth',
-      actionDescription: 'Inició sesión',
-      ipAddress: req.ip,
-      userAgent: req.get('user-agent')
-    });
-
-    // Registrar actividad de login
     await db.logActivity({
       userId: user.id,
       userName: user.nombre,
@@ -685,8 +717,8 @@ app.get('/api/student/course/:courseId/modules-progress', authenticateToken, asy
 // RUTAS DE CHAT DE CURSO
 // ================================
 
-// Obtener mensajes de un curso
-app.get('/api/courses/:id/messages', authenticateToken, async (req, res) => {
+// Obtener mensajes de un curso (paywall)
+app.get('/api/courses/:id/messages', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
   try {
     const courseId = req.params.id;
     const messages = await db.getCourseMessages(courseId);
@@ -697,8 +729,8 @@ app.get('/api/courses/:id/messages', authenticateToken, async (req, res) => {
   }
 });
 
-// Enviar mensaje a un curso
-app.post('/api/courses/:id/messages', authenticateToken, async (req, res) => {
+// Enviar mensaje a un curso (paywall)
+app.post('/api/courses/:id/messages', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
   try {
     const courseId = req.params.id;
     const { message } = req.body;
@@ -762,8 +794,8 @@ app.post('/api/courses/:id/messages', authenticateToken, async (req, res) => {
 // RUTAS DE RECURSOS DEL CURSO
 // ================================
 
-// Obtener recursos de un curso
-app.get('/api/courses/:id/resources', authenticateToken, async (req, res) => {
+// Obtener recursos de un curso (paywall)
+app.get('/api/courses/:id/resources', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
   try {
     const courseId = req.params.id;
     const resources = await db.getCourseResources(courseId);
@@ -897,7 +929,7 @@ app.post('/api/courses/:courseId/grades/:userId', authenticateToken, requireProf
 // ================================
 
 // Obtener módulos de un curso
-app.get('/api/courses/:id/modules', authenticateToken, async (req, res) => {
+app.get('/api/courses/:id/modules', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
   try {
     const courseId = req.params.id;
     const modules = await db.getCourseModules(courseId);
@@ -967,8 +999,8 @@ app.delete('/api/modules/:id', authenticateToken, requireProfessor, async (req, 
   }
 });
 
-// Obtener lecciones de un módulo
-app.get('/api/modules/:id/lessons', authenticateToken, async (req, res) => {
+// Obtener lecciones de un módulo (paywall por curso)
+app.get('/api/modules/:id/lessons', authenticateToken, requireCourseAccess({ moduleParam: 'id' }), async (req, res) => {
   try {
     const moduleId = req.params.id;
     const lessons = await db.getModuleLessons(moduleId);
@@ -1038,8 +1070,8 @@ app.delete('/api/lessons/:id', authenticateToken, requireProfessor, async (req, 
   }
 });
 
-// Marcar lección como completada (para estudiantes)
-app.post('/api/lessons/:id/complete', authenticateToken, async (req, res) => {
+// Marcar lección como completada (paywall)
+app.post('/api/lessons/:id/complete', authenticateToken, requireCourseAccess({ lessonParam: 'id' }), async (req, res) => {
   try {
     const lessonId = req.params.id;
     const userId = req.user.userId;
@@ -1052,8 +1084,8 @@ app.post('/api/lessons/:id/complete', authenticateToken, async (req, res) => {
   }
 });
 
-// Obtener progreso del estudiante en un curso
-app.get('/api/courses/:id/progress', authenticateToken, async (req, res) => {
+// Obtener progreso del estudiante en un curso (paywall)
+app.get('/api/courses/:id/progress', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
   try {
     const courseId = req.params.id;
     const userId = req.user.userId;
@@ -1079,80 +1111,161 @@ app.post('/api/payments/create-preference', authenticateToken, async (req, res) 
       return res.status(400).json({ error: 'ID del curso es requerido' });
     }
 
-    // Obtener información del curso
     const course = await db.getCourseById(courseId);
-    if (!course) {
-      return res.status(404).json({ error: 'Curso no encontrado' });
+    if (!course) return res.status(404).json({ error: 'Curso no encontrado' });
+    if (Number(course.precio) === 0) {
+      return res.status(400).json({ error: 'El curso es gratuito, usa /api/courses/:id/enroll' });
     }
 
-    // Verificar si ya está inscrito
     const isEnrolled = await db.isUserEnrolled(req.user.userId, courseId);
-    if (isEnrolled) {
-      return res.status(400).json({ error: 'Ya estás inscrito en este curso' });
-    }
+    if (isEnrolled) return res.status(400).json({ error: 'Ya estás inscrito en este curso' });
 
-    // Obtener información del usuario
     const user = await db.getUserById(req.user.userId);
 
-    // Crear preferencia de pago
-    const preference = await mercadoPagoService.createPreference(
+    const result = await mercadoPagoService.createPreference(
       {
         id: course.id,
-        nombre: course.nombre || course.title,
-        descripcion: course.descripcion || course.description,
+        nombre: course.nombre,
+        descripcion: course.descripcion,
         precio: course.precio,
         categoria: course.categoria,
-        imagen: course.image_url
+        imagen: course.imagen,
       },
-      {
-        id: user.id,
-        nombre: user.nombre,
-        email: user.email
-      }
+      { id: user.id, nombre: user.nombre, email: user.email }
     );
 
-    // Guardar información del pago
+    if (!result.success) {
+      console.error('createPreference fallo:', result.error);
+      return res.status(502).json({ error: 'No se pudo crear la preferencia de pago', detail: result.error });
+    }
+
     await db.createPayment({
       user_id: user.id,
       course_id: course.id,
       amount: course.precio,
-      preference_id: preference.id,
-      status: 'pending'
+      preference_id: result.preferenceId,
+      status: 'pending',
     });
 
-    res.json({ preferenceId: preference.id });
+    res.json({
+      preferenceId: result.preferenceId,
+      initPoint: result.initPoint,
+      sandboxInitPoint: result.sandboxInitPoint,
+    });
   } catch (error) {
     console.error('Error al crear preferencia:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-// Webhook de MercadoPago
+// Webhook de MercadoPago.
+// MP envia POST /api/payments/webhook?type=payment&data.id=XXX (tambien en body).
+// Verifica signature opcional con MERCADOPAGO_WEBHOOK_SECRET (HMAC-SHA256).
 app.post('/api/payments/webhook', async (req, res) => {
   try {
-    const paymentData = req.body;
+    if (process.env.MERCADOPAGO_WEBHOOK_SECRET) {
+      const crypto = require('crypto');
+      const signatureHeader = req.headers['x-signature'] || '';
+      const requestId = req.headers['x-request-id'] || '';
+      const dataId = (req.query['data.id'] || (req.body && req.body.data && req.body.data.id) || '').toString();
 
-    if (paymentData.type === 'payment') {
-      const paymentId = paymentData.data.id;
-      const paymentInfo = await mercadoPagoService.getPaymentInfo(paymentId);
-
-      if (paymentInfo.status === 'approved') {
-        // Actualizar estado del pago
-        await db.updatePaymentStatus(paymentId, 'approved');
-
-        // Obtener información del pago para inscribir al usuario
-        const payment = await db.getPaymentByPaymentId(paymentId);
-        if (payment) {
-          await db.enrollUser(payment.user_id, payment.course_id);
-          console.log(`✅ Usuario ${payment.user_id} inscrito en curso ${payment.course_id}`);
+      const parts = Object.fromEntries(signatureHeader.split(',').map((p) => p.trim().split('=')));
+      const ts = parts.ts;
+      const v1 = parts.v1;
+      if (ts && v1 && dataId) {
+        const manifest = `id:${dataId};request-id:${requestId};ts:${ts};`;
+        const expected = crypto
+          .createHmac('sha256', process.env.MERCADOPAGO_WEBHOOK_SECRET)
+          .update(manifest)
+          .digest('hex');
+        if (expected !== v1) {
+          console.warn('Webhook MP: firma invalida, descartando.');
+          return res.status(401).send('invalid signature');
         }
+      }
+    }
+
+    const type = req.query.type || (req.body && req.body.type);
+    const dataId = (req.query['data.id'] || (req.body && req.body.data && req.body.data.id) || '').toString();
+
+    if (type !== 'payment' || !dataId) return res.status(200).send('OK');
+
+    const info = await mercadoPagoService.getPayment(dataId);
+    if (!info.success) {
+      console.error('Webhook MP: getPayment fallo:', info.error);
+      return res.status(200).send('OK'); // 200 para que MP no reintente eternamente
+    }
+
+    const p = info.payment;
+    const externalRef = p.external_reference || '';
+    const m = externalRef.match(/^course_(\d+)_user_(\d+)_/);
+    if (!m) {
+      console.warn('Webhook MP: external_reference no parseable:', externalRef);
+      return res.status(200).send('OK');
+    }
+    const courseId = Number(m[1]);
+    const userId = Number(m[2]);
+
+    // Buscar el payment guardado por preference_id
+    const preferenceId = (p.order && p.order.id) || p.preference_id || '';
+    if (preferenceId) {
+      await db.updatePaymentByPreferenceId(preferenceId, { payment_id: dataId, status: p.status });
+    }
+
+    if (p.status === 'approved') {
+      const already = await db.isUserEnrolled(userId, courseId);
+      if (!already) {
+        await db.enrollUser(userId, courseId);
+        console.log(`✅ Usuario ${userId} inscrito en curso ${courseId} via webhook`);
       }
     }
 
     res.status(200).send('OK');
   } catch (error) {
-    console.error('Error en webhook:', error);
-    res.status(500).send('Error');
+    console.error('Error en webhook MP:', error);
+    res.status(200).send('OK');
+  }
+});
+
+// Estado de un pago. Usado por el frontend al volver de MercadoPago para
+// confirmar que el alumno quedo inscrito (en caso de que el webhook tarde).
+app.get('/api/payments/status', authenticateToken, async (req, res) => {
+  try {
+    const { preference_id, payment_id, course_id } = req.query;
+    const userId = req.user.userId;
+
+    let payment = null;
+    if (preference_id) payment = await db.getPaymentByPreferenceId(preference_id);
+    else if (payment_id) payment = await db.getPaymentByPaymentId(payment_id);
+
+    // Si MP nos paso el payment_id por query, hacemos un lookup directo a MP
+    // para resolver carreras donde el webhook todavia no llego.
+    if (payment_id && (!payment || payment.status !== 'approved')) {
+      const info = await mercadoPagoService.getPayment(payment_id);
+      if (info.success && info.payment) {
+        const p = info.payment;
+        const m = (p.external_reference || '').match(/^course_(\d+)_user_(\d+)_/);
+        if (m) {
+          const cid = Number(m[1]);
+          const uid = Number(m[2]);
+          if (uid === userId && p.status === 'approved') {
+            const already = await db.isUserEnrolled(uid, cid);
+            if (!already) await db.enrollUser(uid, cid);
+            return res.json({ status: 'approved', enrolled: true, courseId: cid });
+          }
+          return res.json({ status: p.status, enrolled: false, courseId: cid });
+        }
+      }
+    }
+
+    if (!payment) return res.json({ status: 'unknown', enrolled: false });
+    if (payment.user_id !== userId) return res.status(403).json({ error: 'No autorizado' });
+
+    const enrolled = await db.isUserEnrolled(payment.user_id, payment.course_id);
+    res.json({ status: payment.status, enrolled, courseId: payment.course_id });
+  } catch (err) {
+    console.error('payments/status error:', err);
+    res.status(500).json({ error: 'Error obteniendo estado del pago' });
   }
 });
 
