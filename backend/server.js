@@ -14,8 +14,11 @@ const fs = require('fs');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 
-// Base de datos: SQLite (local). Para Postgres se debe portar el adapter.
-const db = require('./database/database');
+// Base de datos: Turso (libSQL) en produccion / SQLite local en dev.
+// Switch via env vars: si TURSO_DATABASE_URL esta seteado, usa Turso.
+const db = process.env.TURSO_DATABASE_URL
+  ? require('./database/database-turso')
+  : require('./database/database');
 const mercadoPagoService = require('./services/mercadopago');
 const logger = require('./utils/logger');
 const NotificationHelper = require('./utils/notificationHelper');
@@ -86,13 +89,14 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Servir archivos estaticos. UPLOADS_DIR es configurable para soportar
-// disks persistentes (Render: /var/data/uploads). Default: backend/uploads.
+// Storage. UPLOADS_DIR es solo para fallback en dev (disk local).
+// En produccion, si SUPABASE_URL+SUPABASE_SERVICE_ROLE_KEY estan setados,
+// los archivos van a Supabase Storage y la URL devuelta es absoluta.
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+const storageHelper = require('./services/storage');
 
-// Permitir que el frontend (otro origen) embeba videos/PDFs servidos desde /uploads.
-// Sin esto, helmet pone Cross-Origin-Resource-Policy: same-origin y rompe el <video> tag.
+// Servir archivos locales si los hay (no se usa en modo Supabase pero no molesta).
 app.use('/uploads', (req, res, next) => {
   res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -100,19 +104,13 @@ app.use('/uploads', (req, res, next) => {
 });
 app.use('/uploads', express.static(UPLOADS_DIR));
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
-  filename: (req, file, cb) => {
-    const safe = path.extname(file.originalname).toLowerCase().replace(/[^.\w]/g, '');
-    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${safe}`);
-  },
-});
-
+// memoryStorage permite que el handler decida adónde mandar el buffer
+// (Supabase o disk). Limite 500MB para videos de clases.
 const ALLOWED_EXT = /\.(jpe?g|png|gif|webp|pdf|docx?|pptx?|xlsx?|mp4|webm|mov|avi|mkv|mp3|wav|m4a|zip)$/i;
 
 const upload = multer({
-  storage,
-  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB para videos de clases
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 500 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (ALLOWED_EXT.test(file.originalname)) return cb(null, true);
     cb(new Error('Tipo de archivo no permitido. Extensiones validas: imagenes, PDF, Office, video, audio, ZIP.'));
@@ -821,7 +819,13 @@ app.post('/api/courses/:id/resources', authenticateToken, requireProfessor, uplo
 
     let fileUrl = url;
     if (req.file) {
-      fileUrl = `/uploads/${req.file.filename}`;
+      const r = await storageHelper.uploadBuffer(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype,
+        UPLOADS_DIR
+      );
+      fileUrl = r.url;
     }
 
     const resource = await db.createCourseResource({
@@ -1273,21 +1277,20 @@ app.get('/api/payments/status', authenticateToken, async (req, res) => {
 // RUTAS DE ARCHIVOS
 // ================================
 
-// Subir archivo
-app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => {
+// Subir archivo (Supabase Storage si está configurado, sino disk local)
+app.post('/api/upload', authenticateToken, upload.single('file'), async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No se subió ningún archivo' });
-    }
-
-    res.json({
-      message: 'Archivo subido exitosamente',
-      filename: req.file.filename,
-      url: `/uploads/${req.file.filename}`
-    });
+    if (!req.file) return res.status(400).json({ error: 'No se subió ningún archivo' });
+    const { url, filename } = await storageHelper.uploadBuffer(
+      req.file.buffer,
+      req.file.originalname,
+      req.file.mimetype,
+      UPLOADS_DIR
+    );
+    res.json({ message: 'Archivo subido exitosamente', filename, url });
   } catch (error) {
     console.error('Error al subir archivo:', error);
-    res.status(500).json({ error: 'Error interno del servidor' });
+    res.status(500).json({ error: 'Error interno del servidor', detail: error.message });
   }
 });
 

@@ -1,174 +1,225 @@
-# Desplegar Campus Norma a producción
+# Desplegar Campus Norma — Modo gratis ($0/mes)
 
-**Tiempo estimado: 15 minutos.**
-**Costo: USD 7/mes** (backend en plan starter de Render — necesario para que la DB y los videos no se pierdan en cada deploy. El frontend es gratis).
-
----
-
-## Resumen del setup
-
-- **Plataforma**: Render.com (lee `render.yaml` y crea backend + frontend + disco persistente automáticamente)
-- **Pagos**: MercadoPago (Argentina)
-- **Cuentas que vas a necesitar**: GitHub (ya tenés), Render, MercadoPago (developer)
+**Tiempo estimado: 25-30 minutos.**
+**Costo fijo: USD 0/mes.** Solo pagás comisiones de MercadoPago por venta (~5-7%).
 
 ---
 
-## Paso 1 — Cuenta en MercadoPago Developers (5 min)
+## Arquitectura
 
-1. Andá a <https://www.mercadopago.com.ar/developers/panel/app>
-2. Iniciá sesión con tu cuenta de MercadoPago (la misma que usás para vender)
-3. Click en **"Crear aplicación"**
+| Componente | Plataforma | Plan | Límite gratuito |
+|---|---|---|---|
+| **Frontend** (React + Vite) | [Vercel](https://vercel.com) | Free | 100GB bandwidth/mes |
+| **Backend** (Express + Socket.IO) | [Render](https://render.com) | Free | 750h/mes — alcanza para 1 servicio 24/7 |
+| **Base de datos** | [Turso](https://turso.tech) (libSQL/SQLite) | Free | 9GB storage, 1B reads/mes |
+| **Storage de videos/PDFs** | [Supabase Storage](https://supabase.com) | Free | 1GB storage, 5GB bandwidth/mes |
+| **Pagos** | [MercadoPago](https://mercadopago.com.ar) | Solo comisión por venta | — |
+
+**Trade-offs honestos del free:**
+
+- **Render free duerme** tras 15 min sin tráfico (~50s para despertar). Lo arreglamos con [UptimeRobot](https://uptimerobot.com) pingueando cada 5 min — gratis.
+- **Supabase Storage 1GB** alcanza para ~30-60 videos comprimidos. Cuando se llene, plan Pro $25/mes.
+- **Turso 9GB** es muchísimo — no lo vas a llenar jamás con DB pura.
+
+---
+
+## Las 5 cuentas que vas a crear
+
+Andá creando cada una en otra pestaña. Son rápidas, todas con tu mail/Google/GitHub.
+
+1. **GitHub** — ya tenés (`Lisandro1313/escuelasuperiorfinal`)
+2. **MercadoPago Developers** — <https://www.mercadopago.com.ar/developers>
+3. **Turso** — <https://turso.tech> (login con GitHub)
+4. **Supabase** — <https://supabase.com> (login con GitHub)
+5. **Render** — <https://render.com> (login con GitHub)
+6. **Vercel** — <https://vercel.com> (login con GitHub)
+
+---
+
+## Paso 1 — Turso (DB) — 3 min
+
+1. <https://turso.tech> → Sign in con GitHub
+2. **Create database** → nombre: `campus-norma` → región: cualquiera (Oregon o São Paulo)
+3. Una vez creada, click **"Create token"** o **"Database tokens" → Generate**:
+   - Permisos: Full Access
+   - Expiration: Never
+4. **Anotá estos dos valores**:
+   - **Database URL**: `libsql://campus-norma-tunick.turso.io` (algo así)
+   - **Auth Token**: `eyJ...` (un JWT largo)
+
+> Las tablas las crea solo el backend al primer arranque (lee `init.sql`).
+
+---
+
+## Paso 2 — Supabase (storage) — 5 min
+
+1. <https://supabase.com> → New project → nombre `campus-norma`, password cualquiera
+2. Esperar 2 min hasta que el proyecto esté listo
+3. **Project Settings → API** → anotá:
+   - **Project URL**: `https://xxx.supabase.co`
+   - **service_role secret** (NO el anon key): `eyJ...`
+4. **Storage → New bucket**:
+   - Nombre: `uploads`
+   - **Public bucket: ✅ activado** (los videos tienen que ser accesibles vía URL)
+   - File size limit: 500MB
+5. Listo.
+
+---
+
+## Paso 3 — MercadoPago Developers — 5 min
+
+1. <https://www.mercadopago.com.ar/developers/panel/app>
+2. **Crear aplicación**:
    - Nombre: `Campus Norma`
-   - Modelo de integración: `Pagos online`
-   - Productos: marcar **Checkout Pro**
-4. Una vez creada, vas a la solapa **"Credenciales"** y vas a ver:
-   - **Credenciales de prueba** (TEST-...) → para probar sin plata real
-   - **Credenciales de producción** (APP_USR-...) → para cobrar de verdad
-
-   Anotá estos cuatro valores (de las credenciales que vas a usar — empezá con las de prueba):
-   - `Access Token`
-   - `Public Key`
-
-5. En el menú izquierdo: **"Webhooks"** → **"Configurar notificaciones"**:
-   - URL: dejala vacía por ahora, la completamos en el paso 4
-   - Eventos: marcar **"Pagos"** (`payment`)
-   - Generar y guardar el **Secret** (lo vas a necesitar)
+   - Productos: ✅ Checkout Pro
+3. En **Credenciales** vas a ver dos pestañas:
+   - **Credenciales de prueba** (TEST-...) → empezá con estas
+   - **Credenciales de producción** (APP_USR-...) → cuando estés listo para cobrar
+4. Anotá:
+   - **Access Token**
+   - **Public Key**
+5. **Webhooks → Configurar notificaciones**:
+   - URL: dejala vacía por ahora (paso 6)
+   - Eventos: ✅ Pagos
+   - Generar y guardar el **Secret**
 
 ---
 
-## Paso 2 — Cuenta en Render y crear el blueprint (3 min)
+## Paso 4 — Backend en Render — 5 min
 
-1. Andá a <https://render.com> → **Sign up con GitHub**
-2. Una vez logueado, **Dashboard → New → Blueprint**
-3. **Connect GitHub repository** → seleccioná `Lisandro1313/escuelasuperiorfinal`
-4. Render detecta `render.yaml` y muestra los servicios que va a crear:
-   - `campus-norma-backend` (web service, plan **starter $7/mes**)
-   - `campus-norma-frontend` (static site, plan free)
-   - Disco persistente de 5GB
-5. Click en **"Apply"**
+1. <https://render.com> → **New → Blueprint**
+2. **Connect repo** → `Lisandro1313/escuelasuperiorfinal` → **Apply**
+3. Render lee `render.yaml` y muestra `campus-norma-backend` (free).
+4. Te pide pegar las env vars `sync: false`. Pegá:
 
-Render te pide que pegues los valores que tienen `sync: false`. Pegalos:
-
-### Backend (`campus-norma-backend`)
-| Variable | Qué poner |
+| Variable | Valor |
 |---|---|
-| `ADMIN_PASSWORD` | Inventá una password fuerte. Ej: `MiPass2026!` (anotala — la vas a usar para entrar como admin) |
-| `MERCADOPAGO_ACCESS_TOKEN` | El que copiaste del paso 1 |
-| `MERCADOPAGO_PUBLIC_KEY` | La que copiaste del paso 1 |
-| `MERCADOPAGO_WEBHOOK_SECRET` | El que generaste del paso 1 |
-| `FRONTEND_URL` | Dejá `https://campus-norma-frontend.onrender.com` (lo confirmamos en el paso 3) |
-| `BACKEND_URL` | Dejá `https://campus-norma-backend.onrender.com` |
+| `ADMIN_PASSWORD` | Inventá una password fuerte (anotala) |
+| `TURSO_DATABASE_URL` | el URL del paso 1 |
+| `TURSO_AUTH_TOKEN` | el token del paso 1 |
+| `SUPABASE_URL` | URL del paso 2 |
+| `SUPABASE_SERVICE_ROLE_KEY` | service_role secret del paso 2 |
+| `MERCADOPAGO_ACCESS_TOKEN` | del paso 3 (empezá con TEST-) |
+| `MERCADOPAGO_PUBLIC_KEY` | del paso 3 |
+| `MERCADOPAGO_WEBHOOK_SECRET` | del paso 3 |
+| `FRONTEND_URL` | dejá vacío por ahora — lo completás en el paso 5 |
+| `BACKEND_URL` | dejá vacío por ahora |
 
-### Frontend (`campus-norma-frontend`)
-| Variable | Qué poner |
-|---|---|
-| `VITE_API_URL` | `https://campus-norma-backend.onrender.com` |
-| `VITE_MERCADOPAGO_PUBLIC_KEY` | La misma public key del paso 1 |
+5. **Apply** → Render compila y deploya. ~5 min.
+6. Cuando termine, anotá la URL del backend, ej. `https://campus-norma-backend.onrender.com`.
+7. **Volvé a Settings → Environment** y completá:
+   - `BACKEND_URL` = `https://campus-norma-backend.onrender.com`
 
-Click **"Create services"**. Render arranca a buildear los dos servicios. Tarda unos 5 minutos.
-
----
-
-## Paso 3 — Confirmar las URLs reales y reiniciar (2 min)
-
-Cuando termine el primer deploy:
-
-1. Anotá las URLs reales que te dio Render. Suelen ser:
-   - Backend: `https://campus-norma-backend.onrender.com`
-   - Frontend: `https://campus-norma-frontend.onrender.com`
-
-   Si Render le agregó un sufijo aleatorio (ej. `campus-norma-backend-x4z9`), copiá las URLs reales.
-
-2. Si las URLs son distintas a las que pegaste antes, andá a **cada servicio → Settings → Environment** y actualizá:
-   - Backend: `FRONTEND_URL` y `BACKEND_URL`
-   - Frontend: `VITE_API_URL`
-3. **Manual Deploy → Clear build cache & deploy** en cada servicio. Espera 3 min.
+8. Verificá: abrí `https://campus-norma-backend.onrender.com/api/health` en el browser. Tenés que ver `{"status":"healthy",...}` o `"degraded"` con la lista de lo que falta.
 
 ---
 
-## Paso 4 — Pegar la URL del webhook en MercadoPago (1 min)
+## Paso 5 — Frontend en Vercel — 3 min
 
-1. Volvé a <https://www.mercadopago.com.ar/developers/panel/app> → tu app → **Webhooks**
-2. Pegá la URL del webhook:
-   ```
-   https://campus-norma-backend.onrender.com/api/payments/webhook
-   ```
-3. Guardar.
+1. <https://vercel.com> → **Add New → Project** → importá el repo `escuelasuperiorfinal`
+2. Configurá:
+   - **Framework Preset**: Vite
+   - **Root Directory**: `frontend` ← importante
+   - **Build Command**: dejar el default (`npm run build`)
+   - **Output Directory**: `dist`
+3. **Environment Variables**:
+   | Variable | Valor |
+   |---|---|
+   | `VITE_API_URL` | la URL del backend de Render (paso 4) |
+   | `VITE_MERCADOPAGO_PUBLIC_KEY` | la public key de MP (paso 3) |
+4. **Deploy**. ~2 min.
+5. Cuando termine, anotá la URL del frontend, ej. `https://campus-norma.vercel.app`.
+
+6. **Volvé a Render → backend → Settings → Environment** y completá:
+   - `FRONTEND_URL` = `https://campus-norma.vercel.app`
+7. Render → **Manual Deploy → Clear cache & deploy** para que tome la nueva env var.
 
 ---
 
-## Paso 5 — Probar que funciona (3 min)
+## Paso 6 — Pegar webhook URL en MercadoPago — 1 min
 
-1. Abrí el frontend: `https://campus-norma-frontend.onrender.com`
-2. **Login como admin**: `admin@campusnorma.com` / la `ADMIN_PASSWORD` que pusiste en el paso 2
-3. Como admin podés también crear cursos. O bien:
-   - Registrá un usuario `Norma` y cambiale el rol a `profesor` (vas a la pestaña Admin → Usuarios)
-   - O directamente hacé que Norma se registre eligiendo "Profesor" con uno de estos códigos: `PROF2024`, `DOCENTE123`, `MAESTRO456` (están hardcodeados en `server.js:241` por ahora — cambialos cuando quieras)
-4. Como profesor:
-   - "Crear curso" → poner precio (ej. $1500)
+1. <https://www.mercadopago.com.ar/developers/panel/app> → tu app → **Webhooks**
+2. URL: `https://campus-norma-backend.onrender.com/api/payments/webhook`
+3. Eventos: ✅ Pagos
+4. Guardar.
+
+---
+
+## Paso 7 — UptimeRobot para que Render no duerma — 2 min
+
+1. <https://uptimerobot.com> → Sign up free
+2. **Add new monitor**:
+   - Type: HTTP(s)
+   - URL: `https://campus-norma-backend.onrender.com/api/health`
+   - Interval: 5 minutes
+3. Save. Listo, el backend nunca duerme más de 5 min.
+
+---
+
+## Paso 8 — Probar todo — 5 min
+
+1. Abrí el frontend: `https://campus-norma.vercel.app`
+2. **Login admin**: `admin@campusnorma.com` / la `ADMIN_PASSWORD` que pusiste
+3. Como admin, registrá la cuenta de Norma como **profesor** (o que ella se registre con el código `PROF2024`)
+4. Norma:
+   - "Crear curso" con precio (ej. $1500)
    - "Mis cursos" → "Gestionar"
-   - Crear módulo → crear lección → tipo **video** → click **"⬆️ Subir desde mi PC"** → elegí un MP4 → guardar
-5. **Probar el pago** (con tarjetas de prueba de MP):
-   - Logout → registrate como un alumno cualquiera
+   - Crear módulo → crear lección tipo **video** → click **"⬆️ Subir desde mi PC"** → MP4 → guardar
+   - El video se subió a Supabase Storage (no al server)
+5. **Probar el pago** (con tarjetas test de MP):
+   - Logout, registrate como alumno
    - Buscá el curso → "💳 Comprar Curso - $1500"
-   - En MercadoPago usá una **tarjeta de prueba**:
-     - Visa: `4509 9535 6623 3704`
-     - CVV: `123`, Vencimiento: `11/30`, DNI: `12345678`, nombre: `APRO` (para aprobar) o `OTHE` (para rechazar)
-   - Tras pagar, MP te redirige a `/payment/success` → la página hace polling al backend → "✅ Pago confirmado, Ir al curso"
-   - Ahora ves los módulos y reproducís el video.
+   - En MercadoPago usá tarjeta test: `4509 9535 6623 3704`, CVV `123`, vto `11/30`, DNI `12345678`, nombre **`APRO`** (para aprobar)
+   - Tras pagar, te redirige a `/payment/success` → polling al backend → "✅ Pago confirmado, Ir al curso"
+   - Ya ves el video.
 
 ---
 
 ## Pasar a "cobrar de verdad"
 
-Cuando esté todo OK:
-
-1. Volvé al panel de MercadoPago → Credenciales → cambiá a **"Producción"**
-2. Copiá los nuevos `Access Token` y `Public Key` (empiezan con `APP_USR-...`)
-3. En Render → backend → Environment → reemplazá `MERCADOPAGO_ACCESS_TOKEN` y `MERCADOPAGO_PUBLIC_KEY` por las de producción
-4. En Render → frontend → Environment → reemplazá `VITE_MERCADOPAGO_PUBLIC_KEY`
-5. Manual Deploy en ambos.
-
-Listo. Cobrás de verdad.
+1. Volver al panel de MP → Credenciales → **Producción**
+2. Copiar `Access Token` (APP_USR-...) y `Public Key` de producción
+3. Render → backend → Environment → reemplazar `MERCADOPAGO_ACCESS_TOKEN` y `MERCADOPAGO_PUBLIC_KEY`
+4. Vercel → frontend → Settings → Environment → reemplazar `VITE_MERCADOPAGO_PUBLIC_KEY`
+5. Manual deploy en ambos.
 
 ---
 
 ## Dominio propio (opcional)
 
-Si comprás `campusnorma.com` o `escuelanorma.com.ar`:
+Si comprás `campusnorma.com`:
 
-1. Render → frontend → Settings → Custom Domain → agregar `campusnorma.com` y `www.campusnorma.com`
-2. Render te da unos registros DNS (CNAME). Los pegás en tu proveedor de dominio.
-3. Render → backend → Custom Domain → agregar `api.campusnorma.com` (o lo que prefieras)
-4. Actualizar `FRONTEND_URL`, `BACKEND_URL` y `VITE_API_URL` en Render con los dominios nuevos.
-5. Actualizar la URL del webhook en MercadoPago.
+- **Vercel** → Settings → Domains → Add `campusnorma.com` y `www.campusnorma.com`
+- **Render** → backend → Settings → Custom Domain → Add `api.campusnorma.com`
+- Actualizar `FRONTEND_URL` en Render, `VITE_API_URL` en Vercel
+- Actualizar URL del webhook en MercadoPago
 
-SSL es automático en Render.
-
----
-
-## Troubleshooting rápido
-
-| Síntoma | Causa probable | Fix |
-|---|---|---|
-| `/api/health` muestra `configMissing: [...]` | Faltan env vars | Render → backend → Environment → completar las que faltan |
-| Pago "no se pudo crear preferencia" | Access token inválido o de cuenta sin productos habilitados | Verificar credenciales MP, regenerar |
-| Webhook no inscribe al alumno | URL del webhook mal configurada en MP | Volver al paso 4. Verificar logs en Render → backend → Logs |
-| Frontend muestra "Network Error" | `VITE_API_URL` mal seteado | Confirmar que apunta al backend de Render |
-| El backend duerme | Render free tier duerme tras 15 min | Ya está en plan starter, no debería pasar |
-| La DB / videos se borraron tras un deploy | Falta el disco persistente | Render → backend → Disks → confirmar que `campus-norma-data` está montado en `/var/data` |
-
-Logs en vivo: **Render → cada servicio → Logs** (tail real-time).
+SSL automático en ambas plataformas.
 
 ---
 
-## Costos
+## Troubleshooting
 
-- **Render backend (starter)**: USD 7/mes
-- **Render frontend (static free)**: USD 0
-- **Render disco persistente 5GB**: incluido en starter
-- **MercadoPago**: comisión por transacción (~5-7% según el medio de pago, no hay costo fijo)
+| Síntoma | Fix |
+|---|---|
+| `/api/health` muestra `configMissing: [...]` | Render → backend → Environment → completar las que faltan + Manual deploy |
+| "Network Error" en el browser | Verificar `VITE_API_URL` en Vercel apunta al backend de Render |
+| El video no carga | Verificar que el bucket de Supabase es **public** |
+| Pago "no se pudo crear preferencia" | Access token de MP inválido o cuenta sin Checkout Pro habilitado |
+| El alumno paga pero no ve el curso | Webhook no configurado en MP. Volver al paso 6 |
+| Render se duerme | Verificar que UptimeRobot está activo (paso 7) |
 
-**Total fijo: USD 7/mes.**
+Logs en vivo:
+- Backend: Render → service → tab Logs
+- Frontend: Vercel → project → Deployments → último deploy → Logs
 
-Si querés ahorrar, podés bajar el disco a 1GB ($0.25/mes ahorrados) editando `render.yaml` línea `sizeGB`.
+---
+
+## ¿Y si crece y necesito más?
+
+- **Supabase Storage llena (1GB)** → Plan Pro $25/mes (8GB) o usar [Cloudflare R2](https://www.cloudflare.com/products/r2/) (10GB free + bandwidth ilimitado)
+- **Render free se queda corto (CPU/memoria)** → Starter $7/mes (sin sleep, más recursos)
+- **Turso llena (9GB)** → muy difícil. Plan Scaler $29/mes da 100GB.
+- **Tráfico Vercel >100GB/mes** → Plan Pro $20/mes.
+
+Pero para empezar y entregar a Norma, gratis sirve.

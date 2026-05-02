@@ -1,70 +1,52 @@
-# Blueprint de Render para Campus Norma.
-# Deploy: New → Blueprint → seleccionar este repo. Render lee este archivo y crea TODO.
-#
-# Costo total: USD 7/mes (solo el backend en plan starter, por el disk persistente).
-# El frontend es estatico y va gratis. Ver DEPLOY.md para los pasos exactos.
+# Blueprint de Render para Campus Norma — modo gratis ($0/mes).
+# DB en Turso, storage en Supabase, frontend en Vercel (NO en este blueprint).
+# Esta config solo crea el backend. Para deploy frontend ver vercel.json.
 
 services:
-  # Backend: Express + Socket.IO + SQLite + uploads.
-  # Plan starter porque necesita disk persistente (SQLite + videos).
+  # Backend: Express + Socket.IO. Plan free porque la DB y los uploads
+  # viven afuera (Turso + Supabase Storage), entonces no necesita disco.
   - type: web
     name: campus-norma-backend
     env: node
     region: oregon
-    plan: starter
+    plan: free
     rootDir: backend
     buildCommand: npm install
     startCommand: node server.js
     healthCheckPath: /api/health
     autoDeploy: true
-    numInstances: 1  # SQLite no tolera multiples writers
-    disk:
-      name: campus-norma-data
-      mountPath: /var/data
-      sizeGB: 5
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
       - key: JWT_SECRET
-        generateValue: true  # Render genera uno aleatorio
+        generateValue: true
       - key: ADMIN_EMAIL
         value: admin@campusnorma.com
       - key: ADMIN_PASSWORD
-        sync: false  # ← te lo pide en el dashboard
-      - key: DB_FILE
-        value: /var/data/campus_norma.db
-      - key: UPLOADS_DIR
-        value: /var/data/uploads
+        sync: false
+      # --- Turso (DB) ---
+      - key: TURSO_DATABASE_URL
+        sync: false  # libsql://tu-db.turso.io
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      # --- Supabase Storage (videos, PDFs) ---
+      - key: SUPABASE_URL
+        sync: false  # https://xxx.supabase.co
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: uploads
+      # --- MercadoPago (pagos) ---
       - key: MERCADOPAGO_ACCESS_TOKEN
         sync: false
       - key: MERCADOPAGO_PUBLIC_KEY
         sync: false
       - key: MERCADOPAGO_WEBHOOK_SECRET
         sync: false
+      # --- URLs publicas ---
       - key: FRONTEND_URL
-        sync: false  # ← URL del frontend (la pones tras el primer deploy)
-      - key: BACKEND_URL
-        sync: false  # ← URL de este mismo backend
-
-  # Frontend: build estatico de Vite.
-  # Plan free (sin disk, solo HTML/CSS/JS).
-  - type: web
-    name: campus-norma-frontend
-    env: static
-    region: oregon
-    plan: free
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
-    autoDeploy: true
-    envVars:
-      - key: VITE_API_URL
-        sync: false  # ← URL del backend
-      - key: VITE_MERCADOPAGO_PUBLIC_KEY
         sync: false
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+      - key: BACKEND_URL
+        sync: false
