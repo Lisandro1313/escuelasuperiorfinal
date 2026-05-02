@@ -16,6 +16,10 @@ class TursoDatabase {
       authToken: process.env.TURSO_AUTH_TOKEN,
     });
 
+    // libSQL no acepta `undefined` en args (sqlite3 sí, lo trata como NULL).
+    // Convertimos undefined → null para mantener compatibilidad.
+    const sanitize = (a) => (Array.isArray(a) ? a.map((v) => (v === undefined ? null : v)) : []);
+
     // db: API compatible con sqlite3.Database (callback style).
     // Adapta libsql Promise API → callback (err, ...) que usa el resto del código.
     const client = this.client;
@@ -23,7 +27,7 @@ class TursoDatabase {
       run(sql, params, cb) {
         if (typeof params === 'function') { cb = params; params = []; }
         client
-          .execute({ sql, args: params || [] })
+          .execute({ sql, args: sanitize(params) })
           .then((r) => {
             const ctx = {
               lastID: r.lastInsertRowid != null ? Number(r.lastInsertRowid) : undefined,
@@ -36,14 +40,14 @@ class TursoDatabase {
       get(sql, params, cb) {
         if (typeof params === 'function') { cb = params; params = []; }
         client
-          .execute({ sql, args: params || [] })
+          .execute({ sql, args: sanitize(params) })
           .then((r) => cb && cb(null, r.rows[0]))
           .catch((err) => cb && cb(err));
       },
       all(sql, params, cb) {
         if (typeof params === 'function') { cb = params; params = []; }
         client
-          .execute({ sql, args: params || [] })
+          .execute({ sql, args: sanitize(params) })
           .then((r) => cb && cb(null, r.rows))
           .catch((err) => cb && cb(err));
       },
@@ -76,18 +80,31 @@ class TursoDatabase {
 
   async init() {
     try {
-      // Crear schema (idempotente, IF NOT EXISTS)
       const initSQL = fs.readFileSync(path.join(__dirname, 'init.sql'), 'utf8');
-      const statements = initSQL
-        .split(/;\s*\n/)
-        .map((s) => s.trim())
-        .filter((s) => s && !s.startsWith('--'));
-      for (const stmt of statements) {
-        try {
-          await this.client.execute(stmt);
-        } catch (e) {
-          if (!/already exists|duplicate column/i.test(e.message)) {
-            console.error('Error en init Turso:', e.message, '\nSQL:', stmt.slice(0, 100));
+      // executeMultiple: API nativa de libSQL que ejecuta varios statements
+      // separados por ; en una sola llamada (preserva CREATE TABLE + INDEX).
+      try {
+        await this.client.executeMultiple(initSQL);
+      } catch (e) {
+        // Algunos statements pueden fallar por "already exists" — los ignoramos.
+        // Si falla todo, intentamos statement por statement como fallback.
+        const stmts = initSQL
+          .split(/;\s*(?:\r?\n|$)/)
+          .map((s) =>
+            s
+              .split(/\r?\n/)
+              .filter((line) => !line.trim().startsWith('--'))
+              .join('\n')
+              .trim()
+          )
+          .filter(Boolean);
+        for (const stmt of stmts) {
+          try {
+            await this.client.execute(stmt);
+          } catch (err) {
+            if (!/already exists|duplicate column/i.test(err.message)) {
+              console.error('Error en init Turso:', err.message, '\nSQL:', stmt.slice(0, 120));
+            }
           }
         }
       }
@@ -123,9 +140,11 @@ class TursoDatabase {
     }
   }
 
-  // Helper para queries Promise-based (más limpio dentro de esta clase)
+  // Helper para queries Promise-based (más limpio dentro de esta clase).
+  // Sanitiza undefined → null porque libSQL los rechaza (sqlite3 los acepta).
   async _query(sql, args = []) {
-    return this.client.execute({ sql, args });
+    const safeArgs = (args || []).map((v) => (v === undefined ? null : v));
+    return this.client.execute({ sql, args: safeArgs });
   }
 
   // ===========================================================================
