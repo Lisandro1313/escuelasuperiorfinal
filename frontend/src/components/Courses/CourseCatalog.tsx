@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -7,7 +7,6 @@ interface Course {
   nombre: string;
   descripcion: string;
   profesor: string;
-  profesorId: number;
   categoria: string;
   precio: number;
   duracion: string;
@@ -16,227 +15,145 @@ interface Course {
   imagen: string;
 }
 
+const formatARS = (n: number) =>
+  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n || 0);
+
 const CourseCatalog: React.FC = () => {
   const { usuario } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState<'todos' | 'gratis' | 'pago'>('todos');
   const [selectedCategory, setSelectedCategory] = useState('Todas');
 
-  const categories = ['Todas', 'Tecnología', 'Diseño', 'Marketing', 'Negocios', 'Idiomas'];
-
   useEffect(() => {
-    const loadCourses = async () => {
-      try {
-        setLoading(true);
-        
-        // Obtener cursos reales del backend
-        const response = await fetch('/api/courses');
-        if (response.ok) {
-          const coursesData = await response.json();
-          setCourses(coursesData);
-        } else {
-          console.error('Error al cargar cursos');
-          setCourses([]);
-        }
-      } catch (error) {
-        console.error('Error cargando cursos:', error);
-        setCourses([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadCourses();
+    fetch('/api/courses')
+      .then((r) => r.json())
+      .then((d) => setCourses(Array.isArray(d) ? d : []))
+      .catch(() => setCourses([]))
+      .finally(() => setLoading(false));
   }, []);
 
-  const filteredCourses = courses.filter(course => {
-    const matchesSearch = course.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         course.descripcion.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         course.profesor.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = selectedCategory === 'Todas' || course.categoria === selectedCategory;
-    
-    return matchesSearch && matchesCategory;
-  });
+  // Categorías derivadas de los cursos reales
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    courses.forEach((c) => c.categoria && set.add(c.categoria));
+    return ['Todas', ...Array.from(set).sort()];
+  }, [courses]);
 
-  const isEnrolled = (courseId: number) => {
-    return usuario?.cursosInscritos?.includes(courseId) || false;
-  };
+  const filtered = useMemo(() => {
+    return courses.filter((c) => {
+      if (search) {
+        const q = search.toLowerCase();
+        const match =
+          c.nombre.toLowerCase().includes(q) ||
+          (c.descripcion || '').toLowerCase().includes(q) ||
+          (c.profesor || '').toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      if (selectedCategory !== 'Todas' && c.categoria !== selectedCategory) return false;
+      if (filter === 'gratis' && Number(c.precio) > 0) return false;
+      if (filter === 'pago' && Number(c.precio) === 0) return false;
+      return true;
+    });
+  }, [courses, search, selectedCategory, filter]);
 
-  if (loading) {
-    return (
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <span className="ml-3 text-gray-600">Cargando catálogo de cursos...</span>
-        </div>
-      </div>
-    );
-  }
+  const isEnrolled = (id: number) => usuario?.cursosInscritos?.includes(id) || false;
 
   return (
-    <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="bg-white shadow rounded-lg mb-6 p-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          📚 Catálogo de Cursos
-        </h1>
-        <p className="text-gray-600">
-          Explora nuestra amplia selección de cursos online de alta calidad
-        </p>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">Catálogo de cursos</h1>
+          <p className="text-gray-600 mt-1">Elegí el que más te interese y empezá a aprender</p>
+        </div>
 
-      {/* Filtros */}
-      <div className="bg-white shadow rounded-lg mb-6 p-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          {/* Búsqueda */}
-          <div className="flex-1">
-            <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-2">
-              🔍 Buscar cursos
-            </label>
-            <input
-              type="text"
-              id="search"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por nombre, descripción o profesor..."
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {/* Categorías */}
-          <div>
-            <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
-              📂 Categoría
-            </label>
+        {/* Filtros */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-col lg:flex-row gap-3">
+          <input
+            type="text"
+            placeholder="Buscar curso, profesor o tema..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+          />
+          {categories.length > 1 && (
             <select
-              id="category"
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2.5 border border-gray-300 rounded-lg"
             >
-              {categories.map(category => (
-                <option key={category} value={category}>
-                  {category}
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
                 </option>
               ))}
             </select>
+          )}
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            {(['todos', 'gratis', 'pago'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition capitalize ${
+                  filter === f ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {f === 'todos' ? 'Todos' : f === 'gratis' ? 'Gratis' : 'De pago'}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Estadísticas */}
-        <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
-          <span>
-            Mostrando {filteredCourses.length} de {courses.length} cursos
-          </span>
-          <span>
-            💳 Sistema de pagos con MercadoPago integrado
-          </span>
-        </div>
-      </div>
-
-      {/* Grid de cursos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredCourses.map((course) => (
-          <div key={course.id} className="bg-white shadow rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200">
-            {/* Header del curso */}
-            <div className="p-6">
-              <div className="flex items-center mb-4">
-                <span className="text-4xl mr-3">{course.imagen}</span>
-                <div className="flex-1">
-                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">
-                    {course.categoria}
-                  </span>
-                </div>
-              </div>
-
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                {course.nombre}
-              </h3>
-
-              <p className="text-gray-600 text-sm mb-4 line-clamp-3">
-                {course.descripcion}
-              </p>
-
-              {/* Info del profesor */}
-              <div className="flex items-center mb-4 text-sm text-gray-500">
-                <span className="mr-4">👨‍🏫 {course.profesor}</span>
-              </div>
-
-              {/* Estadísticas */}
-              <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-                <span>⏱️ {course.duracion}</span>
-                <span>👥 {course.estudiantes}</span>
-                <span>⭐ {course.rating}</span>
-              </div>
-
-              {/* Precio */}
-              <div className="flex items-center justify-between">
-                <div className="text-2xl font-bold text-blue-600">
-                  ${course.precio}
-                </div>
-                
-                {isEnrolled(course.id) ? (
-                  <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                    <span className="text-green-700 text-sm font-medium">✅ Inscrito</span>
+        {/* Resultado */}
+        {loading ? (
+          <div className="text-center py-16 text-gray-500">Cargando cursos...</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16 bg-white rounded-xl border-2 border-dashed border-gray-300">
+            <div className="text-5xl mb-3">🔍</div>
+            <p className="text-lg text-gray-700">
+              {courses.length === 0 ? 'Todavía no hay cursos publicados' : 'No encontramos cursos con esos filtros'}
+            </p>
+            <p className="text-sm text-gray-500 mt-2">
+              {courses.length === 0 ? 'Volvé pronto.' : 'Probá quitando algún filtro.'}
+            </p>
+          </div>
+        ) : (
+          <>
+            <p className="text-sm text-gray-500 mb-4">{filtered.length} {filtered.length === 1 ? 'curso' : 'cursos'}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filtered.map((c) => (
+                <Link
+                  key={c.id}
+                  to={`/course/${c.id}`}
+                  className="bg-white rounded-xl border border-gray-200 hover:border-blue-400 hover:shadow-md transition overflow-hidden flex flex-col"
+                >
+                  <div className="bg-gradient-to-br from-blue-500 to-purple-600 h-32 flex items-center justify-center text-6xl">
+                    {c.imagen || '📚'}
                   </div>
-                ) : (
-                  <div className="text-right">
-                    <div className="space-y-2">
-                      <Link
-                        to={`/course/${course.id}`}
-                        className="block bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md text-sm text-center transition duration-200"
-                      >
-                        Ver Detalles
-                      </Link>
-                      <Link
-                        to={`/course/${course.id}/payment`}
-                        className="block bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm text-center transition duration-200"
-                      >
-                        💳 Comprar
-                      </Link>
+                  <div className="p-5 flex-1 flex flex-col">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{c.categoria}</span>
+                      {isEnrolled(c.id) && (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">✓ Inscripto</span>
+                      )}
+                    </div>
+                    <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">{c.nombre}</h3>
+                    <p className="text-sm text-gray-500 mb-2">por {c.profesor}</p>
+                    <p className="text-sm text-gray-600 line-clamp-2 mb-4">{c.descripcion}</p>
+                    <div className="mt-auto flex items-center justify-between">
+                      <span className="text-xs text-gray-500">{c.duracion || ''}</span>
+                      <span className={`font-bold text-lg ${Number(c.precio) === 0 ? 'text-green-600' : 'text-blue-600'}`}>
+                        {Number(c.precio) === 0 ? 'GRATIS' : formatARS(Number(c.precio))}
+                      </span>
                     </div>
                   </div>
-                )}
-              </div>
+                </Link>
+              ))}
             </div>
-          </div>
-        ))}
-      </div>
-
-      {/* No results */}
-      {filteredCourses.length === 0 && (
-        <div className="bg-white shadow rounded-lg p-12 text-center">
-          <span className="text-4xl mb-4 block">🔍</span>
-          <h3 className="text-lg font-medium text-gray-900 mb-2">
-            No se encontraron cursos
-          </h3>
-          <p className="text-gray-600 mb-4">
-            Intenta ajustar tus filtros de búsqueda
-          </p>
-          <button
-            onClick={() => {
-              setSearchTerm('');
-              setSelectedCategory('Todas');
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition duration-200"
-          >
-            Limpiar filtros
-          </button>
-        </div>
-      )}
-
-      {/* Footer con información */}
-      <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-6">
-        <div className="text-center">
-          <h3 className="text-lg font-medium text-blue-900 mb-2">
-            🚀 Sistema de Campus Virtual Completo
-          </h3>
-          <p className="text-blue-700 text-sm">
-            • Pagos seguros con MercadoPago • Chat en tiempo real • Clases en vivo y grabadas • 
-            Gestión de archivos • Autenticación con JWT • Base de datos PostgreSQL
-          </p>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );

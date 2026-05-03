@@ -491,6 +491,203 @@ app.get('/api/professor/enrolled-students', authenticateToken, requireProfessor,
   }
 });
 
+// Dashboard del profesor: metricas agregadas reales (cursos, alumnos, ingresos del mes,
+// proxima clase en vivo) + tabla de cursos con su estado.
+app.get('/api/professor/dashboard', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const courses = await db.getCoursesByProfessor(userId);
+
+    let totalStudents = 0;
+    let monthRevenue = 0;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+    const coursesWithStats = [];
+    for (const course of courses) {
+      const students = await db.getCourseEnrollments(course.id);
+      totalStudents += students.length;
+      // Sumar ingresos aprobados del mes (solo cursos con precio > 0)
+      let courseRevenue = 0;
+      let totalSold = 0;
+      if (Number(course.precio) > 0) {
+        for (const s of students) {
+          if (s.enrolled_at && s.enrolled_at >= monthStart) {
+            courseRevenue += Number(course.precio);
+            monthRevenue += Number(course.precio);
+          }
+          totalSold++;
+        }
+      }
+      coursesWithStats.push({
+        id: course.id,
+        nombre: course.nombre,
+        precio: course.precio,
+        publicado: course.publicado,
+        imagen: course.imagen,
+        categoria: course.categoria,
+        students: students.length,
+        revenue_month: courseRevenue,
+        total_sold: totalSold,
+      });
+    }
+
+    // Proxima clase en vivo programada
+    let nextLiveClass = null;
+    try {
+      const events = await db.getEventsForProfessor(userId);
+      const upcoming = (events || [])
+        .filter((e) => e.status !== 'cancelled' && new Date(e.start_date) > now)
+        .sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+      if (upcoming.length) {
+        const e = upcoming[0];
+        nextLiveClass = {
+          id: e.id,
+          title: e.title,
+          start_date: e.start_date,
+          course_name: e.course_name,
+          meeting_url: e.description && e.description.startsWith('http') ? e.description : null,
+        };
+      }
+    } catch {
+      // events table puede estar vacia, no es bloqueante
+    }
+
+    res.json({
+      stats: {
+        courses: courses.length,
+        published: courses.filter((c) => c.publicado).length,
+        students: totalStudents,
+        revenue_month: monthRevenue,
+      },
+      courses: coursesWithStats,
+      next_live_class: nextLiveClass,
+    });
+  } catch (error) {
+    console.error('Error en /api/professor/dashboard:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Lista plana de TODOS los alumnos del profesor con info de pago y curso
+app.get('/api/professor/my-students', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const courses = await db.getCoursesByProfessor(userId);
+    const flat = [];
+    for (const course of courses) {
+      const students = await db.getCourseEnrollments(course.id);
+      for (const s of students) {
+        flat.push({
+          enrollment_id: s.enrollment_id || s.id,
+          student_id: s.id,
+          student_name: s.nombre,
+          student_email: s.email,
+          course_id: course.id,
+          course_name: course.nombre,
+          course_price: course.precio,
+          enrolled_at: s.enrolled_at,
+          progress: s.progress,
+          completed: s.completed,
+        });
+      }
+    }
+    flat.sort((a, b) => new Date(b.enrolled_at) - new Date(a.enrolled_at));
+    res.json(flat);
+  } catch (error) {
+    console.error('Error en /api/professor/my-students:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Programar clase en vivo (genera link de Jitsi gratis y lo guarda como evento).
+app.post('/api/courses/:id/live-class', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const { title, scheduled_at, duration_minutes = 60 } = req.body;
+    if (!title || !scheduled_at) {
+      return res.status(400).json({ error: 'title y scheduled_at son requeridos' });
+    }
+    const course = await db.getCourseById(courseId);
+    if (!course || course.profesor_id !== req.user.userId) {
+      return res.status(403).json({ error: 'No tenes permisos para este curso' });
+    }
+    // Jitsi: link publico, sin instalar nada, gratis. La sala se crea al primer click.
+    const slug = `CampusNorma-${courseId}-${Date.now().toString(36)}`;
+    const meetingUrl = `https://meet.jit.si/${slug}`;
+    const startDate = new Date(scheduled_at).toISOString();
+    const endDate = new Date(new Date(scheduled_at).getTime() + duration_minutes * 60 * 1000).toISOString();
+
+    const eventId = await db.createEvent({
+      title,
+      description: meetingUrl, // guardamos la URL de Jitsi en description para reusar el schema
+      startDate,
+      endDate,
+      type: 'live_class',
+      courseId,
+      instructorId: req.user.userId,
+    });
+
+    // Notificar a inscriptos (si hay tabla notifications y model Notification)
+    try {
+      const Notification = require('./src/models/Notification');
+      const notifModel = new Notification(db);
+      const students = await db.getCourseEnrollments(courseId);
+      for (const s of students) {
+        await notifModel.create({
+          user_id: s.id,
+          tipo: 'clase_vivo',
+          type: 'clase_vivo',
+          titulo: '🔴 Nueva clase en vivo',
+          title: '🔴 Nueva clase en vivo',
+          mensaje: `"${title}" en "${course.nombre}" - ${new Date(startDate).toLocaleString('es-AR')}`,
+          message: `"${title}" en "${course.nombre}"`,
+          related_type: 'course',
+          related_id: courseId,
+          action_url: `/course/${courseId}`,
+        });
+      }
+    } catch (e) {
+      console.warn('No se pudieron enviar notificaciones de clase en vivo:', e.message);
+    }
+
+    res.status(201).json({
+      id: eventId,
+      title,
+      meeting_url: meetingUrl,
+      start_date: startDate,
+      end_date: endDate,
+      course_id: Number(courseId),
+    });
+  } catch (error) {
+    console.error('Error programando clase en vivo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Listar clases en vivo de un curso (para profe Y alumno inscripto)
+app.get('/api/courses/:id/live-classes', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    const courseId = Number(req.params.id);
+    const events = await db.getEventsForProfessor(req.course.profesor_id);
+    const filtered = (events || [])
+      .filter((e) => e.course_id === courseId && e.type === 'live_class')
+      .map((e) => ({
+        id: e.id,
+        title: e.title,
+        meeting_url: e.description,
+        start_date: e.start_date,
+        end_date: e.end_date,
+        status: e.status,
+      }))
+      .sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
+    res.json(filtered);
+  } catch (error) {
+    console.error('Error listando clases en vivo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // Verificar si el usuario está inscrito en un curso
 app.get('/api/courses/:id/enrollment', authenticateToken, async (req, res) => {
   try {

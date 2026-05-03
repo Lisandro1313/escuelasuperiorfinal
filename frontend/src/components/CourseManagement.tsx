@@ -76,6 +76,10 @@ const CourseManagement: React.FC = () => {
 
   const [uploading, setUploading] = useState<'lesson' | 'resource' | null>(null);
   const [uploadError, setUploadError] = useState<string>('');
+  const [showLiveClassModal, setShowLiveClassModal] = useState(false);
+  const [liveClassForm, setLiveClassForm] = useState({ title: '', date: '', time: '', duration: 60 });
+  const [liveClassResult, setLiveClassResult] = useState<{ url: string; date: string } | null>(null);
+  const [scheduling, setScheduling] = useState(false);
 
   // Sube un archivo al backend y devuelve la URL servida (/uploads/xxx).
   const uploadFile = async (file: File): Promise<string | null> => {
@@ -320,6 +324,34 @@ const CourseManagement: React.FC = () => {
     }));
   };
 
+  const scheduleLiveClass = async () => {
+    if (!liveClassForm.title || !liveClassForm.date || !liveClassForm.time) {
+      alert('Completá título, fecha y hora');
+      return;
+    }
+    setScheduling(true);
+    try {
+      const scheduledAt = new Date(`${liveClassForm.date}T${liveClassForm.time}`).toISOString();
+      const res = await fetch(`/api/courses/${id}/live-class`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({
+          title: liveClassForm.title,
+          scheduled_at: scheduledAt,
+          duration_minutes: liveClassForm.duration,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Error');
+      setLiveClassResult({ url: d.meeting_url, date: scheduledAt });
+      setLiveClassForm({ title: '', date: '', time: '', duration: 60 });
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    } finally {
+      setScheduling(false);
+    }
+  };
+
   const openEditModule = (module: Module) => {
     setEditingModule(module);
     setModuleForm({
@@ -368,24 +400,34 @@ const CourseManagement: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header moderno */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-700 text-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="text-blue-100 hover:text-white text-sm mb-3 flex items-center gap-1"
+          >
+            ← Volver al panel
+          </button>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-bold">Gestión de Contenido</h1>
-              <p className="text-blue-100 mt-2">
-                {course?.nombre}
-              </p>
-              <p className="text-blue-200 text-sm mt-1">{course?.descripcion}</p>
+              <h1 className="text-2xl md:text-3xl font-bold">{course?.nombre}</h1>
+              <p className="text-blue-100 text-sm mt-1">Gestiona los módulos, lecciones y clases en vivo de este curso</p>
             </div>
-            <button
-              onClick={() => setShowModuleModal(true)}
-              className="bg-white text-blue-600 px-6 py-3 rounded-xl font-semibold hover:bg-blue-50 transition duration-300 flex items-center space-x-2 shadow-lg"
-            >
-              <span className="text-xl">➕</span>
-              <span>Nuevo Módulo</span>
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setShowLiveClassModal(true)}
+                className="bg-red-500 hover:bg-red-600 text-white px-5 py-2.5 rounded-lg font-semibold shadow-lg flex items-center gap-2"
+              >
+                🔴 Programar clase en vivo
+              </button>
+              <button
+                onClick={() => setShowModuleModal(true)}
+                className="bg-white text-blue-600 px-5 py-2.5 rounded-lg font-semibold hover:bg-blue-50 shadow-lg flex items-center gap-2"
+              >
+                ➕ Nuevo módulo
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -899,6 +941,124 @@ const CourseManagement: React.FC = () => {
                 {editingLesson ? '💾 Actualizar' : '✨ Crear'} Lección
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Programar clase en vivo */}
+      {showLiveClassModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => { setShowLiveClassModal(false); setLiveClassResult(null); }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-lg font-semibold flex items-center gap-2">🔴 Programar clase en vivo</h3>
+              <button
+                onClick={() => { setShowLiveClassModal(false); setLiveClassResult(null); }}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              >&times;</button>
+            </div>
+
+            {liveClassResult ? (
+              <div className="p-6 space-y-4">
+                <div className="text-center">
+                  <div className="text-5xl mb-3">✅</div>
+                  <h4 className="text-xl font-bold text-gray-900">¡Clase programada!</h4>
+                  <p className="text-gray-600 mt-2">
+                    {new Date(liveClassResult.date).toLocaleString('es-AR', { dateStyle: 'long', timeStyle: 'short' })}
+                  </p>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-sm text-gray-700 mb-2">Link de la sala (Jitsi, gratis, sin instalar nada):</p>
+                  <a
+                    href={liveClassResult.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline break-all text-sm font-medium"
+                  >
+                    {liveClassResult.url}
+                  </a>
+                  <button
+                    onClick={() => { navigator.clipboard.writeText(liveClassResult.url); alert('Link copiado'); }}
+                    className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg"
+                  >
+                    📋 Copiar link
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 text-center">
+                  Tus alumnos inscriptos ya recibieron la notificación.
+                </p>
+                <button
+                  onClick={() => { setShowLiveClassModal(false); setLiveClassResult(null); }}
+                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 rounded-lg"
+                >
+                  Listo
+                </button>
+              </div>
+            ) : (
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Título de la clase *</label>
+                  <input
+                    type="text"
+                    value={liveClassForm.title}
+                    onChange={(e) => setLiveClassForm({ ...liveClassForm, title: e.target.value })}
+                    placeholder="Ej: Clase 5 - Práctica en vivo"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Fecha *</label>
+                    <input
+                      type="date"
+                      value={liveClassForm.date}
+                      onChange={(e) => setLiveClassForm({ ...liveClassForm, date: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Hora *</label>
+                    <input
+                      type="time"
+                      value={liveClassForm.time}
+                      onChange={(e) => setLiveClassForm({ ...liveClassForm, time: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Duración (minutos)</label>
+                  <input
+                    type="number"
+                    min={15}
+                    step={15}
+                    value={liveClassForm.duration}
+                    onChange={(e) => setLiveClassForm({ ...liveClassForm, duration: Number(e.target.value) })}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
+                  💡 Te vamos a generar un link de Jitsi (gratis, sin instalar nada). Los alumnos inscriptos van a recibir notificación.
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowLiveClassModal(false)}
+                    className="flex-1 px-5 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={scheduleLiveClass}
+                    disabled={scheduling}
+                    className="flex-1 px-5 py-3 bg-red-500 hover:bg-red-600 disabled:bg-red-300 text-white rounded-lg font-semibold"
+                  >
+                    {scheduling ? 'Programando...' : 'Programar clase'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

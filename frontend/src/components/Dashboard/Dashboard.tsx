@@ -1,829 +1,363 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { courseService } from '../../services/api';
-import socketService from '../../services/socket';
-
 import { StudentDashboard } from '../Student/StudentDashboard';
-import EnrolledStudents from '../Professor/EnrolledStudents';
 
-interface Course {
+interface CourseStat {
   id: number;
   nombre: string;
-  descripcion: string;
-  profesor: string;
-  profesor_id: number;
-  categoria: string;
   precio: number;
-  duracion: string;
-  estudiantes: number;
-  rating: number;
-  imagen: string;
+  publicado: number | boolean;
+  imagen?: string;
+  categoria?: string;
+  students: number;
+  revenue_month: number;
+  total_sold: number;
 }
+
+interface DashboardData {
+  stats: { courses: number; published: number; students: number; revenue_month: number };
+  courses: CourseStat[];
+  next_live_class: {
+    id: number;
+    title: string;
+    start_date: string;
+    course_name: string;
+    meeting_url: string | null;
+  } | null;
+}
+
+const formatARS = (n: number) =>
+  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n || 0);
 
 const Dashboard: React.FC = () => {
   const { usuario } = useAuth();
-  const [courses, setCourses] = useState<Course[]>([]);
+  const navigate = useNavigate();
+
+  // Si es alumno, delega al StudentDashboard existente
+  if (usuario?.tipo === 'alumno') return <StudentDashboard />;
+
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showCreateCourse, setShowCreateCourse] = useState(false);
-  const [showEnrolledStudents, setShowEnrolledStudents] = useState(false);
+  const [showNewCourse, setShowNewCourse] = useState(false);
+
+  const fetchDashboard = async () => {
+    try {
+      const res = await fetch('/api/professor/dashboard', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (!res.ok) throw new Error('No se pudo cargar');
+      const d = await res.json();
+      setData(d);
+    } catch (e) {
+      setError('No se pudo cargar el panel.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        // Conectar Socket.IO
-        const token = localStorage.getItem('token');
-        if (token) {
-          socketService.connect(token);
-        }
-
-        // Cargar cursos
-        const coursesData = await courseService.getAllCourses();
-        setCourses(coursesData);
-      } catch (error) {
-        console.error('Error cargando datos:', error);
-        setError('Error conectando con el servidor');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (usuario) {
-      loadData();
-    }
-
-    return () => {
-      // Limpiar conexión Socket.IO al desmontar
-      socketService.disconnect();
-    };
-  }, [usuario]);
-
-  // Datos específicos según el tipo de usuario
-  const getStatsForUser = () => {
-    if (usuario?.tipo === 'profesor') {
-      const misCursos = courses.filter(c => c.profesor_id === usuario.id);
-      return {
-        cursosActivos: misCursos.length,
-        estudiantesTotales: 0, // Se actualizará con datos reales
-        proximaClase: "No hay clases programadas",
-        ingresosMes: 0 // Se calculará con datos reales
-      };
-    } else if (usuario?.tipo === 'admin') {
-      return {
-        cursosTotal: courses.length,
-        usuariosActivos: 0, // Se calculará con datos reales
-        ingresosMes: 0, // Se calculará con datos reales
-        nuevosRegistros: 0 // Se calculará con datos reales
-      };
-    } else {
-      // Estudiante
-      return {
-        cursosActivos: usuario?.cursosInscritos?.length || 0,
-        clasesTomadas: 0, // Se calculará con progreso real
-        proximaClase: "No hay clases programadas",
-        saldoPendiente: 0 // Se calculará con datos reales
-      };
-    }
-  };
-
-  const stats = getStatsForUser();
-
-  // Si es estudiante, mostrar el dashboard especializado
-  if (usuario?.tipo === 'alumno') {
-    return <StudentDashboard />;
-  }
-
-  const getCursosForUser = () => {
-    if (usuario?.tipo === 'profesor') {
-      return courses.filter(curso => curso.profesor_id === usuario.id);
-    } else if (usuario?.tipo === 'admin') {
-      return courses;
-    } else {
-      return courses.filter(curso => usuario?.cursosInscritos?.includes(curso.id));
-    }
-  };
-
-  const cursosRelevantes = getCursosForUser();
+    fetchDashboard();
+  }, []);
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <span className="ml-3 text-gray-600">Cargando datos del servidor...</span>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-gray-500">Cargando panel...</div>
       </div>
     );
   }
 
-  if (error) {
+  if (error || !data) {
     return (
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <div className="flex items-center">
-            <span className="text-red-500 text-xl mr-3">⚠️</span>
-            <div>
-              <h3 className="text-red-800 font-medium">Error de Conexión</h3>
-              <p className="text-red-600">{error}</p>
-              <p className="text-sm text-red-500 mt-2">
-                Verifica que el backend esté funcionando en 
-              </p>
-            </div>
-          </div>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-red-600">{error || 'Error'}</div>
       </div>
     );
   }
-
-  const renderStatsCards = () => {
-    if (usuario?.tipo === 'profesor') {
-      return (
-        <>
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0"><span className="text-2xl">📚</span></div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Cursos que Dicto</dt>
-                    <dd className="text-lg font-medium text-gray-900">{stats.cursosActivos}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0"><span className="text-2xl">👥</span></div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Estudiantes Totales</dt>
-                    <dd className="text-lg font-medium text-gray-900">{stats.estudiantesTotales}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0"><span className="text-2xl">⏰</span></div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Próxima Clase</dt>
-                    <dd className="text-sm font-medium text-gray-900">{stats.proximaClase}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0"><span className="text-2xl">💰</span></div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Ingresos del Mes</dt>
-                    <dd className="text-lg font-medium text-gray-900">${stats.ingresosMes}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      );
-    } else if (usuario?.tipo === 'admin') {
-      return (
-        <>
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0"><span className="text-2xl">📚</span></div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Total Cursos</dt>
-                    <dd className="text-lg font-medium text-gray-900">{stats.cursosTotal}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0"><span className="text-2xl">👥</span></div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Usuarios Activos</dt>
-                    <dd className="text-lg font-medium text-gray-900">{stats.usuariosActivos}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0"><span className="text-2xl">💰</span></div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Ingresos del Mes</dt>
-                    <dd className="text-lg font-medium text-gray-900">${stats.ingresosMes}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0"><span className="text-2xl">📈</span></div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Nuevos Registros</dt>
-                    <dd className="text-lg font-medium text-gray-900">{stats.nuevosRegistros}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      );
-    } else {
-      // Estudiante
-      return (
-        <>
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0"><span className="text-2xl">📚</span></div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Cursos Activos</dt>
-                    <dd className="text-lg font-medium text-gray-900">{stats.cursosActivos}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0"><span className="text-2xl">✅</span></div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Clases Tomadas</dt>
-                    <dd className="text-lg font-medium text-gray-900">{stats.clasesTomadas}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0"><span className="text-2xl">⏰</span></div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Próxima Clase</dt>
-                    <dd className="text-sm font-medium text-gray-900">{stats.proximaClase}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="flex items-center">
-                <div className="flex-shrink-0"><span className="text-2xl">💰</span></div>
-                <div className="ml-5 w-0 flex-1">
-                  <dl>
-                    <dt className="text-sm font-medium text-gray-500 truncate">Saldo Pendiente</dt>
-                    <dd className="text-lg font-medium text-gray-900">${stats.saldoPendiente}</dd>
-                  </dl>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      );
-    }
-  };
-
-  const getSaludoPersonalizado = () => {
-    const nombre = usuario?.nombre?.split(' ')[0] || 'Usuario';
-    if (usuario?.tipo === 'profesor') {
-      return `¡Bienvenido/a ${nombre}! 👨‍🏫`;
-    } else if (usuario?.tipo === 'admin') {
-      return `¡Bienvenido/a Administrador/a ${nombre}! 👩‍💼`;
-    } else {
-      return `¡Bienvenido/a ${nombre}! 👩‍🎓`;
-    }
-  };
 
   return (
-    <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-      {/* Indicador de conexión */}
-      <div className="mb-4">
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <span className="text-green-500 mr-2">🟢</span>
-              <span className="text-sm text-green-700">Conectado al backend en tiempo real</span>
-            </div>
-            <span className="text-xs text-green-600">
-              {socketService.getConnectionStatus() ? '✅ Socket.IO' : '⏳ Conectando...'}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Header */}
-      <div className="px-4 py-6 sm:px-0">
-        <div className="flex justify-between items-center">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{getSaludoPersonalizado()}</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              {usuario?.tipo === 'profesor' 
-                ? 'Gestiona tus clases y estudiantes'
-                : usuario?.tipo === 'admin'
-                ? 'Panel de administración del campus'
-                : 'Continúa tu aprendizaje donde lo dejaste'
-              }
+            <h1 className="text-3xl font-bold text-gray-900">Hola, {usuario?.nombre} 👋</h1>
+            <p className="text-gray-600 mt-1">
+              {usuario?.tipo === 'admin' ? 'Panel de administración' : 'Panel de profesor'}
             </p>
           </div>
-          <div className="flex space-x-4">
-            <Link
-              to="/courses"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition duration-200"
-            >
-              {usuario?.tipo === 'profesor' ? 'Mis Cursos' : 'Explorar Cursos'}
-            </Link>
-            {usuario?.tipo === 'profesor' && (
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setShowCreateCourse(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition duration-200 flex items-center"
-                >
-                  <span className="mr-2">➕</span>
-                  Crear Curso
-                </button>
-                <button
-                  onClick={() => setShowEnrolledStudents(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition duration-200 flex items-center"
-                >
-                  <span className="mr-2">👥</span>
-                  Ver Estudiantes
-                </button>
+          <button
+            onClick={() => setShowNewCourse(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-3 rounded-lg shadow-sm transition flex items-center gap-2"
+          >
+            <span className="text-xl leading-none">+</span> Nuevo curso
+          </button>
+        </div>
+
+        {/* 4 metricas reales */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <MetricCard label="Cursos" value={`${data.stats.published}/${data.stats.courses}`} sub="publicados" icon="📚" />
+          <MetricCard label="Alumnos totales" value={data.stats.students} sub="inscriptos" icon="👥" />
+          <MetricCard label="Ingresos del mes" value={formatARS(data.stats.revenue_month)} sub="acreditados" icon="💰" />
+          <MetricCard
+            label="Próxima clase en vivo"
+            value={data.next_live_class ? new Date(data.next_live_class.start_date).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }) : '—'}
+            sub={data.next_live_class ? data.next_live_class.title : 'sin clases programadas'}
+            icon="🔴"
+          />
+        </div>
+
+        {/* Próxima clase: alerta destacada si la hay */}
+        {data.next_live_class && (
+          <div className="bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-xl p-5 mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <div className="text-sm uppercase tracking-wide opacity-90">Próxima clase en vivo</div>
+              <div className="text-xl font-bold mt-1">{data.next_live_class.title}</div>
+              <div className="text-sm mt-1 opacity-90">
+                {data.next_live_class.course_name} · {new Date(data.next_live_class.start_date).toLocaleString('es-AR')}
               </div>
+            </div>
+            {data.next_live_class.meeting_url && (
+              <a
+                href={data.next_live_class.meeting_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-white text-red-600 hover:bg-gray-100 font-semibold px-5 py-3 rounded-lg whitespace-nowrap"
+              >
+                Entrar a la sala →
+              </a>
             )}
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {renderStatsCards()}
-      </div>
-
-      {/* Enlaces rápidos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <Link
-          to="/courses"
-          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition duration-200 border-l-4 border-blue-500"
-        >
-          <div className="flex items-center">
-            <span className="text-3xl mr-4">📚</span>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Explorar Cursos</h3>
-              <p className="text-gray-600 text-sm">Descubre nuevos cursos</p>
-            </div>
+        {/* Mis Cursos: tabla simple con acciones */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-gray-900">Mis cursos</h2>
+            <Link to="/courses" className="text-blue-600 hover:underline text-sm font-medium">
+              Ver catálogo público →
+            </Link>
           </div>
-        </Link>
 
-        <Link
-          to="/calendar"
-          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition duration-200 border-l-4 border-green-500"
-        >
-          <div className="flex items-center">
-            <span className="text-3xl mr-4">�</span>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Calendario</h3>
-              <p className="text-gray-600 text-sm">Gestiona clases y eventos</p>
-            </div>
-          </div>
-        </Link>
-
-        <Link
-          to="/files"
-          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition duration-200 border-l-4 border-orange-500"
-        >
-          <div className="flex items-center">
-            <span className="text-3xl mr-4">📁</span>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Gestión de Archivos</h3>
-              <p className="text-gray-600 text-sm">Sube y gestiona archivos</p>
-            </div>
-          </div>
-        </Link>
-
-        <div className="bg-white rounded-lg shadow p-6 border-l-4 border-purple-500">
-          <div className="flex items-center">
-            <span className="text-3xl mr-4">💬</span>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Chat en Tiempo Real</h3>
-              <p className="text-gray-600 text-sm">Conectado y funcionando</p>
-            </div>
-          </div>
-        </div>
-
-        <Link
-          to="/video-player"
-          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition duration-200 border-l-4 border-red-500"
-        >
-          <div className="flex items-center">
-            <span className="text-3xl mr-4">🎥</span>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Video Player</h3>
-              <p className="text-gray-600 text-sm">Reproductor avanzado</p>
-            </div>
-          </div>
-        </Link>
-
-        <Link
-          to="/evaluations"
-          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition duration-200 border-l-4 border-indigo-500"
-        >
-          <div className="flex items-center">
-            <span className="text-3xl mr-4">📝</span>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Evaluaciones</h3>
-              <p className="text-gray-600 text-sm">Quizzes y exámenes</p>
-            </div>
-          </div>
-        </Link>
-
-        <Link
-          to="/analytics"
-          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition duration-200 border-l-4 border-pink-500"
-        >
-          <div className="flex items-center">
-            <span className="text-3xl mr-4">📊</span>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Analytics</h3>
-              <p className="text-gray-600 text-sm">Métricas y reportes</p>
-            </div>
-          </div>
-        </Link>
-
-        <Link
-          to="/certificados"
-          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition duration-200 border-l-4 border-yellow-500"
-        >
-          <div className="flex items-center">
-            <span className="text-3xl mr-4">🏆</span>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Certificados</h3>
-              <p className="text-gray-600 text-sm">Genera y gestiona certificados</p>
-            </div>
-          </div>
-        </Link>
-
-        <Link
-          to="/foros"
-          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition duration-200 border-l-4 border-green-500"
-        >
-          <div className="flex items-center">
-            <span className="text-3xl mr-4">💬</span>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Foros</h3>
-              <p className="text-gray-600 text-sm">Discusiones y comunidad</p>
-            </div>
-          </div>
-        </Link>
-
-        <Link
-          to="/gamificacion"
-          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition duration-200 border-l-4 border-purple-500"
-        >
-          <div className="flex items-center">
-            <span className="text-3xl mr-4">🎮</span>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Gamificación</h3>
-              <p className="text-gray-600 text-sm">Logros y clasificaciones</p>
-            </div>
-          </div>
-        </Link>
-
-        <div className="bg-white rounded-lg shadow p-6 border-l-4 border-orange-500">
-          <div className="flex items-center">
-            <span className="text-3xl mr-4">💳</span>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Pagos MercadoPago</h3>
-              <p className="text-gray-600 text-sm">Sistema integrado</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Cursos Relevantes */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-4 py-5 sm:p-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-            {usuario?.tipo === 'profesor' 
-              ? 'Mis Cursos'
-              : usuario?.tipo === 'admin'
-              ? 'Todos los Cursos'
-              : 'Mis Cursos Activos'
-            } ({cursosRelevantes.length})
-          </h3>
-          
-          {cursosRelevantes.length === 0 ? (
-            <div className="text-center py-12">
-              <span className="text-4xl mb-4 block">📚</span>
-              <h4 className="text-lg font-medium text-gray-900 mb-2">
-                {usuario?.tipo === 'profesor' ? 'No has creado cursos aún' : 'No hay cursos disponibles'}
-              </h4>
-              <p className="text-gray-600 mb-4">
-                {usuario?.tipo === 'profesor' 
-                  ? 'Crea tu primer curso para comenzar a enseñar'
-                  : 'Los cursos aparecerán aquí cuando estén disponibles'
-                }
-              </p>
-              {usuario?.tipo === 'profesor' && (
-                <button
-                  onClick={() => setShowCreateCourse(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition duration-200"
-                >
-                  Crear Primer Curso
-                </button>
-              )}
+          {data.courses.length === 0 ? (
+            <div className="text-center py-16 px-6">
+              <div className="text-5xl mb-3">📚</div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Todavía no creaste ningún curso</h3>
+              <p className="text-gray-600 mb-6">Empezá creando tu primer curso. Después agregás módulos, lecciones, videos y PDFs.</p>
+              <button
+                onClick={() => setShowNewCourse(true)}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-3 rounded-lg shadow-sm"
+              >
+                + Crear mi primer curso
+              </button>
             </div>
           ) : (
-            <div className="space-y-4">
-              {cursosRelevantes.map((curso) => (
-                <div key={curso.id} className="border rounded-lg p-4 hover:bg-gray-50 transition duration-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <span className="text-2xl">{curso.imagen}</span>
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-900">{curso.nombre}</h4>
-                          <p className="text-sm text-gray-500">👨‍🏫 {curso.profesor}</p>
-                        </div>
-                      </div>
-                      
-                      {usuario?.tipo === 'alumno' && usuario.progreso && (
-                        <div className="mt-2">
-                          <div className="flex justify-between text-xs text-gray-600 mb-1">
-                            <span>Progreso</span>
-                            <span>{usuario.progreso[curso.id] || 0}%</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-blue-600 h-2 rounded-full" 
-                              style={{ width: `${usuario.progreso[curso.id] || 0}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      )}
-
-                      {usuario?.tipo === 'profesor' && (
-                        <div className="mt-2 flex space-x-4 text-sm text-gray-500">
-                          <span>👥 {curso.estudiantes} estudiantes</span>
-                          <span>⏱️ {curso.duracion}</span>
-                          <span>⭐ {curso.rating}</span>
-                        </div>
+            <div className="divide-y divide-gray-100">
+              {data.courses.map((c) => (
+                <div key={c.id} className="px-6 py-5 flex flex-col md:flex-row md:items-center gap-4 hover:bg-gray-50 transition">
+                  <div className="text-4xl">{c.imagen || '📚'}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-gray-900 truncate">{c.nombre}</h3>
+                      {c.publicado ? (
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">publicado</span>
+                      ) : (
+                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">borrador</span>
                       )}
                     </div>
-                    
-                    <div className="ml-4 flex space-x-2">
-                      <Link
-                        to={`/course/${curso.id}`}
-                        className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1 rounded-md text-sm transition duration-200"
-                      >
-                        {usuario?.tipo === 'profesor' ? 'Ver' : 'Ver Curso'}
-                      </Link>
-                      {usuario?.tipo === 'profesor' && curso.profesor_id === usuario.id && (
-                        <Link
-                          to={`/course/${curso.id}/manage`}
-                          className="bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1 rounded-md text-sm transition duration-200 inline-block"
-                        >
-                          📝 Gestionar
-                        </Link>
+                    <div className="text-sm text-gray-500 mt-1 flex flex-wrap gap-x-4 gap-y-1">
+                      <span>👥 {c.students} alumnos</span>
+                      <span>💰 {Number(c.precio) === 0 ? 'GRATIS' : formatARS(Number(c.precio))}</span>
+                      {Number(c.precio) > 0 && c.revenue_month > 0 && (
+                        <span className="text-green-600 font-medium">+{formatARS(c.revenue_month)} este mes</span>
                       )}
                     </div>
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    <Link
+                      to={`/course/${c.id}/manage`}
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg whitespace-nowrap"
+                    >
+                      ✏️ Editar contenido
+                    </Link>
+                    <Link
+                      to={`/course/${c.id}`}
+                      className="bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg border border-gray-300 whitespace-nowrap"
+                    >
+                      👁️ Ver
+                    </Link>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
+
+        {/* Acciones secundarias */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
+          <Link to="/students" className="bg-white border border-gray-200 hover:border-blue-400 hover:shadow-sm rounded-lg p-5 transition">
+            <div className="text-3xl mb-2">👥</div>
+            <h3 className="font-semibold text-gray-900">Mis estudiantes</h3>
+            <p className="text-sm text-gray-600">Quién se inscribió, quién pagó</p>
+          </Link>
+          <Link to="/profile" className="bg-white border border-gray-200 hover:border-blue-400 hover:shadow-sm rounded-lg p-5 transition">
+            <div className="text-3xl mb-2">👤</div>
+            <h3 className="font-semibold text-gray-900">Mi perfil</h3>
+            <p className="text-sm text-gray-600">Datos, foto, contraseña</p>
+          </Link>
+          {usuario?.tipo === 'admin' && (
+            <Link to="/admin" className="bg-white border border-gray-200 hover:border-blue-400 hover:shadow-sm rounded-lg p-5 transition">
+              <div className="text-3xl mb-2">⚙️</div>
+              <h3 className="font-semibold text-gray-900">Administración</h3>
+              <p className="text-sm text-gray-600">Usuarios, configuración general</p>
+            </Link>
+          )}
+        </div>
       </div>
 
-
-
-      {/* Modal para Crear Curso */}
-      {showCreateCourse && (
-        <CreateCourseModal 
-          onClose={() => setShowCreateCourse(false)}
-          onCourseCreated={(newCourse) => {
-            setCourses([...courses, newCourse]);
-            setShowCreateCourse(false);
-          }}
-        />
-      )}
-
-      {/* Modal para Estudiantes Inscriptos */}
-      {showEnrolledStudents && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-900">Estudiantes Inscriptos</h2>
-                <button
-                  onClick={() => setShowEnrolledStudents(false)}
-                  className="text-gray-400 hover:text-gray-600 text-2xl"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <EnrolledStudents />
-            </div>
-          </div>
-        </div>
-      )}
+      {showNewCourse && <NewCourseModal onClose={() => setShowNewCourse(false)} onCreated={fetchDashboard} navigate={navigate} />}
     </div>
   );
 };
 
-// Componente Modal para Crear Curso
-const CreateCourseModal: React.FC<{
-  onClose: () => void;
-  onCourseCreated: (course: Course) => void;
-}> = ({ onClose, onCourseCreated }) => {
-  const [formData, setFormData] = useState({
-    nombre: '',
-    descripcion: '',
-    categoria: 'programacion',
-    precio: '',
-    duracion: '',
-    imagen: '📚'
-  });
+const MetricCard: React.FC<{ label: string; value: React.ReactNode; sub?: string; icon: string }> = ({ label, value, sub, icon }) => (
+  <div className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm">
+    <div className="flex items-center justify-between mb-2">
+      <span className="text-sm text-gray-500">{label}</span>
+      <span className="text-xl">{icon}</span>
+    </div>
+    <div className="text-2xl font-bold text-gray-900">{value}</div>
+    {sub && <div className="text-xs text-gray-500 mt-1 truncate">{sub}</div>}
+  </div>
+);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+const NewCourseModal: React.FC<{
+  onClose: () => void;
+  onCreated: () => void;
+  navigate: (to: string) => void;
+}> = ({ onClose, onCreated, navigate }) => {
+  const [form, setForm] = useState({ nombre: '', descripcion: '', categoria: 'General', precio: 0, duracion: '', imagen: '📚' });
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState('');
+
+  const submit = async () => {
+    if (!form.nombre.trim()) {
+      setErr('Poné un nombre al curso');
+      return;
+    }
+    setSubmitting(true);
+    setErr('');
     try {
-      const newCourse = await courseService.createCourse({
-        ...formData,
-        precio: parseFloat(formData.precio) || 0
+      const res = await fetch('/api/courses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify(form),
       });
-      onCourseCreated(newCourse);
-    } catch (error) {
-      console.error('Error creando curso:', error);
-      alert('Error al crear el curso. Inténtalo de nuevo.');
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Error');
+      const newId = (d.course || d).id;
+      onCreated();
+      onClose();
+      navigate(`/course/${newId}/manage`);
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-gray-900">Crear Nuevo Curso</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl"
-          >
-            ×
-          </button>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Crear nuevo curso</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
         </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Nombre del Curso
-            </label>
+        <div className="p-6 space-y-4">
+          <Field label="Nombre del curso *">
             <input
               type="text"
-              value={formData.nombre}
-              onChange={(e) => setFormData({...formData, nombre: e.target.value})}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
+              value={form.nombre}
+              onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+              placeholder="Ej: Yoga para principiantes"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Descripción
-            </label>
+          </Field>
+          <Field label="Descripción corta">
             <textarea
-              value={formData.descripcion}
-              onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={form.descripcion}
+              onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
               rows={3}
-              required
+              placeholder="¿De qué trata el curso? ¿A quién está dirigido?"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Categoría
-            </label>
-            <select
-              value={formData.categoria}
-              onChange={(e) => setFormData({...formData, categoria: e.target.value})}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="programacion">Programación</option>
-              <option value="matematicas">Matemáticas</option>
-              <option value="ciencias">Ciencias</option>
-              <option value="arte">Arte</option>
-              <option value="idiomas">Idiomas</option>
-              <option value="negocios">Negocios</option>
-            </select>
-          </div>
-
-          <div className="flex space-x-4">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Precio ($)
-              </label>
-              <input
-                type="number"
-                value={formData.precio}
-                onChange={(e) => setFormData({...formData, precio: e.target.value})}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                min="0"
-                step="0.01"
-                required
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Duración
-              </label>
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Categoría">
               <input
                 type="text"
-                value={formData.duracion}
-                onChange={(e) => setFormData({...formData, duracion: e.target.value})}
-                placeholder="ej: 8 semanas"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
+                value={form.categoria}
+                onChange={(e) => setForm({ ...form, categoria: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg"
               />
-            </div>
+            </Field>
+            <Field label="Duración">
+              <input
+                type="text"
+                value={form.duracion}
+                onChange={(e) => setForm({ ...form, duracion: e.target.value })}
+                placeholder="Ej: 6 semanas"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+              />
+            </Field>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Emoji del Curso
-            </label>
-            <select
-              value={formData.imagen}
-              onChange={(e) => setFormData({...formData, imagen: e.target.value})}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="📚">📚 Libro</option>
-              <option value="💻">💻 Programación</option>
-              <option value="🧮">🧮 Matemáticas</option>
-              <option value="🎨">🎨 Arte</option>
-              <option value="🌍">🌍 Idiomas</option>
-              <option value="⚗️">⚗️ Ciencias</option>
-              <option value="💼">💼 Negocios</option>
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Precio (ARS)">
+              <input
+                type="number"
+                min={0}
+                value={form.precio}
+                onChange={(e) => setForm({ ...form, precio: Number(e.target.value) })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+              />
+              <p className="text-xs text-gray-500 mt-1">Poné 0 para curso gratuito</p>
+            </Field>
+            <Field label="Emoji">
+              <input
+                type="text"
+                value={form.imagen}
+                onChange={(e) => setForm({ ...form, imagen: e.target.value })}
+                maxLength={4}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-2xl text-center"
+              />
+            </Field>
           </div>
-
-          <div className="flex space-x-4 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-2 px-4 rounded-md transition duration-200"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition duration-200"
-            >
-              Crear Curso
-            </button>
-          </div>
-        </form>
+          {err && <p className="text-red-600 text-sm">{err}</p>}
+        </div>
+        <div className="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end">
+          <button onClick={onClose} className="px-5 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium">
+            Cancelar
+          </button>
+          <button
+            onClick={submit}
+            disabled={submitting}
+            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium"
+          >
+            {submitting ? 'Creando...' : 'Crear curso'}
+          </button>
+        </div>
       </div>
     </div>
   );
 };
+
+const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+    {children}
+  </div>
+);
 
 export default Dashboard;
