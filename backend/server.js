@@ -20,6 +20,7 @@ const db = process.env.TURSO_DATABASE_URL
   ? require('./database/database-turso')
   : require('./database/database');
 const mercadoPagoService = require('./services/mercadopago');
+const emailService = require('./services/email');
 const logger = require('./utils/logger');
 const NotificationHelper = require('./utils/notificationHelper');
 
@@ -276,19 +277,21 @@ app.post('/api/auth/forgot-password', authLimiter, async (req, res) => {
     const frontUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
     const resetLink = `${frontUrl}/reset-password?token=${token}`;
 
-    // En produccion mandar mail aca (Resend/Sendgrid/SMTP). En dev devolvemos el link.
-    console.log(`🔑 Reset link para ${email}: ${resetLink}`);
-
-    if (process.env.NODE_ENV === 'production') {
-      // TODO: integrar Resend/Sendgrid. Por ahora solo loggea.
-      return res.json({ message: 'Si el email existe, te enviamos las instrucciones.' });
-    }
-
-    res.json({
-      message: 'Si el email existe, te enviamos las instrucciones.',
-      // Solo en dev: devolver el link para poder probar sin mail server.
-      dev_reset_link: resetLink,
+    // Mandar email (Resend/SMTP/console fallback)
+    const result = await emailService.sendPasswordResetEmail({
+      to: user.email,
+      name: user.nombre,
+      resetLink,
     });
+    if (!result.success) console.error('Error enviando email de reset:', result.error);
+
+    const response = { message: 'Si el email existe, te enviamos las instrucciones.' };
+    // En dev (modo console, no se manda mail real) devolvemos el link en la
+    // respuesta para poder probar el flow sin mail server configurado.
+    if (emailService.mode() === 'console') {
+      response.dev_reset_link = resetLink;
+    }
+    res.json(response);
   } catch (err) {
     console.error('forgot-password error:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -725,24 +728,39 @@ app.post('/api/courses/:id/live-class', authenticateToken, requireProfessor, asy
       instructorId: req.user.userId,
     });
 
-    // Notificar a inscriptos (si hay tabla notifications y model Notification)
+    // Notificar a inscriptos: notificacion in-app + email
     try {
       const Notification = require('./src/models/Notification');
       const notifModel = new Notification(db);
       const students = await db.getCourseEnrollments(courseId);
       for (const s of students) {
-        await notifModel.create({
-          user_id: s.id,
-          tipo: 'clase_vivo',
-          type: 'clase_vivo',
-          titulo: '🔴 Nueva clase en vivo',
-          title: '🔴 Nueva clase en vivo',
-          mensaje: `"${title}" en "${course.nombre}" - ${new Date(startDate).toLocaleString('es-AR')}`,
-          message: `"${title}" en "${course.nombre}"`,
-          related_type: 'course',
-          related_id: courseId,
-          action_url: `/course/${courseId}`,
-        });
+        // Notificacion in-app
+        try {
+          await notifModel.create({
+            user_id: s.id,
+            tipo: 'clase_vivo',
+            type: 'clase_vivo',
+            titulo: '🔴 Nueva clase en vivo',
+            title: '🔴 Nueva clase en vivo',
+            mensaje: `"${title}" en "${course.nombre}" - ${new Date(startDate).toLocaleString('es-AR')}`,
+            message: `"${title}" en "${course.nombre}"`,
+            related_type: 'course',
+            related_id: courseId,
+            action_url: `/course/${courseId}`,
+          });
+        } catch (e) { /* notif individual no bloquea */ }
+
+        // Email (no bloquea si falla)
+        if (s.email) {
+          emailService.sendLiveClassEmail({
+            to: s.email,
+            name: s.nombre,
+            courseName: course.nombre,
+            classTitle: title,
+            scheduledAt: startDate,
+            meetingUrl,
+          }).catch((e) => console.warn('Email clase en vivo fallo:', e.message));
+        }
       }
     } catch (e) {
       console.warn('No se pudieron enviar notificaciones de clase en vivo:', e.message);
@@ -854,6 +872,20 @@ app.post('/api/courses/:id/enroll', authenticateToken, async (req, res) => {
         // No fallar la inscripción si falla la notificación
       }
     }
+
+    // Email de bienvenida al alumno (no bloquea si falla)
+    try {
+      const student = await db.getUserById(userId);
+      if (student && student.email) {
+        const frontUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        emailService.sendEnrollmentEmail({
+          to: student.email,
+          name: student.nombre,
+          courseName: course.nombre,
+          courseUrl: `${frontUrl}/course/${courseId}/view`,
+        }).catch((e) => console.warn('Email de bienvenida fallo:', e.message));
+      }
+    } catch {}
 
     res.json({
       message: 'Inscripción exitosa',

@@ -50,3 +50,9 @@ services:
         sync: false
       - key: BACKEND_URL
         sync: false
+      # --- Email (opcional, recomendado) ---
+      # Sin esto, los emails se loggean. Con RESEND_API_KEY se mandan reales.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false  # ej: "Campus Norma <noreply@tudominio.com>"

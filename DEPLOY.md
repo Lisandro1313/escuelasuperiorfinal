@@ -175,6 +175,27 @@ Andá creando cada una en otra pestaña. Son rápidas, todas con tu mail/Google/
 
 ---
 
+## Email real (recomendado, 5 min)
+
+Sin esto, "Olvidé mi contraseña" no funciona en producción y nadie recibe email cuando se inscribe a un curso. Con Resend (free 100 mails/día):
+
+1. <https://resend.com> → Sign up con GitHub
+2. **API Keys → Create API Key** → copiar la key (`re_...`)
+3. **Domains → Add Domain** (o usá `onboarding@resend.dev` para probar sin dominio propio)
+4. En Render → backend → Environment → agregar:
+   - `RESEND_API_KEY` = la key
+   - `EMAIL_FROM` = `"Campus Norma <noreply@tudominio.com>"` (con dominio verificado) o `"Campus Norma <onboarding@resend.dev>"` (sin verificar, solo te llegan a vos como remitente)
+5. Manual deploy del backend.
+
+A partir de ahora, los siguientes emails se mandan reales:
+- Recuperar contraseña (forgot password)
+- Bienvenida al inscribirse a un curso (gratis o pago)
+- Aviso al programar una clase en vivo (a todos los inscriptos)
+
+Si no configurás email, los emails se loggean en la consola de Render (Logs).
+
+---
+
 ## Pasar a "cobrar de verdad"
 
 1. Volver al panel de MP → Credenciales → **Producción**
