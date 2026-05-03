@@ -54,6 +54,12 @@ class Database {
       }
     });
 
+    this.db.run(`ALTER TABLE users ADD COLUMN avatar VARCHAR(500)`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error agregando columna avatar:', err);
+      }
+    });
+
     // Agregar columna recursos a lessons si no existe
     this.db.run(`ALTER TABLE lessons ADD COLUMN recursos TEXT`, (err) => {
       if (err && !err.message.includes('duplicate column name')) {
@@ -153,26 +159,24 @@ class Database {
 
   async updateUser(id, userData) {
     return new Promise((resolve, reject) => {
-      const { nombre, email, telefono, biografia, password } = userData;
-      
-      let sql = `UPDATE users SET nombre = ?, email = ?, telefono = ?, biografia = ?`;
-      let params = [nombre, email, telefono, biografia];
-      
-      if (password) {
-        sql += `, password = ?`;
-        params.push(password);
+      // Solo actualizo campos definidos (evita pisar con undefined→null en libsql)
+      const fields = [];
+      const params = [];
+      const map = { nombre: 'nombre', email: 'email', telefono: 'telefono', biografia: 'biografia', avatar: 'avatar', password: 'password' };
+      for (const [k, col] of Object.entries(map)) {
+        if (userData[k] !== undefined) {
+          fields.push(`${col} = ?`);
+          params.push(userData[k]);
+        }
       }
-      
-      sql += ` WHERE id = ?`;
+      if (!fields.length) return resolve({ id, ...userData });
+      fields.push('updated_at = CURRENT_TIMESTAMP');
+      const sql = `UPDATE users SET ${fields.join(', ')} WHERE id = ?`;
       params.push(id);
       
-      this.db.run(sql, params, function(err) {
-        if (err) {
-          reject(err);
-        } else {
-          // Retornar el usuario actualizado
-          resolve({ id, nombre, email, telefono, biografia });
-        }
+      this.db.run(sql, params, function (err) {
+        if (err) reject(err);
+        else resolve({ id, ...userData });
       });
     });
   }

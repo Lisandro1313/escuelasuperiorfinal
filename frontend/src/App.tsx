@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import LandingPage from './components/Landing/LandingPage';
 import Login from './components/Auth/Login';
 import Register from './pages/Register';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './components/Dashboard/Dashboard';
 import CourseCatalog from './components/Courses/CourseCatalog';
 import CourseDetail from './components/Courses/CourseDetail';
@@ -40,6 +41,7 @@ function AppContent() {
           <Route path="/" element={!isAuthenticated ? <LandingPage /> : <Navigate to="/dashboard" />} />
           <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/dashboard" />} />
           <Route path="/register" element={!isAuthenticated ? <Register /> : <Navigate to="/dashboard" />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Auth required */}
           <Route path="/dashboard" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />

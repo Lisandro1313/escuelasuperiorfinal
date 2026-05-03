@@ -476,3 +476,18 @@ CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_leida ON notifications(leida);
 CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
 
+-- Tokens de reset de contraseña
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token VARCHAR(255) UNIQUE NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used BOOLEAN DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_password_reset_token ON password_reset_tokens(token);
+
+-- Avatar/foto de perfil del usuario
+-- (columna agregada por ALTER TABLE en database.js si no existe)
+

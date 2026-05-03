@@ -208,10 +208,10 @@ const Dashboard: React.FC = () => {
             <p className="text-sm text-gray-600">Datos, foto, contraseña</p>
           </Link>
           {usuario?.tipo === 'admin' && (
-            <Link to="/admin" className="bg-white border border-gray-200 hover:border-blue-400 hover:shadow-sm rounded-lg p-5 transition">
-              <div className="text-3xl mb-2">⚙️</div>
-              <h3 className="font-semibold text-gray-900">Administración</h3>
-              <p className="text-sm text-gray-600">Usuarios, configuración general</p>
+            <Link to="/admin/users" className="bg-white border border-gray-200 hover:border-blue-400 hover:shadow-sm rounded-lg p-5 transition">
+              <div className="text-3xl mb-2">🛡️</div>
+              <h3 className="font-semibold text-gray-900">Gestión de usuarios</h3>
+              <p className="text-sm text-gray-600">Crear profesores, gestionar cuentas</p>
             </Link>
           )}
         </div>

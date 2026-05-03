@@ -250,29 +250,104 @@ app.post('/api/auth/login', authLimiter, async (req, res) => {
   }
 });
 
+// Solicitar reset de contraseña: genera un token con TTL 1h.
+// Si SMTP esta configurado, manda mail. En dev (sin SMTP) devuelve el link
+// directamente en la respuesta para poder probar el flow.
+app.post('/api/auth/forgot-password', authLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email requerido' });
+    const user = await db.getUserByEmail(email);
+    // Por seguridad, siempre respondemos 200 (no revelamos si el email existe).
+    if (!user) return res.json({ message: 'Si el email existe, te enviamos las instrucciones.' });
+
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1h
+
+    await new Promise((resolve, reject) => {
+      db.db.run(
+        'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES (?, ?, ?)',
+        [user.id, token, expiresAt],
+        (err) => (err ? reject(err) : resolve())
+      );
+    });
+
+    const frontUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const resetLink = `${frontUrl}/reset-password?token=${token}`;
+
+    // En produccion mandar mail aca (Resend/Sendgrid/SMTP). En dev devolvemos el link.
+    console.log(`🔑 Reset link para ${email}: ${resetLink}`);
+
+    if (process.env.NODE_ENV === 'production') {
+      // TODO: integrar Resend/Sendgrid. Por ahora solo loggea.
+      return res.json({ message: 'Si el email existe, te enviamos las instrucciones.' });
+    }
+
+    res.json({
+      message: 'Si el email existe, te enviamos las instrucciones.',
+      // Solo en dev: devolver el link para poder probar sin mail server.
+      dev_reset_link: resetLink,
+    });
+  } catch (err) {
+    console.error('forgot-password error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Resetear contraseña con token
+app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ error: 'Token y password requeridos' });
+    if (password.length < 6) return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+
+    const row = await new Promise((resolve, reject) => {
+      db.db.get(
+        'SELECT * FROM password_reset_tokens WHERE token = ? AND used = 0',
+        [token],
+        (err, r) => (err ? reject(err) : resolve(r))
+      );
+    });
+
+    if (!row) return res.status(400).json({ error: 'Token inválido o ya usado' });
+    if (new Date(row.expires_at) < new Date()) return res.status(400).json({ error: 'El link expiró. Pedí uno nuevo.' });
+
+    const hashed = await bcrypt.hash(password, 10);
+    await new Promise((resolve, reject) => {
+      db.db.run('UPDATE users SET password = ? WHERE id = ?', [hashed, row.user_id], (err) => (err ? reject(err) : resolve()));
+    });
+    await new Promise((resolve, reject) => {
+      db.db.run('UPDATE password_reset_tokens SET used = 1 WHERE id = ?', [row.id], (err) => (err ? reject(err) : resolve()));
+    });
+
+    res.json({ message: 'Contraseña actualizada. Ya podés iniciar sesión.' });
+  } catch (err) {
+    console.error('reset-password error:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 app.post('/api/auth/register', authLimiter, async (req, res) => {
   try {
-    const { email, password, nombre, tipo = 'alumno', teacherCode } = req.body;
+    const { email, password, nombre } = req.body;
 
     if (!email || !password || !nombre) {
       return res.status(400).json({ error: 'Todos los campos son obligatorios' });
     }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+    }
 
-    // Verificar si el email ya existe
     const existingUser = await db.getUserByEmail(email);
     if (existingUser) {
-      return res.status(400).json({ error: 'El email ya está registrado' });
+      return res.status(400).json({ error: 'Ese email ya está registrado' });
     }
 
-    // Validar código de profesor si se registra como profesor
-    if (tipo === 'profesor') {
-      const validTeacherCodes = ['PROF2024', 'DOCENTE123', 'MAESTRO456'];
-      if (!teacherCode || !validTeacherCodes.includes(teacherCode)) {
-        return res.status(400).json({ error: 'Código de profesor inválido' });
-      }
-    }
+    // SEGURIDAD: el registro publico SOLO crea alumnos.
+    // Las cuentas de profesor las crea el admin desde /admin/users.
+    const tipo = 'alumno';
 
-    // Encriptar contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Crear usuario
@@ -458,11 +533,33 @@ app.delete('/api/courses/:id', authenticateToken, requireProfessor, async (req, 
 // RUTAS DE INSCRIPCIONES
 // ================================
 
-// Obtener cursos del usuario
+// Obtener cursos del usuario con el progreso REAL recalculado desde lesson_progress.
 app.get('/api/my-courses', authenticateToken, async (req, res) => {
   try {
-    const enrollments = await db.getUserEnrollments(req.user.userId);
-    res.json(enrollments);
+    const userId = req.user.userId;
+    const enrollments = await db.getUserEnrollments(userId);
+    // Para cada curso, calcular % real desde lessons completadas.
+    const enriched = await Promise.all(
+      enrollments.map(async (e) => {
+        try {
+          const courseId = e.course_id || e.id;
+          const p = await db.getStudentCourseProgress(userId, courseId);
+          const total = Number(p?.total_lessons || 0);
+          const done = Number(p?.completed_lessons || 0);
+          const realProgress = total > 0 ? Math.round((done / total) * 100) : 0;
+          return {
+            ...e,
+            progress: realProgress,
+            total_lessons: total,
+            completed_lessons: done,
+            last_activity: p?.last_activity || null,
+          };
+        } catch {
+          return e;
+        }
+      })
+    );
+    res.json(enriched);
   } catch (error) {
     console.error('Error al obtener inscripciones:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -2073,6 +2170,50 @@ app.patch('/api/admin/users/:id/toggle-status', authenticateToken, async (req, r
     res.json({ message: 'Estado del usuario actualizado' });
   } catch (error) {
     console.error('Error al cambiar estado del usuario:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Admin: crear usuario nuevo (puede ser alumno, profesor o admin)
+app.post('/api/admin/users', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.tipo !== 'admin') return res.status(403).json({ error: 'Acceso denegado' });
+    const { email, password, nombre, tipo = 'alumno' } = req.body;
+    if (!email || !password || !nombre) {
+      return res.status(400).json({ error: 'email, password y nombre son obligatorios' });
+    }
+    if (!['alumno', 'profesor', 'admin'].includes(tipo)) {
+      return res.status(400).json({ error: 'Tipo invalido' });
+    }
+    const existing = await db.getUserByEmail(email);
+    if (existing) return res.status(400).json({ error: 'Ese email ya está registrado' });
+    const hashed = await bcrypt.hash(password, 10);
+    const newUser = await db.createUser({ email, password: hashed, nombre, tipo });
+    res.status(201).json({ id: newUser.id, email: newUser.email, nombre: newUser.nombre, tipo: newUser.tipo });
+  } catch (err) {
+    console.error('Error creando usuario admin:', err);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Admin: cambiar rol de usuario (alumno <-> profesor <-> admin)
+app.patch('/api/admin/users/:id/role', authenticateToken, async (req, res) => {
+  try {
+    if (req.user.tipo !== 'admin') return res.status(403).json({ error: 'Acceso denegado' });
+    const { tipo } = req.body;
+    if (!['alumno', 'profesor', 'admin'].includes(tipo)) {
+      return res.status(400).json({ error: 'Tipo invalido' });
+    }
+    const userId = parseInt(req.params.id);
+    if (userId === req.user.userId && tipo !== 'admin') {
+      return res.status(400).json({ error: 'No puedes quitarte tu propio rol de admin' });
+    }
+    await new Promise((resolve, reject) => {
+      db.db.run('UPDATE users SET tipo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [tipo, userId], (err) => err ? reject(err) : resolve());
+    });
+    res.json({ message: 'Rol actualizado' });
+  } catch (err) {
+    console.error('Error cambiando rol:', err);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
