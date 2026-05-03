@@ -5,6 +5,7 @@ import LandingPage from './components/Landing/LandingPage';
 import Login from './components/Auth/Login';
 import Register from './pages/Register';
 import ResetPassword from './pages/ResetPassword';
+import NotFound from './pages/NotFound';
 import Dashboard from './components/Dashboard/Dashboard';
 import CourseCatalog from './components/Courses/CourseCatalog';
 import CourseDetail from './components/Courses/CourseDetail';
@@ -15,8 +16,8 @@ import { PaymentSuccess, PaymentFailure, PaymentPending } from './components/Pay
 import UsersManagement from './pages/UsersManagement';
 import MisEstudiantes from './pages/MisEstudiantes';
 import Profile from './components/Profile/Profile';
-import { AdminDashboard } from './components/Admin/AdminDashboard';
 import Navbar from './components/Layout/Navbar';
+import { ToastProvider } from './components/Toast/ToastProvider';
 
 function AppContent() {
   const { isAuthenticated, loading } = useAuth();
@@ -57,15 +58,15 @@ function AppContent() {
           {/* Profe + admin */}
           <Route path="/students" element={isAuthenticated ? <MisEstudiantes /> : <Navigate to="/login" />} />
 
-          {/* Admin */}
-          <Route path="/admin" element={isAuthenticated ? <AdminDashboard /> : <Navigate to="/login" />} />
+          {/* Admin (un solo destino: gestion de usuarios) */}
+          <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
           <Route path="/admin/users" element={isAuthenticated ? <UsersManagement /> : <Navigate to="/login" />} />
 
           {/* Perfil */}
           <Route path="/profile" element={isAuthenticated ? <Profile /> : <Navigate to="/login" />} />
 
-          {/* Catch-all: vuelve a home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          {/* 404 */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
     </Router>
@@ -75,7 +76,9 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </AuthProvider>
   );
 }

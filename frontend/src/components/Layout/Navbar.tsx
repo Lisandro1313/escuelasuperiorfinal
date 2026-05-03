@@ -85,6 +85,33 @@ const Navbar: React.FC = () => {
                         <div className="text-xs text-gray-500 truncate">{usuario.email}</div>
                       </div>
 
+                      {/* En mobile mostramos los links del navbar aca */}
+                      <div className="md:hidden border-b border-gray-100">
+                        <Link
+                          to="/dashboard"
+                          onClick={() => setShowUserMenu(false)}
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          Mi panel
+                        </Link>
+                        <Link
+                          to="/courses"
+                          onClick={() => setShowUserMenu(false)}
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          {isProfesor ? 'Catálogo' : 'Cursos'}
+                        </Link>
+                        {isProfesor && (
+                          <Link
+                            to="/students"
+                            onClick={() => setShowUserMenu(false)}
+                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            Estudiantes
+                          </Link>
+                        )}
+                      </div>
+
                       <Link
                         to="/profile"
                         onClick={() => setShowUserMenu(false)}
@@ -93,23 +120,13 @@ const Navbar: React.FC = () => {
                         Mi perfil
                       </Link>
 
-                      {isProfesor && (
-                        <Link
-                          to="/students"
-                          onClick={() => setShowUserMenu(false)}
-                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 md:hidden"
-                        >
-                          Mis estudiantes
-                        </Link>
-                      )}
-
                       {usuario.tipo === 'admin' && (
                         <Link
-                          to="/admin"
+                          to="/admin/users"
                           onClick={() => setShowUserMenu(false)}
                           className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                         >
-                          Panel admin
+                          Gestión de usuarios
                         </Link>
                       )}
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../components/Toast/ToastProvider';
 
 interface UserRow {
   id: number;
@@ -14,6 +15,7 @@ interface UserRow {
 
 const UsersManagement: React.FC = () => {
   const { usuario } = useAuth();
+  const toast = useToast();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -75,16 +77,18 @@ const UsersManagement: React.FC = () => {
   };
 
   const changeRole = async (userId: number, newTipo: string) => {
-    if (!confirm(`¿Confirmás cambiar el rol a "${newTipo}"?`)) return;
+    if (!window.confirm(`¿Confirmás cambiar el rol a "${newTipo}"?`)) return;
     const r = await fetch(`/api/admin/users/${userId}/role`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ tipo: newTipo }),
     });
-    if (r.ok) load();
-    else {
+    if (r.ok) {
+      toast.success('Rol actualizado');
+      load();
+    } else {
       const d = await r.json();
-      alert(d.error || 'Error');
+      toast.error(d.error || 'Error al cambiar el rol');
     }
   };
 
@@ -93,19 +97,24 @@ const UsersManagement: React.FC = () => {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (r.ok) load();
+    if (r.ok) {
+      toast.success('Estado actualizado');
+      load();
+    }
   };
 
   const deleteUser = async (userId: number, nombre: string) => {
-    if (!confirm(`¿Eliminar a ${nombre}? Esta acción no se puede deshacer.`)) return;
+    if (!window.confirm(`¿Eliminar a ${nombre}? Esta acción no se puede deshacer.`)) return;
     const r = await fetch(`/api/admin/users/${userId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     });
-    if (r.ok) load();
-    else {
+    if (r.ok) {
+      toast.success(`${nombre} fue eliminado`);
+      load();
+    } else {
       const d = await r.json();
-      alert(d.error || 'Error');
+      toast.error(d.error || 'Error al eliminar');
     }
   };
 

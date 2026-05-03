@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from './Toast/ToastProvider';
 
 interface Course {
   id: number;
@@ -41,7 +42,8 @@ const CourseManagement: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { usuario } = useAuth();
   const navigate = useNavigate();
-  
+  const toast = useToast();
+
   const [course, setCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<Module[]>([]);
   const [lessons, setLessons] = useState<{ [moduleId: number]: Lesson[] }>({});
@@ -326,7 +328,7 @@ const CourseManagement: React.FC = () => {
 
   const scheduleLiveClass = async () => {
     if (!liveClassForm.title || !liveClassForm.date || !liveClassForm.time) {
-      alert('Completá título, fecha y hora');
+      toast.error('Completá título, fecha y hora');
       return;
     }
     setScheduling(true);
@@ -346,7 +348,7 @@ const CourseManagement: React.FC = () => {
       setLiveClassResult({ url: d.meeting_url, date: scheduledAt });
       setLiveClassForm({ title: '', date: '', time: '', duration: 60 });
     } catch (e: any) {
-      alert('Error: ' + e.message);
+      toast.error(e.message || 'Error al programar la clase');
     } finally {
       setScheduling(false);
     }
@@ -980,7 +982,7 @@ const CourseManagement: React.FC = () => {
                     {liveClassResult.url}
                   </a>
                   <button
-                    onClick={() => { navigator.clipboard.writeText(liveClassResult.url); alert('Link copiado'); }}
+                    onClick={() => { navigator.clipboard.writeText(liveClassResult.url); toast.success('Link copiado al portapapeles'); }}
                     className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg"
                   >
                     📋 Copiar link

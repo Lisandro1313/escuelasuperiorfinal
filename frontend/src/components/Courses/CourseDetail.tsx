@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../Toast/ToastProvider';
 
 interface Course {
   id: number;
@@ -45,6 +46,7 @@ const CourseDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { usuario } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
 
   const [course, setCourse] = useState<Course | null>(null);
   const [modules, setModules] = useState<Module[]>([]);
@@ -151,11 +153,11 @@ const CourseDetail: React.FC = () => {
         });
         if (res.ok) {
           setEnrolled(true);
-          // Recarga para traer modulos/lecciones
-          window.location.reload();
+          toast.success('¡Te inscribiste! Te llevamos al contenido...');
+          setTimeout(() => navigate(`/course/${course.id}/view`), 800);
         } else {
           const d = await res.json();
-          alert(d.error || 'Error al inscribirse');
+          toast.error(d.error || 'Error al inscribirse');
         }
       } finally {
         setEnrolling(false);
