@@ -2540,6 +2540,21 @@ app.get('/api/admin/activity-stats', authenticateToken, async (req, res) => {
 io.on('connection', (socket) => {
   console.log('👤 Usuario conectado:', socket.id);
 
+  // Unir al usuario a su room personal para notificaciones en tiempo real.
+  // El cliente envía el token; si es válido lo metemos en user_<id>.
+  const token = socket.handshake.auth?.token;
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      const userId = decoded.userId || decoded.id;
+      if (userId) {
+        socket.join(`user_${userId}`);
+      }
+    } catch (_) {
+      // token inválido — sin room personal, las notificaciones en tiempo real no llegan
+    }
+  }
+
   // Unirse a la sala de un curso específico
   socket.on('join-course', (courseId) => {
     socket.join(`course-${courseId}`);

@@ -9,7 +9,7 @@ class SocketService {
       return;
     }
 
-    this.socket = io(import.meta.env.VITE_SOCKET_URL || '', {
+    this.socket = io(import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || '', {
       auth: {
         token
       },
