@@ -475,18 +475,19 @@ const CourseManagement: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-purple-700 text-white">
+      <div className="bg-gradient-to-r from-slate-900 to-blue-900 text-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <button
             onClick={() => navigate('/dashboard')}
-            className="text-blue-100 hover:text-white text-sm mb-3 flex items-center gap-1"
+            className="text-blue-200 hover:text-white text-sm mb-3 flex items-center gap-1"
           >
             ← Volver al panel
           </button>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
+              <p className="text-emerald-300 text-xs font-semibold uppercase tracking-wide">Armado del curso</p>
               <h1 className="text-2xl md:text-3xl font-bold">{course?.nombre}</h1>
-              <p className="text-blue-100 text-sm mt-1">Gestiona los módulos, lecciones y clases en vivo de este curso</p>
+              <p className="text-blue-200 text-sm mt-1">Configurá el cobro, creá módulos (secciones) y cargá las clases.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
@@ -507,8 +508,28 @@ const CourseManagement: React.FC = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Guía rápida de armado */}
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 mb-6">
+          <p className="font-bold text-emerald-900 mb-3">Cómo armar tu curso, en 3 pasos</p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+            <div className="flex gap-2">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs">1</span>
+              <span className="text-emerald-900">Elegí <strong>cómo se cobra</strong> (curso entero o clase suelta) y <strong>cómo se desbloquea</strong>.</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs">2</span>
+              <span className="text-emerald-900">Creá <strong>módulos</strong> (las secciones del curso, ej: "Unidad 1").</span>
+            </div>
+            <div className="flex gap-2">
+              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs">3</span>
+              <span className="text-emerald-900">Dentro de cada módulo, cargá las <strong>clases</strong> con su material, precio y fecha.</span>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border border-gray-100">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">Cobro y desbloqueo</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-1">Paso 1 · Cómo se cobra y se desbloquea</h3>
+          <p className="text-sm text-gray-500 mb-4">Esto define cómo los alumnos pagan y en qué orden ven las clases.</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Modalidad de cobro</label>
@@ -569,21 +590,36 @@ const CourseManagement: React.FC = () => {
           </button>
         </div>
 
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Paso 2 · Módulos y clases</h3>
+            <p className="text-sm text-gray-500">Un <strong>módulo</strong> es una sección del curso. Adentro van las <strong>clases</strong>.</p>
+          </div>
+          {modules.length > 0 && (
+            <button
+              onClick={() => setShowModuleModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap"
+            >
+              ➕ Nuevo módulo
+            </button>
+          )}
+        </div>
+
         {modules.length === 0 ? (
           /* Estado vacío mejorado */
-          <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-            <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="bg-white rounded-2xl shadow-lg p-12 text-center border border-gray-100">
+            <div className="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <span className="text-4xl">📚</span>
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-4">¡Comienza a crear contenido!</h3>
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">Empezá creando el primer módulo</h3>
             <p className="text-gray-600 mb-8 max-w-md mx-auto">
-              Crea tu primer módulo para organizar las lecciones de tu curso. Los módulos te ayudan a estructurar el contenido de manera lógica.
+              Un módulo es una sección o unidad (por ejemplo "Unidad 1: Introducción"). Después, adentro de cada módulo vas a cargar las clases.
             </p>
-            <button 
+            <button
               onClick={() => setShowModuleModal(true)}
               className="bg-blue-600 text-white px-8 py-4 rounded-xl font-semibold hover:bg-blue-700 transition duration-300 shadow-lg"
             >
-              🚀 Crear Primer Módulo
+              ➕ Crear primer módulo
             </button>
           </div>
         ) : (
@@ -614,7 +650,7 @@ const CourseManagement: React.FC = () => {
                         className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition duration-200 flex items-center space-x-2"
                       >
                         <span>➕</span>
-                        <span>Lección</span>
+                        <span>Agregar clase</span>
                       </button>
                       <button 
                         onClick={() => openEditModule(module)}
@@ -639,12 +675,12 @@ const CourseManagement: React.FC = () => {
                       <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
                         <span className="text-2xl">📝</span>
                       </div>
-                      <p className="text-gray-500 mb-4">No hay lecciones en este módulo</p>
-                      <button 
+                      <p className="text-gray-500 mb-4">Todavía no hay clases en este módulo</p>
+                      <button
                         onClick={() => openCreateLesson(module.id)}
                         className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition duration-200"
                       >
-                        ➕ Crear Primera Lección
+                        ➕ Agregar primera clase
                       </button>
                     </div>
                   ) : (
@@ -805,7 +841,7 @@ const CourseManagement: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-2xl font-bold">
-                    {editingLesson ? '✏️ Editar Lección' : '➕ Nueva Lección'}
+                    {editingLesson ? '✏️ Editar clase' : '➕ Nueva clase'}
                   </h3>
                   <p className="text-green-100 text-sm mt-1">
                     Crea contenido de calidad para tus estudiantes
