@@ -4,11 +4,16 @@ import socketService from '../../services/socket';
 
 interface Notification {
   id: number;
-  type: string;
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
+  type?: string;
+  tipo?: string;
+  title?: string;
+  titulo?: string;
+  message?: string;
+  mensaje?: string;
+  timestamp?: string;
+  created_at?: string;
+  read?: boolean;
+  leida?: boolean | number;
   icon?: string;
   action_url?: string;
 }
@@ -35,8 +40,13 @@ const NotificationCenter: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           if (data.success) {
-            setNotifications(data.notifications || []);
-            setUnreadCount(data.unreadCount || 0);
+            // Normalizamos: el backend usa leida/created_at, el front read/created_at.
+            const list = (data.notifications || []).map((n: Notification) => ({
+              ...n,
+              read: n.read ?? !!n.leida,
+            }));
+            setNotifications(list);
+            setUnreadCount(data.unreadCount ?? list.filter((n: Notification) => !n.read).length);
           }
         }
       } catch (error) {
@@ -83,10 +93,11 @@ const NotificationCenter: React.FC = () => {
     }
   };
 
-  const formatTimeAgo = (timestamp: string) => {
-    const now = new Date();
+  const formatTimeAgo = (timestamp?: string) => {
+    if (!timestamp) return '';
     const date = new Date(timestamp);
-    const diff = now.getTime() - date.getTime();
+    if (isNaN(date.getTime())) return '';
+    const diff = Date.now() - date.getTime();
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     const days = Math.floor(diff / 86400000);
@@ -225,10 +236,10 @@ const NotificationCenter: React.FC = () => {
                           <h4 className={`text-sm font-medium ${
                             !notification.read ? 'text-gray-900' : 'text-gray-700'
                           }`}>
-                            {notification.title}
+                            {notification.title || notification.titulo || 'Notificación'}
                           </h4>
                           <p className="text-sm text-gray-600 mt-1">
-                            {notification.message}
+                            {notification.message || notification.mensaje || ''}
                           </p>
                           
                           {notification.action_url && (
@@ -243,7 +254,7 @@ const NotificationCenter: React.FC = () => {
                         
                         <div className="flex items-center space-x-2 ml-2">
                           <span className="text-xs text-gray-500">
-                            {formatTimeAgo(notification.timestamp)}
+                            {formatTimeAgo(notification.created_at || notification.timestamp)}
                           </span>
                           
                           <div className="flex space-x-1">
