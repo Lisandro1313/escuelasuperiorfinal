@@ -108,10 +108,44 @@ class TursoDatabase {
           }
         }
       }
+      await this.runMigrations();
       console.log('✅ Conectado a Turso (libSQL) y tablas verificadas');
       await this.createDefaultAdmin();
     } catch (err) {
       console.error('Error inicializando Turso:', err);
+    }
+  }
+
+  // Migraciones idempotentes para bases que ya existian (CREATE TABLE IF NOT
+  // EXISTS no agrega columnas). Paridad con database.js. Ignora "duplicate column".
+  async runMigrations() {
+    const alters = [
+      `ALTER TABLE users ADD COLUMN telefono VARCHAR(20)`,
+      `ALTER TABLE users ADD COLUMN biografia TEXT`,
+      `ALTER TABLE users ADD COLUMN avatar VARCHAR(500)`,
+      `ALTER TABLE lessons ADD COLUMN recursos TEXT`,
+      `ALTER TABLE courses ADD COLUMN modalidad_precio VARCHAR(20) DEFAULT 'curso'`,
+      `ALTER TABLE courses ADD COLUMN drip_habilitado BOOLEAN DEFAULT 0`,
+      `ALTER TABLE courses ADD COLUMN drip_intervalo_dias INTEGER`,
+      `ALTER TABLE courses ADD COLUMN unlock_mode VARCHAR(20) DEFAULT 'abierto'`,
+      `ALTER TABLE modules ADD COLUMN precio DECIMAL(10,2) DEFAULT 0`,
+      `ALTER TABLE modules ADD COLUMN unlock_at DATETIME`,
+      `ALTER TABLE modules ADD COLUMN unlock_days_offset INTEGER`,
+      `ALTER TABLE lessons ADD COLUMN precio DECIMAL(10,2) DEFAULT 0`,
+      `ALTER TABLE lessons ADD COLUMN unlock_at DATETIME`,
+      `ALTER TABLE lessons ADD COLUMN unlock_days_offset INTEGER`,
+      `ALTER TABLE payments ADD COLUMN module_id INTEGER`,
+      `ALTER TABLE payments ADD COLUMN lesson_id INTEGER`,
+      `ALTER TABLE payments ADD COLUMN target_type VARCHAR(20) DEFAULT 'course'`,
+    ];
+    for (const sql of alters) {
+      try {
+        await this.client.execute(sql);
+      } catch (err) {
+        if (!/duplicate column|already exists/i.test(err.message)) {
+          console.error('Migracion Turso fallo:', err.message, '\nSQL:', sql);
+        }
+      }
     }
   }
 
