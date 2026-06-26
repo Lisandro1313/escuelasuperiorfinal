@@ -91,6 +91,7 @@ const CourseManagement: React.FC = () => {
     unlock_mode: 'abierto' as 'abierto' | 'fecha' | 'secuencial' | 'goteo',
     drip_habilitado: false,
     drip_intervalo_dias: 7,
+    imagen: '' as string,
   });
 
   const [newResource, setNewResource] = useState({
@@ -154,6 +155,7 @@ const CourseManagement: React.FC = () => {
         unlock_mode: (courseData.unlock_mode || 'abierto'),
         drip_habilitado: !!courseData.drip_habilitado,
         drip_intervalo_dias: Number(courseData.drip_intervalo_dias || 7),
+        imagen: (courseData.imagen && courseData.imagen.startsWith('http')) ? courseData.imagen : '',
       });
 
       // Verificar permisos
@@ -590,6 +592,41 @@ const CourseManagement: React.FC = () => {
               />
             </div>
           </div>
+
+          {/* Foto del curso */}
+          <div className="mt-5">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Foto del curso</label>
+            {courseSettings.imagen ? (
+              <div className="relative inline-block">
+                <img src={courseSettings.imagen} alt="Portada" className="h-28 w-48 object-cover rounded-xl border border-gray-200" />
+                <button
+                  type="button"
+                  onClick={() => setCourseSettings((p) => ({ ...p, imagen: '' }))}
+                  className="absolute top-2 right-2 bg-white/90 hover:bg-white rounded-full w-7 h-7 flex items-center justify-center text-gray-600 shadow"
+                >
+                  ×
+                </button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center h-28 w-48 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition">
+                <span className="text-2xl">🖼️</span>
+                <span className="text-xs text-gray-500 mt-1">Subir foto</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const url = await uploadFile(file);
+                    if (url) setCourseSettings((p) => ({ ...p, imagen: url }));
+                  }}
+                />
+              </label>
+            )}
+            <p className="text-xs text-gray-400 mt-1">Es la imagen que se ve en el inicio y el catálogo.</p>
+          </div>
+
           <button
             onClick={saveCourseSettings}
             className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-semibold"

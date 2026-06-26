@@ -269,12 +269,12 @@ class TursoDatabase {
     return r.rows;
   }
 
-  async updateCourse(id, { nombre, descripcion, categoria, precio, duracion, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null, unlock_mode = 'abierto' }) {
+  async updateCourse(id, { nombre, descripcion, categoria, precio, duracion, imagen = null, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null, unlock_mode = 'abierto' }) {
     await this._query(
-      'UPDATE courses SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, duracion = ?, modalidad_precio = ?, drip_habilitado = ?, drip_intervalo_dias = ?, unlock_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [nombre, descripcion, categoria, precio, duracion, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, unlock_mode, id]
+      'UPDATE courses SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, duracion = ?, imagen = COALESCE(?, imagen), modalidad_precio = ?, drip_habilitado = ?, drip_intervalo_dias = ?, unlock_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, unlock_mode, id]
     );
-    return { id, nombre, descripcion, categoria, precio, duracion, modalidad_precio, drip_habilitado, drip_intervalo_dias, unlock_mode };
+    return { id, nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado, drip_intervalo_dias, unlock_mode };
   }
 
   async deleteCourse(id) {

@@ -341,10 +341,10 @@ class Database {
 
   async updateCourse(id, courseData) {
     return new Promise((resolve, reject) => {
-      const { nombre, descripcion, categoria, precio, duracion, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null, unlock_mode = 'abierto' } = courseData;
-      const sql = `UPDATE courses SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, duracion = ?, modalidad_precio = ?, drip_habilitado = ?, drip_intervalo_dias = ?, unlock_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+      const { nombre, descripcion, categoria, precio, duracion, imagen = null, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null, unlock_mode = 'abierto' } = courseData;
+      const sql = `UPDATE courses SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, duracion = ?, imagen = COALESCE(?, imagen), modalidad_precio = ?, drip_habilitado = ?, drip_intervalo_dias = ?, unlock_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
 
-      this.db.run(sql, [nombre, descripcion, categoria, precio, duracion, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, unlock_mode, id], function(err) {
+      this.db.run(sql, [nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, unlock_mode, id], function(err) {
         if (err) {
           reject(err);
         } else {

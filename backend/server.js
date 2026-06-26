@@ -603,7 +603,7 @@ app.post('/api/courses', authenticateToken, requireProfessor, async (req, res) =
 app.put('/api/courses/:id', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const courseId = req.params.id;
-    const { nombre, descripcion, categoria, precio, duracion, modalidad_precio, drip_habilitado, drip_intervalo_dias, unlock_mode } = req.body;
+    const { nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado, drip_intervalo_dias, unlock_mode } = req.body;
 
     // Verificar que el curso pertenece al profesor
     const course = await db.getCourseById(courseId);
@@ -617,6 +617,7 @@ app.put('/api/courses/:id', authenticateToken, requireProfessor, async (req, res
       categoria,
       precio: parseFloat(precio),
       duracion,
+      imagen: imagen || null,
       modalidad_precio: ['curso', 'modulo', 'clase'].includes(modalidad_precio) ? modalidad_precio : 'curso',
       drip_habilitado: !!drip_habilitado,
       drip_intervalo_dias: drip_intervalo_dias ? Number(drip_intervalo_dias) : null,
