@@ -148,7 +148,7 @@ module.exports = (db, authenticateToken, io) => {
 
             // Emitir notificación en tiempo real via Socket.io
             if (io) {
-                io.to(`user-${userId}`).emit('new-notification', notification);
+                io.to(`user_${userId}`).emit('newNotification', notification);
             }
 
             res.json({
