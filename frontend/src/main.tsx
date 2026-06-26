@@ -2,12 +2,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { API_BASE } from './config';
 
-// Interceptor global de fetch: si VITE_API_URL esta seteado y el path empieza
-// con / (relativo), lo prefijeamos al backend. Asi los componentes que usan
-// fetch directo (sin axios) tambien funcionan en produccion donde el frontend
-// y el backend viven en origenes distintos (Render).
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+// Interceptor global de fetch: los componentes que usan fetch directo (sin
+// axios) con rutas /api o /uploads se redirigen al backend de Render. Así
+// funcionan en producción donde frontend (Vercel) y backend (Render) viven
+// en orígenes distintos. Base centralizada en config.ts.
 if (API_BASE) {
   const originalFetch = window.fetch.bind(window);
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {

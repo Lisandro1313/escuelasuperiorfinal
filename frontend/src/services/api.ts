@@ -1,14 +1,9 @@
 import axios from 'axios';
+import { API_BASE } from '../config';
 
-// Configuración del API - cambia automáticamente entre desarrollo y producción.
-// Las rutas ya incluyen /api, así que sacamos un "/" o "/api" sobrante de
-// VITE_API_URL para no terminar pegándole a /api/api/... (da 405).
-const RAW_API_URL = import.meta.env.VITE_API_URL || '';
-const API_BASE_URL = RAW_API_URL.replace(/\/+$/, '').replace(/\/api$/, '');
-
-// Crear instancia de axios con configuración base
+// Crear instancia de axios con configuración base (base centralizada en config.ts)
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: API_BASE,
   headers: {
     'Content-Type': 'application/json',
   },
