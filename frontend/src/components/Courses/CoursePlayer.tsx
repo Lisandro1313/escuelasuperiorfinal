@@ -73,6 +73,15 @@ const formatFecha = (iso: string | null) => {
   }
 };
 
+const materialMeta = (titulo: string, url?: string): { icon: string; kind: string } => {
+  const t = (titulo || '').toLowerCase();
+  if (isPdfUrl(url) || /pdf|apunte|material/.test(t)) return { icon: '📄', kind: 'PDF' };
+  if (/present|slide|ppt|diapos/.test(t)) return { icon: '📊', kind: 'Presentación' };
+  if (/ejerc|práctic|practic|actividad|tp\b/.test(t)) return { icon: '✏️', kind: 'Ejercicios' };
+  if (toVideoEmbed(url)) return { icon: '🎬', kind: 'Video' };
+  return { icon: '📎', kind: 'Recurso' };
+};
+
 const parseRecursos = (raw: string | null): { titulo: string; url?: string }[] => {
   if (!raw) return [];
   try {
@@ -275,20 +284,24 @@ const CoursePlayer: React.FC = () => {
           onClick={() => setOpenLesson(null)}
         >
           <div
-            className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto"
+            className="bg-white rounded-2xl max-w-3xl w-full max-h-[88vh] overflow-y-auto shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-start justify-between p-5 border-b border-gray-100">
-              <div>
-                <p className="text-xs font-semibold text-blue-600">Clase {lessonNumber.get(openLesson.id)}</p>
-                <h3 className="text-lg font-bold text-gray-900">{openLesson.titulo}</h3>
-              </div>
-              <button onClick={() => setOpenLesson(null)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">
+            <div className="relative bg-gradient-to-br from-slate-900 to-blue-900 text-white p-6 rounded-t-2xl">
+              <button
+                onClick={() => setOpenLesson(null)}
+                className="absolute top-4 right-4 bg-white/15 hover:bg-white/25 rounded-lg w-8 h-8 flex items-center justify-center text-lg leading-none"
+              >
                 ✕
               </button>
+              <span className="inline-block bg-emerald-500 text-slate-900 text-xs font-bold px-3 py-1 rounded-full mb-2">
+                Clase {lessonNumber.get(openLesson.id)}
+              </span>
+              <h3 className="text-xl md:text-2xl font-bold pr-8">{openLesson.titulo}</h3>
+              {openLesson.completed && <p className="text-emerald-300 text-sm mt-1">✓ Ya la completaste</p>}
             </div>
 
-            <div className="p-5">
+            <div className="p-6">
               {openLesson.locked ? (
                 <div className="text-center py-6">
                   <div className="text-4xl mb-3">🔒</div>
@@ -339,37 +352,44 @@ const CoursePlayer: React.FC = () => {
                       </span>
                     </button>
                   ) : openLesson.contenido ? (
-                    <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap mb-4">
-                      {openLesson.contenido}
+                    <div className="mb-5 bg-gray-50 border border-gray-100 rounded-2xl p-4">
+                      <div className="inline-flex items-center gap-2 bg-slate-800 text-white text-xs font-semibold px-3 py-1 rounded-full mb-3">
+                        📋 Sobre esta clase
+                      </div>
+                      <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap">
+                        {openLesson.contenido}
+                      </div>
                     </div>
                   ) : (
-                    <p className="text-gray-500 text-sm mb-4">Sin contenido de texto cargado para esta clase.</p>
+                    <p className="text-gray-500 text-sm mb-4">El profe todavía no cargó contenido de texto para esta clase.</p>
                   )}
 
                   {parseRecursos(openLesson.recursos).length > 0 && (
-                    <div className="mb-4">
-                      <p className="text-sm font-semibold text-gray-900 mb-2">Material de la clase</p>
-                      <ul className="space-y-1">
-                        {parseRecursos(openLesson.recursos).map((r, i) => (
-                          <li key={i} className="flex items-center gap-2">
-                            {r.url ? (
-                              <a href={r.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm">
-                                📎 {r.titulo}
-                              </a>
-                            ) : (
-                              <span className="text-gray-700 text-sm">📎 {r.titulo}</span>
-                            )}
-                            {isPdfUrl(r.url) && (
-                              <button
-                                onClick={() => setFlipbook({ url: r.url as string, title: r.titulo })}
-                                className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-0.5 rounded-md font-medium"
-                              >
-                                📖 librito
-                              </button>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
+                    <div className="mb-5">
+                      <p className="text-sm font-bold text-gray-900 mb-3">Material de la clase</p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {parseRecursos(openLesson.recursos).map((r, i) => {
+                          const meta = materialMeta(r.titulo, r.url);
+                          const pdf = isPdfUrl(r.url);
+                          const cls = 'bg-gray-50 hover:bg-emerald-50 border border-gray-100 hover:border-emerald-200 rounded-2xl p-4 text-left transition block';
+                          const inner = (
+                            <>
+                              <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl mb-2">
+                                {meta.icon}
+                              </div>
+                              <span className="block font-semibold text-gray-900 text-sm leading-tight line-clamp-2">{r.titulo}</span>
+                              <span className="block text-xs text-gray-400 mt-0.5">{pdf ? '📖 Abrir como librito' : meta.kind}</span>
+                            </>
+                          );
+                          return pdf ? (
+                            <button key={i} onClick={() => setFlipbook({ url: r.url as string, title: r.titulo })} className={cls}>{inner}</button>
+                          ) : r.url ? (
+                            <a key={i} href={r.url} target="_blank" rel="noreferrer" className={cls}>{inner}</a>
+                          ) : (
+                            <div key={i} className={cls}>{inner}</div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 
