@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { API_BASE } from '../../config';
 
 interface UserData {
   id: number;
@@ -131,7 +132,7 @@ const Profile: React.FC = () => {
   }
 
   const avatarSrc = data.avatar
-    ? (data.avatar.startsWith('http') ? data.avatar : `${import.meta.env.VITE_API_URL || ''}${data.avatar}`)
+    ? (data.avatar.startsWith('http') ? data.avatar : `${API_BASE}${data.avatar}`)
     : null;
 
   return (

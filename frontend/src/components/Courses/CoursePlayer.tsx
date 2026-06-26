@@ -477,7 +477,7 @@ const CoursePlayer: React.FC = () => {
         </Suspense>
       )}
 
-      {usuario && (
+      {usuario && (data.enrolled || data.isOwner) && (
         <CourseChat courseId={course.id} userId={(usuario as { id: number }).id} userName={(usuario as { nombre: string }).nombre} />
       )}
     </div>

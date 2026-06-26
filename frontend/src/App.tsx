@@ -12,7 +12,6 @@ import CourseDetail from './components/Courses/CourseDetail';
 import CoursePlayer from './components/Courses/CoursePlayer';
 import LiveClass from './pages/LiveClass';
 import CourseManagement from './components/CourseManagement';
-import CourseViewer from './components/Student/CourseViewer';
 import PaymentPage from './components/Payment/PaymentPage';
 import { PaymentSuccess, PaymentFailure, PaymentPending } from './components/Payment/PaymentResults';
 import UsersManagement from './pages/UsersManagement';
@@ -61,7 +60,7 @@ function AppContent() {
           <Route path="/live/:id" element={<LiveClass />} />
           <Route path="/course/:id/aula" element={isAuthenticated ? <CoursePlayer /> : <Navigate to="/login" />} />
           <Route path="/course/:id/manage" element={isAuthenticated ? <CourseManagement /> : <Navigate to="/login" />} />
-          <Route path="/course/:id/view" element={isAuthenticated ? <CourseViewer /> : <Navigate to="/login" />} />
+          <Route path="/course/:id/view" element={isAuthenticated ? <CoursePlayer /> : <Navigate to="/login" />} />
           <Route path="/course/:courseId/payment" element={isAuthenticated ? <PaymentPage /> : <Navigate to="/login" />} />
           <Route path="/payment/success" element={isAuthenticated ? <PaymentSuccess /> : <Navigate to="/login" />} />
           <Route path="/payment/failure" element={isAuthenticated ? <PaymentFailure /> : <Navigate to="/login" />} />
