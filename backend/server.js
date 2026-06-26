@@ -803,7 +803,7 @@ app.get('/api/professor/my-students', authenticateToken, requireProfessor, async
 app.post('/api/courses/:id/live-class', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const courseId = req.params.id;
-    const { title, scheduled_at, duration_minutes = 60 } = req.body;
+    const { title, scheduled_at, duration_minutes = 60, meeting_url, precio = 0, cover_url } = req.body;
     if (!title || !scheduled_at) {
       return res.status(400).json({ error: 'title y scheduled_at son requeridos' });
     }
@@ -811,20 +811,24 @@ app.post('/api/courses/:id/live-class', authenticateToken, requireProfessor, asy
     if (!course || course.profesor_id !== req.user.userId) {
       return res.status(403).json({ error: 'No tenes permisos para este curso' });
     }
-    // Jitsi: link publico, sin instalar nada, gratis. La sala se crea al primer click.
-    const slug = `CampusNorma-${courseId}-${Date.now().toString(36)}`;
-    const meetingUrl = `https://meet.jit.si/${slug}`;
+    // URL de la transmision: la que pone el profe (YouTube en vivo oculto,
+    // asi el alumno solo mira y no puede compartir pantalla). Si no pone, Jitsi.
+    const slug = `ESF-${courseId}-${Date.now().toString(36)}`;
+    const meetingUrl = (meeting_url && /^https?:\/\//.test(meeting_url)) ? meeting_url.trim() : `https://meet.jit.si/${slug}`;
     const startDate = new Date(scheduled_at).toISOString();
     const endDate = new Date(new Date(scheduled_at).getTime() + duration_minutes * 60 * 1000).toISOString();
 
     const eventId = await db.createEvent({
       title,
-      description: meetingUrl, // guardamos la URL de Jitsi en description para reusar el schema
+      description: meetingUrl, // backward-compat: la URL tambien va en description
       startDate,
       endDate,
       type: 'live_class',
       courseId,
       instructorId: req.user.userId,
+      precio: Number(precio || 0),
+      meetingUrl,
+      coverUrl: cover_url || null,
     });
 
     // Notificar a inscriptos: notificacion in-app + email
@@ -898,6 +902,111 @@ app.get('/api/courses/:id/live-classes', authenticateToken, requireCourseAccess(
     res.json(filtered);
   } catch (error) {
     console.error('Error listando clases en vivo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ================================
+// CLASES EN VIVO (publicas / pagas)
+// ================================
+
+// Helper: la URL de la transmision (meeting_url nuevo o description viejo).
+const liveUrl = (e) => e?.meeting_url || e?.description || null;
+
+// Acceso a una clase en vivo: dueño/admin, o quien tenga grant (pago), o
+// gratis+inscripto al curso.
+async function hasLiveAccess(userId, userTipo, event) {
+  if (!event) return false;
+  if (userTipo === 'admin' || event.instructor_id === userId) return true;
+  const granted = await db.hasAccessGrant({ userId, courseId: event.course_id, eventId: event.id });
+  if (granted) return true;
+  if (Number(event.precio || 0) === 0) {
+    const enrollment = await db.getUserEnrollmentForCourse(userId, event.course_id);
+    return !!enrollment;
+  }
+  return false;
+}
+
+// Proximas clases en vivo (PUBLICO, para el inicio). Nunca devuelve la URL.
+app.get('/api/live/upcoming', async (req, res) => {
+  try {
+    const rows = await db.getUpcomingLiveClasses(8);
+    res.json((rows || []).map((e) => ({
+      id: e.id,
+      title: e.title,
+      start_date: e.start_date,
+      end_date: e.end_date,
+      precio: Number(e.precio || 0),
+      cover_url: e.cover_url || null,
+      course_id: e.course_id,
+      course_nombre: e.course_nombre || null,
+      instructor_nombre: e.instructor_nombre || null,
+    })));
+  } catch (error) {
+    console.error('Error en /api/live/upcoming:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Detalle de una clase en vivo + si el usuario (si esta logueado) ya tiene acceso.
+app.get('/api/live/:eventId', async (req, res) => {
+  try {
+    const event = await db.getEventById(Number(req.params.eventId));
+    if (!event || event.type !== 'live_class') return res.status(404).json({ error: 'Clase no encontrada' });
+
+    let access = false;
+    const auth = req.headers['authorization'];
+    if (auth && auth.startsWith('Bearer ')) {
+      try {
+        const decoded = jwt.verify(auth.slice(7), JWT_SECRET);
+        access = await hasLiveAccess(decoded.userId, decoded.tipo, event);
+      } catch { /* token invalido => sin acceso */ }
+    }
+    const course = await db.getCourseById(event.course_id);
+    res.json({
+      id: event.id,
+      title: event.title,
+      start_date: event.start_date,
+      end_date: event.end_date,
+      precio: Number(event.precio || 0),
+      cover_url: event.cover_url || null,
+      course_id: event.course_id,
+      course_nombre: course?.nombre || null,
+      access,
+      meeting_url: access ? liveUrl(event) : null,
+    });
+  } catch (error) {
+    console.error('Error en /api/live/:id:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Reservar lugar en una clase en vivo GRATIS (precio 0). Si es paga, avisa que hay que pagar.
+app.post('/api/live/:eventId/register', authenticateToken, async (req, res) => {
+  try {
+    const event = await db.getEventById(Number(req.params.eventId));
+    if (!event || event.type !== 'live_class') return res.status(404).json({ error: 'Clase no encontrada' });
+    if (Number(event.precio || 0) > 0) {
+      return res.status(402).json({ error: 'Esta clase en vivo es paga', requiresPayment: true, precio: Number(event.precio) });
+    }
+    await db.createAccessGrant({ user_id: req.user.userId, course_id: event.course_id, event_id: event.id });
+    res.json({ message: 'Lugar reservado', access: true });
+  } catch (error) {
+    console.error('Error registrando en clase en vivo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Entrar a la clase en vivo: devuelve la URL solo si tiene acceso.
+app.get('/api/live/:eventId/join', authenticateToken, async (req, res) => {
+  try {
+    const event = await db.getEventById(Number(req.params.eventId));
+    if (!event || event.type !== 'live_class') return res.status(404).json({ error: 'Clase no encontrada' });
+    const allowed = await hasLiveAccess(req.user.userId, req.user.tipo, event);
+    if (!allowed) return res.status(402).json({ error: 'Necesitás reservar/pagar esta clase para entrar' });
+    res.json({ meeting_url: liveUrl(event), title: event.title });
+  } catch (error) {
+    console.error('Error al entrar a la clase en vivo:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -1576,22 +1685,34 @@ app.get('/api/courses/:id/progress', authenticateToken, requireCourseAccess({ co
 // Crear preferencia de pago
 app.post('/api/payments/create-preference', authenticateToken, async (req, res) => {
   try {
-    const { courseId, targetType = 'course', moduleId, lessonId } = req.body;
+    const { courseId, targetType = 'course', moduleId, lessonId, eventId } = req.body;
 
-    if (!courseId) {
-      return res.status(400).json({ error: 'ID del curso es requerido' });
-    }
-
-    const course = await db.getCourseById(courseId);
-    if (!course) return res.status(404).json({ error: 'Curso no encontrado' });
-    if (Number(course.precio) === 0 && targetType === 'course') {
-      return res.status(400).json({ error: 'El curso es gratuito, usa /api/courses/:id/enroll' });
-    }
-
-    const normalizedType = ['course', 'module', 'lesson'].includes(targetType) ? targetType : 'course';
-    let amount = Number(course.precio || 0);
+    const normalizedType = ['course', 'module', 'lesson', 'live'].includes(targetType) ? targetType : 'course';
     let refModuleId = null;
     let refLessonId = null;
+    let refEventId = null;
+    let amount = 0;
+    let course;
+    let prefTitle;
+
+    if (normalizedType === 'live') {
+      const event = await db.getEventById(Number(eventId));
+      if (!event || event.type !== 'live_class') return res.status(404).json({ error: 'Clase en vivo no encontrada' });
+      if (Number(event.precio || 0) <= 0) return res.status(400).json({ error: 'Esta clase es gratuita, usá reservar' });
+      course = await db.getCourseById(event.course_id);
+      if (!course) return res.status(404).json({ error: 'Curso no encontrado' });
+      refEventId = event.id;
+      amount = Number(event.precio || 0);
+      prefTitle = `Clase en vivo: ${event.title}`;
+    } else {
+      if (!courseId) return res.status(400).json({ error: 'ID del curso es requerido' });
+      course = await db.getCourseById(courseId);
+      if (!course) return res.status(404).json({ error: 'Curso no encontrado' });
+      if (Number(course.precio) === 0 && normalizedType === 'course') {
+        return res.status(400).json({ error: 'El curso es gratuito, usa /api/courses/:id/enroll' });
+      }
+      amount = Number(course.precio || 0);
+    }
 
     if (normalizedType === 'module') {
       const moduleData = await db.getModuleById(Number(moduleId));
@@ -1629,6 +1750,7 @@ app.post('/api/payments/create-preference', authenticateToken, async (req, res) 
         targetType: normalizedType,
         moduleId: refModuleId,
         lessonId: refLessonId,
+        eventId: refEventId,
       },
       { id: user.id, nombre: user.nombre, email: user.email }
     );
@@ -1643,6 +1765,7 @@ app.post('/api/payments/create-preference', authenticateToken, async (req, res) 
       course_id: course.id,
       module_id: refModuleId,
       lesson_id: refLessonId,
+      event_id: refEventId,
       target_type: normalizedType,
       amount,
       preference_id: result.preferenceId,
@@ -1815,7 +1938,7 @@ app.post('/api/payments/webhook', async (req, res) => {
 
     const p = info.payment;
     const externalRef = p.external_reference || '';
-    const m = externalRef.match(/^course_(\d+)_user_(\d+)_type_(course|module|lesson)(?:_module_(\d+))?(?:_lesson_(\d+))?_/);
+    const m = externalRef.match(/^course_(\d+)_user_(\d+)_type_(course|module|lesson|live)(?:_module_(\d+))?(?:_lesson_(\d+))?(?:_event_(\d+))?_/);
     if (!m) return res.status(200).send('OK');
 
     const courseId = Number(m[1]);
@@ -1823,19 +1946,25 @@ app.post('/api/payments/webhook', async (req, res) => {
     const targetType = m[3];
     const moduleId = m[4] ? Number(m[4]) : null;
     const lessonId = m[5] ? Number(m[5]) : null;
+    const eventId = m[6] ? Number(m[6]) : null;
 
     const preferenceId = (p.order && p.order.id) || p.preference_id || '';
     if (preferenceId) await db.updatePaymentByPreferenceId(preferenceId, { payment_id: dataId, status: p.status });
 
     if (p.status === 'approved') {
-      const already = await db.isUserEnrolled(userId, courseId);
-      if (!already) await db.enrollUser(userId, courseId);
-      await db.createAccessGrant({
-        user_id: userId,
-        course_id: courseId,
-        module_id: targetType === 'module' || targetType === 'lesson' ? moduleId : null,
-        lesson_id: targetType === 'lesson' ? lessonId : null,
-      });
+      if (targetType === 'live') {
+        // Clase en vivo: solo acceso al evento, no inscribe al curso entero.
+        await db.createAccessGrant({ user_id: userId, course_id: courseId, event_id: eventId });
+      } else {
+        const already = await db.isUserEnrolled(userId, courseId);
+        if (!already) await db.enrollUser(userId, courseId);
+        await db.createAccessGrant({
+          user_id: userId,
+          course_id: courseId,
+          module_id: targetType === 'module' || targetType === 'lesson' ? moduleId : null,
+          lesson_id: targetType === 'lesson' ? lessonId : null,
+        });
+      }
     }
 
     res.status(200).send('OK');
@@ -1862,14 +1991,19 @@ app.get('/api/payments/status', authenticateToken, async (req, res) => {
       const info = await mercadoPagoService.getPayment(payment_id);
       if (info.success && info.payment) {
         const p = info.payment;
-        const m = (p.external_reference || '').match(/^course_(\d+)_user_(\d+)_type_(course|module|lesson)(?:_module_(\d+))?(?:_lesson_(\d+))?_/);
+        const m = (p.external_reference || '').match(/^course_(\d+)_user_(\d+)_type_(course|module|lesson|live)(?:_module_(\d+))?(?:_lesson_(\d+))?(?:_event_(\d+))?_/);
         if (m) {
           const cid = Number(m[1]);
           const uid = Number(m[2]);
           const tType = m[3];
           const mId = m[4] ? Number(m[4]) : null;
           const lId = m[5] ? Number(m[5]) : null;
+          const eId = m[6] ? Number(m[6]) : null;
           if (uid === userId && p.status === 'approved') {
+            if (tType === 'live') {
+              await db.createAccessGrant({ user_id: uid, course_id: cid, event_id: eId });
+              return res.json({ status: 'approved', enrolled: false, courseId: cid, targetType: tType, eventId: eId });
+            }
             const already = await db.isUserEnrolled(uid, cid);
             if (!already) await db.enrollUser(uid, cid);
             await db.createAccessGrant({

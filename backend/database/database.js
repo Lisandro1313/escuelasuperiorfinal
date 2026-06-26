@@ -133,6 +133,22 @@ class Database {
         console.error('Error agregando columna payments.target_type:', err);
       }
     });
+    // Clase en vivo: precio + url de la transmision (YouTube)
+    this.db.run(`ALTER TABLE events ADD COLUMN precio DECIMAL(10,2) DEFAULT 0`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) console.error('Error events.precio:', err);
+    });
+    this.db.run(`ALTER TABLE events ADD COLUMN meeting_url TEXT`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) console.error('Error events.meeting_url:', err);
+    });
+    this.db.run(`ALTER TABLE events ADD COLUMN cover_url TEXT`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) console.error('Error events.cover_url:', err);
+    });
+    this.db.run(`ALTER TABLE payments ADD COLUMN event_id INTEGER`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) console.error('Error payments.event_id:', err);
+    });
+    this.db.run(`ALTER TABLE access_grants ADD COLUMN event_id INTEGER`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) console.error('Error access_grants.event_id:', err);
+    });
     this.db.run(
       `CREATE TABLE IF NOT EXISTS access_grants (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -484,41 +500,61 @@ class Database {
     });
   }
 
-  async hasAccessGrant({ userId, courseId, moduleId = null, lessonId = null }) {
+  async hasAccessGrant({ userId, courseId, moduleId = null, lessonId = null, eventId = null }) {
     return new Promise((resolve, reject) => {
-      let sql = `SELECT id FROM access_grants WHERE user_id = ? AND course_id = ?`;
-      const params = [userId, courseId];
-      if (moduleId) {
-        sql += ` AND module_id = ?`;
-        params.push(moduleId);
-      }
-      if (lessonId) {
-        sql += ` AND lesson_id = ?`;
-        params.push(lessonId);
-      }
+      let sql = `SELECT id FROM access_grants WHERE user_id = ?`;
+      const params = [userId];
+      if (courseId) { sql += ` AND course_id = ?`; params.push(courseId); }
+      if (moduleId) { sql += ` AND module_id = ?`; params.push(moduleId); }
+      if (lessonId) { sql += ` AND lesson_id = ?`; params.push(lessonId); }
+      if (eventId) { sql += ` AND event_id = ?`; params.push(eventId); }
       sql += ` LIMIT 1`;
       this.db.get(sql, params, (err, row) => (err ? reject(err) : resolve(!!row)));
     });
   }
 
-  async createAccessGrant({ user_id, course_id, module_id = null, lesson_id = null, source_payment_id = null }) {
+  async createAccessGrant({ user_id, course_id, module_id = null, lesson_id = null, event_id = null, source_payment_id = null }) {
     const exists = await this.hasAccessGrant({
       userId: user_id,
       courseId: course_id,
       moduleId: module_id,
       lessonId: lesson_id,
+      eventId: event_id,
     });
     if (exists) return { reused: true };
 
     return new Promise((resolve, reject) => {
       this.db.run(
-        `INSERT INTO access_grants (user_id, course_id, module_id, lesson_id, source_payment_id) VALUES (?, ?, ?, ?, ?)`,
-        [user_id, course_id, module_id, lesson_id, source_payment_id],
+        `INSERT INTO access_grants (user_id, course_id, module_id, lesson_id, event_id, source_payment_id) VALUES (?, ?, ?, ?, ?, ?)`,
+        [user_id, course_id, module_id, lesson_id, event_id, source_payment_id],
         function (err) {
           if (err) reject(err);
           else resolve({ id: this.lastID });
         }
       );
+    });
+  }
+
+  // ---- Clases en vivo ----
+  async getEventById(eventId) {
+    return new Promise((resolve, reject) => {
+      this.db.get(`SELECT * FROM events WHERE id = ?`, [eventId], (err, row) => (err ? reject(err) : resolve(row || null)));
+    });
+  }
+
+  // Proximas clases en vivo publicadas (para mostrar en el inicio). Sin la URL.
+  async getUpcomingLiveClasses(limit = 6) {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT e.id, e.title, e.start_date, e.end_date, e.precio, e.cover_url,
+               e.course_id, c.nombre as course_nombre, u.nombre as instructor_nombre
+        FROM events e
+        LEFT JOIN courses c ON c.id = e.course_id
+        LEFT JOIN users u ON u.id = e.instructor_id
+        WHERE e.type = 'live_class' AND e.start_date >= datetime('now', '-3 hours')
+        ORDER BY e.start_date ASC
+        LIMIT ?`;
+      this.db.all(sql, [limit], (err, rows) => (err ? reject(err) : resolve(rows || [])));
     });
   }
 
@@ -875,10 +911,10 @@ class Database {
   createEvent(eventData) {
     return new Promise((resolve, reject) => {
       const sql = `
-        INSERT INTO events (title, description, start_date, end_date, type, course_id, instructor_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO events (title, description, start_date, end_date, type, course_id, instructor_id, precio, meeting_url, cover_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `;
-      
+
       this.db.run(sql, [
         eventData.title,
         eventData.description,
@@ -886,7 +922,10 @@ class Database {
         eventData.endDate,
         eventData.type,
         eventData.courseId,
-        eventData.instructorId
+        eventData.instructorId,
+        Number(eventData.precio || 0),
+        eventData.meetingUrl || null,
+        eventData.coverUrl || null
       ], function(err) {
         if (err) {
           reject(err);

@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS access_grants (
     course_id INTEGER NOT NULL,
     module_id INTEGER,
     lesson_id INTEGER,
+    event_id INTEGER,
     source_payment_id INTEGER,
     granted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -125,6 +126,7 @@ CREATE TABLE IF NOT EXISTS access_grants (
 CREATE INDEX IF NOT EXISTS idx_access_grants_user_course ON access_grants(user_id, course_id);
 CREATE INDEX IF NOT EXISTS idx_access_grants_module ON access_grants(user_id, module_id);
 CREATE INDEX IF NOT EXISTS idx_access_grants_lesson ON access_grants(user_id, lesson_id);
+CREATE INDEX IF NOT EXISTS idx_access_grants_event ON access_grants(user_id, event_id);
 
 -- El admin lo crea backend/database/database.js (createDefaultAdmin)
 -- usando ADMIN_EMAIL y ADMIN_PASSWORD del .env. NO insertarlo aqui.
@@ -140,6 +142,9 @@ CREATE TABLE IF NOT EXISTS events (
     course_id INTEGER,
     instructor_id INTEGER,
     status VARCHAR(50) DEFAULT 'scheduled',
+    precio DECIMAL(10,2) DEFAULT 0,
+    meeting_url TEXT,
+    cover_url TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (course_id) REFERENCES courses(id),
     FOREIGN KEY (instructor_id) REFERENCES users(id)

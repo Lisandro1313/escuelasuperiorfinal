@@ -137,6 +137,11 @@ class TursoDatabase {
       `ALTER TABLE payments ADD COLUMN module_id INTEGER`,
       `ALTER TABLE payments ADD COLUMN lesson_id INTEGER`,
       `ALTER TABLE payments ADD COLUMN target_type VARCHAR(20) DEFAULT 'course'`,
+      `ALTER TABLE payments ADD COLUMN event_id INTEGER`,
+      `ALTER TABLE events ADD COLUMN precio DECIMAL(10,2) DEFAULT 0`,
+      `ALTER TABLE events ADD COLUMN meeting_url TEXT`,
+      `ALTER TABLE events ADD COLUMN cover_url TEXT`,
+      `ALTER TABLE access_grants ADD COLUMN event_id INTEGER`,
     ];
     for (const sql of alters) {
       try {
@@ -507,10 +512,25 @@ class TursoDatabase {
 
   async createEvent(eventData) {
     const r = await this._query(
-      'INSERT INTO events (title, description, start_date, end_date, type, course_id, instructor_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [eventData.title, eventData.description, eventData.startDate, eventData.endDate, eventData.type, eventData.courseId, eventData.instructorId]
+      'INSERT INTO events (title, description, start_date, end_date, type, course_id, instructor_id, precio, meeting_url, cover_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [eventData.title, eventData.description, eventData.startDate, eventData.endDate, eventData.type, eventData.courseId, eventData.instructorId, Number(eventData.precio || 0), eventData.meetingUrl || null, eventData.coverUrl || null]
     );
     return Number(r.lastInsertRowid);
+  }
+
+  // Proximas clases en vivo publicadas (para el inicio). Sin la URL.
+  async getUpcomingLiveClasses(limit = 6) {
+    const r = await this._query(
+      `SELECT e.id, e.title, e.start_date, e.end_date, e.precio, e.cover_url,
+              e.course_id, c.nombre as course_nombre, u.nombre as instructor_nombre
+       FROM events e
+       LEFT JOIN courses c ON c.id = e.course_id
+       LEFT JOIN users u ON u.id = e.instructor_id
+       WHERE e.type = 'live_class' AND e.start_date >= datetime('now', '-3 hours')
+       ORDER BY e.start_date ASC LIMIT ?`,
+      [limit]
+    );
+    return r.rows || [];
   }
 
   async getEventById(eventId) {
@@ -770,22 +790,24 @@ class TursoDatabase {
     return r.rows[0] || null;
   }
 
-  async hasAccessGrant({ userId, courseId, moduleId = null, lessonId = null }) {
-    let sql = 'SELECT id FROM access_grants WHERE user_id = ? AND course_id = ?';
-    const params = [userId, courseId];
+  async hasAccessGrant({ userId, courseId, moduleId = null, lessonId = null, eventId = null }) {
+    let sql = 'SELECT id FROM access_grants WHERE user_id = ?';
+    const params = [userId];
+    if (courseId) { sql += ' AND course_id = ?'; params.push(courseId); }
     if (moduleId) { sql += ' AND module_id = ?'; params.push(moduleId); }
     if (lessonId) { sql += ' AND lesson_id = ?'; params.push(lessonId); }
+    if (eventId) { sql += ' AND event_id = ?'; params.push(eventId); }
     sql += ' LIMIT 1';
     const r = await this._query(sql, params);
     return !!r.rows[0];
   }
 
-  async createAccessGrant({ user_id, course_id, module_id = null, lesson_id = null, source_payment_id = null }) {
-    const exists = await this.hasAccessGrant({ userId: user_id, courseId: course_id, moduleId: module_id, lessonId: lesson_id });
+  async createAccessGrant({ user_id, course_id, module_id = null, lesson_id = null, event_id = null, source_payment_id = null }) {
+    const exists = await this.hasAccessGrant({ userId: user_id, courseId: course_id, moduleId: module_id, lessonId: lesson_id, eventId: event_id });
     if (exists) return { reused: true };
     const r = await this._query(
-      'INSERT INTO access_grants (user_id, course_id, module_id, lesson_id, source_payment_id) VALUES (?, ?, ?, ?, ?)',
-      [user_id, course_id, module_id, lesson_id, source_payment_id]
+      'INSERT INTO access_grants (user_id, course_id, module_id, lesson_id, event_id, source_payment_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [user_id, course_id, module_id, lesson_id, event_id, source_payment_id]
     );
     return { id: Number(r.lastInsertRowid) };
   }
