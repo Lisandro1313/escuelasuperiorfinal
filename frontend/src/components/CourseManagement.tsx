@@ -37,6 +37,7 @@ interface Lesson {
   precio?: number;
   unlock_days_offset?: number | null;
   unlock_at?: string | null;
+  objetivos?: string | null;
   duracion: number;
   recursos: Resource[];
   publicado: boolean;
@@ -81,6 +82,7 @@ const CourseManagement: React.FC = () => {
     precio: 0,
     unlock_days_offset: null as number | null,
     unlock_at: '' as string,
+    objetivos: '' as string,
     duracion: 0,
     recursos: [] as Resource[]
   });
@@ -275,6 +277,7 @@ const CourseManagement: React.FC = () => {
           precio: 0,
           unlock_days_offset: null,
           unlock_at: '',
+          objetivos: '',
           duracion: 0,
           recursos: []
         });
@@ -310,6 +313,7 @@ const CourseManagement: React.FC = () => {
           precio: 0,
           unlock_days_offset: null,
           unlock_at: '',
+          objetivos: '',
           duracion: 0,
           recursos: []
         });
@@ -412,6 +416,7 @@ const CourseManagement: React.FC = () => {
       precio: Number(lesson.precio || 0),
       unlock_days_offset: lesson.unlock_days_offset ?? null,
       unlock_at: lesson.unlock_at ? String(lesson.unlock_at).slice(0, 10) : '',
+      objetivos: lesson.objetivos || '',
       duracion: lesson.duracion,
       recursos: lesson.recursos || []
     });
@@ -429,6 +434,7 @@ const CourseManagement: React.FC = () => {
       precio: 0,
       unlock_days_offset: null,
       unlock_at: '',
+      objetivos: '',
       duracion: 0,
       recursos: []
     });
@@ -879,7 +885,22 @@ const CourseManagement: React.FC = () => {
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-green-500 focus:ring focus:ring-green-200 transition duration-200 text-base"
                 />
               </div>
-              
+
+              {/* Objetivos de aprendizaje */}
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2 text-sm">
+                  🎯 Objetivos de aprendizaje
+                </label>
+                <textarea
+                  value={lessonForm.objetivos}
+                  onChange={(e) => setLessonForm(prev => ({ ...prev, objetivos: e.target.value }))}
+                  placeholder={'Uno por línea. Ej:\nEntender qué es Node.js\nCrear tu primer servidor\nManejar rutas básicas'}
+                  rows={3}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-green-500 focus:ring focus:ring-green-200 transition duration-200 text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-1">Se muestran como lista con tildes arriba de la clase (uno por línea).</p>
+              </div>
+
               {/* Fila con Tipo, Orden y Duración */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>

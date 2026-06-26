@@ -1585,7 +1585,7 @@ app.get('/api/modules/:id/lessons', authenticateToken, requireCourseAccess({ mod
 app.post('/api/modules/:id/lessons', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const moduleId = req.params.id;
-    const { titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos } = req.body;
+    const { titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, objetivos } = req.body;
 
     const lesson = await db.createLesson({
       module_id: moduleId,
@@ -1598,6 +1598,7 @@ app.post('/api/modules/:id/lessons', authenticateToken, requireProfessor, async 
       unlock_days_offset: unlock_days_offset !== undefined && unlock_days_offset !== null ? Number(unlock_days_offset) : null,
       duracion: duracion || 0,
       recursos: recursos ? JSON.stringify(recursos) : null,
+      objetivos: objetivos || null,
       publicado: true
     });
 
@@ -1612,7 +1613,7 @@ app.post('/api/modules/:id/lessons', authenticateToken, requireProfessor, async 
 app.put('/api/lessons/:id', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const lessonId = req.params.id;
-    const { titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, publicado } = req.body;
+    const { titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, objetivos, publicado } = req.body;
 
     const updatedLesson = await db.updateLesson(lessonId, {
       titulo,
@@ -1624,6 +1625,7 @@ app.put('/api/lessons/:id', authenticateToken, requireProfessor, async (req, res
       unlock_days_offset: unlock_days_offset !== undefined && unlock_days_offset !== null ? Number(unlock_days_offset) : null,
       duracion,
       recursos: recursos ? JSON.stringify(recursos) : null,
+      objetivos: objetivos || null,
       publicado
     });
 
@@ -1874,6 +1876,7 @@ app.get('/api/courses/:id/player', authenticateToken, async (req, res) => {
           // El contenido solo viaja si la clase esta desbloqueada (no filtrar pago).
           contenido: (!locked || isOwner) ? l.contenido : null,
           recursos: (!locked || isOwner) ? l.recursos : null,
+          objetivos: (!locked || isOwner) ? (l.objetivos || null) : null,
         });
       }
       outModules.push({ id: g.module.id, titulo: g.module.titulo, orden: g.module.orden, lessons: outLessons });

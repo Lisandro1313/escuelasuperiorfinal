@@ -34,6 +34,7 @@ interface PlayerLesson {
   can_buy: boolean;
   contenido: string | null;
   recursos: string | null;
+  objetivos: string | null;
 }
 
 interface PlayerModule {
@@ -72,6 +73,9 @@ const formatFecha = (iso: string | null) => {
     return '';
   }
 };
+
+const parseObjetivos = (raw: string | null): string[] =>
+  (raw || '').split('\n').map((s) => s.trim().replace(/^[-•*]\s*/, '')).filter(Boolean);
 
 const materialMeta = (titulo: string, url?: string): { icon: string; kind: string } => {
   const t = (titulo || '').toLowerCase();
@@ -151,6 +155,12 @@ const CoursePlayer: React.FC = () => {
     data?.modules.forEach((m) => m.lessons.forEach((l) => map.set(l.id, ++n)));
     return map;
   }, [data]);
+
+  // Lista plana de clases en orden (para navegar entre clases).
+  const allLessons = useMemo(() => (data ? data.modules.flatMap((m) => m.lessons) : []), [data]);
+  const openIndex = openLesson ? allLessons.findIndex((l) => l.id === openLesson.id) : -1;
+  const prevLesson = openIndex > 0 ? allLessons[openIndex - 1] : null;
+  const nextLesson = openIndex >= 0 && openIndex < allLessons.length - 1 ? allLessons[openIndex + 1] : null;
 
   const handleComplete = async (lesson: PlayerLesson) => {
     setMarking(true);
@@ -295,10 +305,14 @@ const CoursePlayer: React.FC = () => {
                 ✕
               </button>
               <span className="inline-block bg-emerald-500 text-slate-900 text-xs font-bold px-3 py-1 rounded-full mb-2">
-                Clase {lessonNumber.get(openLesson.id)}
+                Clase {lessonNumber.get(openLesson.id)} de {allLessons.length}
               </span>
               <h3 className="text-xl md:text-2xl font-bold pr-8">{openLesson.titulo}</h3>
               {openLesson.completed && <p className="text-emerald-300 text-sm mt-1">✓ Ya la completaste</p>}
+              <div className="mt-3 h-1.5 rounded-full bg-white/15 overflow-hidden">
+                <div className="h-full bg-emerald-400 transition-all" style={{ width: `${data.progress.percent}%` }} />
+              </div>
+              <p className="text-blue-200 text-[11px] mt-1">{data.progress.completed}/{data.progress.total} clases completadas · {data.progress.percent}%</p>
             </div>
 
             <div className="p-6">
@@ -326,6 +340,22 @@ const CoursePlayer: React.FC = () => {
                 </div>
               ) : (
                 <>
+                  {parseObjetivos(openLesson.objetivos).length > 0 && (
+                    <div className="mb-5 bg-emerald-50 border border-emerald-100 rounded-2xl p-4">
+                      <div className="inline-flex items-center gap-2 bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded-full mb-3">
+                        🎯 Objetivos de aprendizaje
+                      </div>
+                      <ul className="space-y-1.5">
+                        {parseObjetivos(openLesson.objetivos).map((o, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                            <span className="text-emerald-600 mt-0.5 font-bold">✓</span>
+                            <span>{o}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   {openLesson.tipo === 'video' && toVideoEmbed(openLesson.contenido) ? (
                     <div className="mb-4 aspect-video rounded-xl overflow-hidden bg-black shadow">
                       {toVideoEmbed(openLesson.contenido)!.type === 'iframe' ? (
@@ -406,6 +436,26 @@ const CoursePlayer: React.FC = () => {
                       {openLesson.completed ? '✓ Clase completada' : marking ? 'Guardando...' : 'Marcar como completada'}
                     </button>
                   )}
+
+                  <div className="flex items-center justify-between gap-3 mt-5 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={() => prevLesson && setOpenLesson(prevLesson)}
+                      disabled={!prevLesson}
+                      className="text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-30 disabled:cursor-default"
+                    >
+                      ← Anterior
+                    </button>
+                    {nextLesson ? (
+                      <button
+                        onClick={() => setOpenLesson(nextLesson)}
+                        className="text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg max-w-[60%] truncate"
+                      >
+                        Siguiente: {nextLesson.titulo} →
+                      </button>
+                    ) : (
+                      <span className="text-sm text-emerald-600 font-medium">🎉 Última clase</span>
+                    )}
+                  </div>
                 </>
               )}
             </div>

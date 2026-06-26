@@ -134,6 +134,7 @@ class TursoDatabase {
       `ALTER TABLE lessons ADD COLUMN precio DECIMAL(10,2) DEFAULT 0`,
       `ALTER TABLE lessons ADD COLUMN unlock_at DATETIME`,
       `ALTER TABLE lessons ADD COLUMN unlock_days_offset INTEGER`,
+      `ALTER TABLE lessons ADD COLUMN objetivos TEXT`,
       `ALTER TABLE payments ADD COLUMN module_id INTEGER`,
       `ALTER TABLE payments ADD COLUMN lesson_id INTEGER`,
       `ALTER TABLE payments ADD COLUMN target_type VARCHAR(20) DEFAULT 'course'`,
@@ -408,24 +409,24 @@ class TursoDatabase {
     return r.rows.map((l) => ({ ...l, recursos: l.recursos ? JSON.parse(l.recursos) : [] }));
   }
 
-  async createLesson({ module_id, titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, publicado }) {
+  async createLesson({ module_id, titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, objetivos = null, publicado }) {
     const recursosStr = typeof recursos === 'string' ? recursos : (recursos ? JSON.stringify(recursos) : null);
     const r = await this._query(
-      'INSERT INTO lessons (module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursosStr, publicado ? 1 : 0]
+      'INSERT INTO lessons (module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, objetivos, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursosStr, objetivos, publicado ? 1 : 0]
     );
-    const out = { id: Number(r.lastInsertRowid), module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, publicado };
+    const out = { id: Number(r.lastInsertRowid), module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, objetivos, publicado };
     out.recursos = recursosStr ? JSON.parse(recursosStr) : [];
     return out;
   }
 
-  async updateLesson(lessonId, { titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, publicado }) {
+  async updateLesson(lessonId, { titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, objetivos = null, publicado }) {
     const recursosStr = typeof recursos === 'string' ? recursos : (recursos ? JSON.stringify(recursos) : null);
     await this._query(
-      'UPDATE lessons SET titulo = ?, contenido = ?, tipo = ?, orden = ?, precio = ?, unlock_at = ?, unlock_days_offset = ?, duracion = ?, recursos = ?, publicado = ? WHERE id = ?',
-      [titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursosStr, publicado ? 1 : 0, lessonId]
+      'UPDATE lessons SET titulo = ?, contenido = ?, tipo = ?, orden = ?, precio = ?, unlock_at = ?, unlock_days_offset = ?, duracion = ?, recursos = ?, objetivos = ?, publicado = ? WHERE id = ?',
+      [titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursosStr, objetivos, publicado ? 1 : 0, lessonId]
     );
-    return { id: lessonId, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, publicado, recursos: recursosStr ? JSON.parse(recursosStr) : [] };
+    return { id: lessonId, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, objetivos, publicado, recursos: recursosStr ? JSON.parse(recursosStr) : [] };
   }
 
   async deleteLesson(lessonId) {

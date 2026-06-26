@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS lessons (
     unlock_days_offset INTEGER,
     duracion INTEGER DEFAULT 0,
     recursos TEXT,
+    objetivos TEXT,
     publicado BOOLEAN DEFAULT false,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (module_id) REFERENCES modules(id)

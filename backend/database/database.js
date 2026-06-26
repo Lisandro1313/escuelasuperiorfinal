@@ -113,6 +113,9 @@ class Database {
         console.error('Error agregando columna lessons.unlock_at:', err);
       }
     });
+    this.db.run(`ALTER TABLE lessons ADD COLUMN objetivos TEXT`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) console.error('Error lessons.objetivos:', err);
+    });
     this.db.run(`ALTER TABLE lessons ADD COLUMN unlock_days_offset INTEGER`, (err) => {
       if (err && !err.message.includes('duplicate column name')) {
         console.error('Error agregando columna lessons.unlock_days_offset:', err);
@@ -724,10 +727,10 @@ class Database {
 
   async createLesson(lessonData) {
     return new Promise((resolve, reject) => {
-      const { module_id, titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, publicado } = lessonData;
-      const sql = `INSERT INTO lessons (module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-      
-      this.db.run(sql, [module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, publicado], function(err) {
+      const { module_id, titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, objetivos = null, publicado } = lessonData;
+      const sql = `INSERT INTO lessons (module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, objetivos, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+      this.db.run(sql, [module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, objetivos, publicado], function(err) {
         if (err) {
           reject(err);
         } else {
@@ -743,10 +746,10 @@ class Database {
 
   async updateLesson(lessonId, lessonData) {
     return new Promise((resolve, reject) => {
-      const { titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, publicado } = lessonData;
-      const sql = `UPDATE lessons SET titulo = ?, contenido = ?, tipo = ?, orden = ?, precio = ?, unlock_at = ?, unlock_days_offset = ?, duracion = ?, recursos = ?, publicado = ? WHERE id = ?`;
-      
-      this.db.run(sql, [titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, publicado, lessonId], function(err) {
+      const { titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, objetivos = null, publicado } = lessonData;
+      const sql = `UPDATE lessons SET titulo = ?, contenido = ?, tipo = ?, orden = ?, precio = ?, unlock_at = ?, unlock_days_offset = ?, duracion = ?, recursos = ?, objetivos = ?, publicado = ? WHERE id = ?`;
+
+      this.db.run(sql, [titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, objetivos, publicado, lessonId], function(err) {
         if (err) {
           reject(err);
         } else {
