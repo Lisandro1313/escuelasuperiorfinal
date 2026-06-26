@@ -1,7 +1,10 @@
 import axios from 'axios';
 
-// Configuración del API - cambia automáticamente entre desarrollo y producción
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+// Configuración del API - cambia automáticamente entre desarrollo y producción.
+// Las rutas ya incluyen /api, así que sacamos un "/" o "/api" sobrante de
+// VITE_API_URL para no terminar pegándole a /api/api/... (da 405).
+const RAW_API_URL = import.meta.env.VITE_API_URL || '';
+const API_BASE_URL = RAW_API_URL.replace(/\/+$/, '').replace(/\/api$/, '');
 
 // Crear instancia de axios con configuración base
 const api = axios.create({
