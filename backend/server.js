@@ -25,6 +25,9 @@ const logger = require('./utils/logger');
 const NotificationHelper = require('./utils/notificationHelper');
 
 const app = express();
+// Detrás del proxy de Render: necesario para que express-rate-limit lea
+// la IP real del X-Forwarded-For sin tirar ValidationError.
+app.set('trust proxy', 1);
 const server = createServer(app);
 const io = new Server(server, {
   cors: {

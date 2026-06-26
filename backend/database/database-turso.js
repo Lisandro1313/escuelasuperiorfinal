@@ -102,7 +102,7 @@ class TursoDatabase {
           try {
             await this.client.execute(stmt);
           } catch (err) {
-            if (!/already exists|duplicate column/i.test(err.message)) {
+            if (!/already exists|duplicate column|no such column/i.test(err.message)) {
               console.error('Error en init Turso:', err.message, '\nSQL:', stmt.slice(0, 120));
             }
           }

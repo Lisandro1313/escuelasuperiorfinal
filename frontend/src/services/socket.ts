@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { API_BASE } from '../config';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -9,11 +10,18 @@ class SocketService {
       return;
     }
 
-    this.socket = io(import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || '', {
+    // Conecta al backend (Render). Sin esto apuntaba al dominio de Vercel
+    // (sin servidor de websockets) y reintentaba infinito, inundando la consola.
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || API_BASE || '';
+    this.socket = io(SOCKET_URL, {
       auth: {
         token
       },
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 15000,
+      timeout: 8000,
     });
 
     this.socket.on('connect', () => {
