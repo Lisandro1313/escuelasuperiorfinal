@@ -1,6 +1,8 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../Toast/ToastProvider';
+import { useAuth } from '../../context/AuthContext';
+import CourseChat from './CourseChat';
 
 // El flipbook (pdf.js) se carga sólo al abrir un material, no en el bundle principal.
 const Flipbook = React.lazy(() => import('../Common/Flipbook'));
@@ -118,6 +120,7 @@ const CoursePlayer: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const toast = useToast();
+  const { usuario } = useAuth();
 
   const [data, setData] = useState<PlayerData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -473,6 +476,10 @@ const CoursePlayer: React.FC = () => {
         >
           <Flipbook fileUrl={flipbook.url} title={flipbook.title} onClose={() => setFlipbook(null)} />
         </Suspense>
+      )}
+
+      {usuario && (
+        <CourseChat courseId={course.id} userId={(usuario as { id: number }).id} userName={(usuario as { nombre: string }).nombre} />
       )}
     </div>
   );

@@ -906,6 +906,23 @@ app.get('/api/courses/:id/live-classes', authenticateToken, requireCourseAccess(
   }
 });
 
+// Historial del chat del curso (solo con acceso al curso).
+app.get('/api/courses/:id/messages', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    const messages = await db.getCourseMessages(Number(req.params.id));
+    res.json((messages || []).map((m) => ({
+      id: m.id,
+      message: m.message,
+      userId: m.user_id,
+      userName: m.user_name || 'Usuario',
+      timestamp: m.timestamp,
+    })));
+  } catch (error) {
+    console.error('Error al obtener mensajes del curso:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ================================
 // CLASES EN VIVO (publicas / pagas)
 // ================================
@@ -3114,6 +3131,10 @@ io.on('connection', (socket) => {
       const userId = decoded.userId || decoded.id;
       if (userId) {
         socket.join(`user_${userId}`);
+        // Guardamos el usuario autenticado para el chat (nombre real, no el del cliente).
+        db.getUserById(userId)
+          .then((u) => { socket.data.user = { userId, userName: u?.nombre || 'Usuario' }; })
+          .catch(() => { socket.data.user = { userId, userName: 'Usuario' }; });
       }
     } catch (_) {
       // token inválido — sin room personal, las notificaciones en tiempo real no llegan
@@ -3126,18 +3147,32 @@ io.on('connection', (socket) => {
     console.log(`Usuario ${socket.id} se unió al curso ${courseId}`);
   });
 
-  // Enviar mensaje al curso
-  socket.on('send-message', (data) => {
-    const { courseId, message, userId, userName, timestamp } = data;
+  // Enviar mensaje al curso (persiste y usa el usuario autenticado del socket).
+  socket.on('send-message', async (data) => {
+    try {
+      const { courseId } = data || {};
+      const message = (data?.message || '').trim();
+      const user = socket.data?.user;
+      if (!courseId || !message || !user) return;
+      if (message.length > 1000) return;
 
-    // Emitir el mensaje a todos los usuarios en la sala del curso
-    io.to(`course-${courseId}`).emit('new-message', {
-      id: Date.now(),
-      message,
-      userId,
-      userName,
-      timestamp: timestamp || new Date().toISOString()
-    });
+      const timestamp = new Date().toISOString();
+      const saved = await db.createCourseMessage({
+        course_id: Number(courseId),
+        user_id: user.userId,
+        message,
+        timestamp,
+      });
+      io.to(`course-${courseId}`).emit('new-message', {
+        id: saved.id || Date.now(),
+        message,
+        userId: user.userId,
+        userName: user.userName,
+        timestamp,
+      });
+    } catch (e) {
+      console.warn('Chat send-message falló:', e.message);
+    }
   });
 
   // Desconexión
