@@ -1,6 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../Toast/ToastProvider';
+
+// El flipbook (pdf.js) se carga sólo al abrir un material, no en el bundle principal.
+const Flipbook = React.lazy(() => import('../Common/Flipbook'));
+
+const isPdfUrl = (url?: string | null): boolean =>
+  !!url && (/\.pdf($|\?)/i.test(url) || /\/raw\/upload\//.test(url));
 
 interface PlayerLesson {
   id: number;
@@ -93,6 +99,7 @@ const CoursePlayer: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [openLesson, setOpenLesson] = useState<PlayerLesson | null>(null);
+  const [flipbook, setFlipbook] = useState<{ url: string; title: string } | null>(null);
   const [marking, setMarking] = useState(false);
 
   const load = useCallback(async () => {
@@ -295,7 +302,18 @@ const CoursePlayer: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  {openLesson.contenido ? (
+                  {openLesson.tipo === 'pdf' && /^(https?:|\/)/.test(openLesson.contenido || '') ? (
+                    <button
+                      onClick={() => setFlipbook({ url: openLesson.contenido as string, title: openLesson.titulo })}
+                      className="w-full mb-4 bg-gradient-to-br from-slate-800 to-blue-900 text-white rounded-xl p-5 flex items-center gap-4 hover:-translate-y-0.5 transition"
+                    >
+                      <span className="text-3xl">📖</span>
+                      <span className="text-left">
+                        <span className="block font-semibold">Abrir el material como librito</span>
+                        <span className="block text-blue-200 text-xs">Pasás las hojas como un libro real</span>
+                      </span>
+                    </button>
+                  ) : openLesson.contenido ? (
                     <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap mb-4">
                       {openLesson.contenido}
                     </div>
@@ -308,13 +326,21 @@ const CoursePlayer: React.FC = () => {
                       <p className="text-sm font-semibold text-gray-900 mb-2">Material de la clase</p>
                       <ul className="space-y-1">
                         {parseRecursos(openLesson.recursos).map((r, i) => (
-                          <li key={i}>
+                          <li key={i} className="flex items-center gap-2">
                             {r.url ? (
                               <a href={r.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm">
                                 📎 {r.titulo}
                               </a>
                             ) : (
                               <span className="text-gray-700 text-sm">📎 {r.titulo}</span>
+                            )}
+                            {isPdfUrl(r.url) && (
+                              <button
+                                onClick={() => setFlipbook({ url: r.url as string, title: r.titulo })}
+                                className="text-xs bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-0.5 rounded-md font-medium"
+                              >
+                                📖 librito
+                              </button>
                             )}
                           </li>
                         ))}
@@ -340,6 +366,18 @@ const CoursePlayer: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {flipbook && (
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-[60] bg-slate-900/95 flex items-center justify-center text-white">
+              Abriendo el material...
+            </div>
+          }
+        >
+          <Flipbook fileUrl={flipbook.url} title={flipbook.title} onClose={() => setFlipbook(null)} />
+        </Suspense>
       )}
     </div>
   );
