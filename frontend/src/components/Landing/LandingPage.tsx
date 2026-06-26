@@ -25,13 +25,15 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 const PLACEHOLDER_IMAGES = [
-  'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=250&fit=crop',
-  'https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?w=400&h=250&fit=crop',
-  'https://images.unsplash.com/photo-1594736797933-d0501ba2fe65?w=400&h=250&fit=crop',
-  'https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=400&h=250&fit=crop',
-  'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=400&h=250&fit=crop',
-  'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&h=250&fit=crop',
+  'https://images.unsplash.com/photo-1513258496099-48168024aec0?w=400&h=250&fit=crop',
+  'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=400&h=250&fit=crop',
+  'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=400&h=250&fit=crop',
+  'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400&h=250&fit=crop',
+  'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=400&h=250&fit=crop',
+  'https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?w=400&h=250&fit=crop',
 ];
+
+const BRAND = 'Escuela Superior de Formación';
 
 const LandingPage: React.FC = () => {
   const { isAuthenticated, usuario } = useAuth();
@@ -51,23 +53,28 @@ const LandingPage: React.FC = () => {
     : '/register';
   const ctaLabel = isAuthenticated
     ? usuario?.tipo === 'alumno' ? 'Ver mis cursos' : 'Ir a mi panel'
-    : 'Empezar ahora';
+    : 'Crear mi cuenta';
 
   return (
     <div className="min-h-screen bg-white">
 
-      {/* Navbar simple solo cuando no hay sesión (cuando hay sesión, App.tsx ya muestra el Navbar global) */}
+      {/* ── Navbar (solo sin sesión) ── */}
       {!isAuthenticated && (
-        <header className="sticky top-0 z-50 bg-white/95 backdrop-blur border-b border-gray-100">
+        <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
           <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-            <span className="text-xl font-bold text-gray-900">Campus Norma</span>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              <img src="/logo.png" alt={BRAND} className="h-9 w-9 rounded-lg object-contain" />
+              <span className="font-bold text-gray-900 leading-tight text-sm sm:text-base">
+                Escuela Superior<br className="hidden sm:block" /> de Formación
+              </span>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3">
               <Link to="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900 px-3 py-2 transition">
                 Iniciar sesión
               </Link>
               <Link
                 to="/register"
-                className="text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"
+                className="text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition"
               >
                 Registrarse
               </Link>
@@ -77,50 +84,72 @@ const LandingPage: React.FC = () => {
       )}
 
       {/* ── Hero ── */}
-      <section className="relative overflow-hidden bg-linear-to-br from-blue-50 via-white to-indigo-50">
-        {/* Decoración de fondo */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950 text-white">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-100 rounded-full opacity-40 blur-3xl" />
-          <div className="absolute -bottom-20 -left-20 w-72 h-72 bg-indigo-100 rounded-full opacity-50 blur-3xl" />
+          <div className="absolute -top-40 -right-32 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl" />
+          <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl" />
         </div>
 
-        <div className="relative max-w-5xl mx-auto px-6 pt-20 pb-24 text-center">
-          <div className="inline-flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 text-sm font-medium px-4 py-1.5 rounded-full mb-8">
-            <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+        <div className="relative max-w-4xl mx-auto px-6 pt-16 pb-20 text-center">
+          <img
+            src="/logo.png"
+            alt={BRAND}
+            className="h-24 w-24 mx-auto mb-6 rounded-2xl shadow-2xl shadow-black/40"
+          />
+          <div className="inline-flex items-center gap-2 bg-white/10 border border-white/15 text-emerald-200 text-sm font-medium px-4 py-1.5 rounded-full mb-6">
+            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
             Clases en video · A tu ritmo · Certificado
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-gray-900 mb-6 leading-tight">
-            Aprendé lo que
-            <span className="block bg-linear-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              siempre quisiste
+          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-5 leading-tight">
+            Escuela Superior
+            <span className="block bg-gradient-to-r from-emerald-300 to-teal-200 bg-clip-text text-transparent">
+              de Formación
             </span>
           </h1>
-          <p className="text-lg md:text-xl text-gray-500 mb-10 max-w-2xl mx-auto leading-relaxed">
-            Cursos de calidad con profesoras reales. Mirá las clases en video, avanzá a tu ritmo y consultá dudas en cada curso.
+          <p className="text-lg text-blue-100/80 mb-9 max-w-2xl mx-auto leading-relaxed">
+            Formate online con docentes reales. Mirá las clases en video, avanzá a tu ritmo
+            y sumate a las clases en vivo cuando quieras.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               to={ctaTo}
-              className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-base font-semibold px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all"
+              className="inline-flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 text-base font-bold px-8 py-4 rounded-xl shadow-lg transition-all"
             >
               {ctaLabel} →
             </Link>
             <Link
               to="/courses"
-              className="inline-flex items-center justify-center bg-white hover:bg-gray-50 text-gray-700 text-base font-semibold px-8 py-4 rounded-xl border border-gray-200 shadow-sm transition-all"
+              className="inline-flex items-center justify-center bg-white/10 hover:bg-white/20 text-white text-base font-semibold px-8 py-4 rounded-xl border border-white/20 transition-all"
             >
               Ver cursos
             </Link>
           </div>
           {!isAuthenticated && (
-            <p className="mt-6 text-sm text-gray-400">
+            <p className="mt-6 text-sm text-blue-200/70">
               ¿Ya tenés cuenta?{' '}
-              <Link to="/login" className="text-blue-600 hover:underline font-medium">
+              <Link to="/login" className="text-emerald-300 hover:underline font-medium">
                 Iniciar sesión
               </Link>
             </p>
           )}
+        </div>
+      </section>
+
+      {/* ── Franja de valores ── */}
+      <section className="border-b border-gray-100 bg-white">
+        <div className="max-w-5xl mx-auto px-6 py-8 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+          {[
+            { icon: '🎥', t: 'Clases en video' },
+            { icon: '🔴', t: 'Clases en vivo' },
+            { icon: '🏆', t: 'Certificado' },
+            { icon: '💳', t: 'Pago seguro' },
+          ].map((v) => (
+            <div key={v.t} className="flex flex-col items-center gap-1">
+              <span className="text-2xl">{v.icon}</span>
+              <span className="text-sm font-medium text-gray-700">{v.t}</span>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -137,7 +166,7 @@ const LandingPage: React.FC = () => {
               </p>
             </div>
             {courses.length > 0 && (
-              <Link to="/courses" className="hidden sm:inline text-sm text-blue-600 hover:underline font-medium">
+              <Link to="/courses" className="hidden sm:inline text-sm text-emerald-600 hover:underline font-medium">
                 Ver todos los cursos →
               </Link>
             )}
@@ -159,16 +188,16 @@ const LandingPage: React.FC = () => {
             </div>
           ) : courses.length === 0 ? (
             <div className="text-center py-20 bg-white rounded-2xl border-2 border-dashed border-gray-200">
-              <div className="text-6xl mb-4">📚</div>
-              <h3 className="text-xl font-semibold text-gray-700 mb-2">Próximamente</h3>
+              <img src="/logo.png" alt={BRAND} className="h-16 w-16 mx-auto mb-4 rounded-xl opacity-90" />
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">Muy pronto</h3>
               <p className="text-gray-400 max-w-xs mx-auto text-sm">
-                Los cursos van a aparecer acá en cuanto estén publicados.
+                Estamos preparando los primeros cursos. Registrate para enterarte cuando estén.
               </p>
               <Link
                 to="/register"
-                className="mt-6 inline-block bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-6 py-3 rounded-xl transition"
+                className="mt-6 inline-block bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-3 rounded-xl transition"
               >
-                Registrarme para avisarme
+                Registrarme gratis
               </Link>
             </div>
           ) : (
@@ -180,7 +209,7 @@ const LandingPage: React.FC = () => {
                   <Link
                     key={c.id}
                     to={`/course/${c.id}`}
-                    className="group bg-white rounded-2xl overflow-hidden border border-gray-100 hover:border-blue-200 hover:shadow-xl transition-all duration-300"
+                    className="group bg-white rounded-2xl overflow-hidden border border-gray-100 hover:border-emerald-200 hover:shadow-xl transition-all duration-300"
                   >
                     <div className="relative h-44 overflow-hidden bg-gray-100">
                       <img
@@ -198,16 +227,16 @@ const LandingPage: React.FC = () => {
                       </div>
                     </div>
                     <div className="p-5">
-                      <h3 className="font-semibold text-gray-900 mb-1 group-hover:text-blue-600 transition-colors line-clamp-1">
+                      <h3 className="font-semibold text-gray-900 mb-1 group-hover:text-emerald-600 transition-colors line-clamp-1">
                         {c.nombre}
                       </h3>
                       <p className="text-xs text-gray-400 mb-2">por {c.profesor}</p>
                       <p className="text-sm text-gray-500 line-clamp-2 mb-4 leading-relaxed">{c.descripcion}</p>
                       <div className="flex items-center justify-between">
-                        <span className={`text-base font-bold ${c.precio === 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                        <span className={`text-base font-bold ${c.precio === 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
                           {c.precio === 0 ? 'Gratis' : formatARS(c.precio)}
                         </span>
-                        <span className="text-xs text-blue-600 font-medium group-hover:underline">
+                        <span className="text-xs text-emerald-600 font-medium group-hover:underline">
                           Ver curso →
                         </span>
                       </div>
@@ -242,32 +271,30 @@ const LandingPage: React.FC = () => {
             {[
               {
                 num: '01',
-                title: 'Elegí tu curso',
-                desc: 'Explorá el catálogo, leé las descripciones y elegí el que más te interese.',
-                icon: '🔍',
+                title: 'Creá tu cuenta',
+                desc: 'Registrate gratis en un minuto y entrá al campus desde cualquier dispositivo.',
+                icon: '📝',
               },
               {
                 num: '02',
-                title: 'Inscribite',
-                desc: 'Si es gratis, entrás al toque. Si tiene precio, pagás con MercadoPago de forma segura.',
+                title: 'Elegí y pagá',
+                desc: 'Inscribite a un curso completo o pagá clases sueltas con MercadoPago de forma segura.',
                 icon: '✅',
               },
               {
                 num: '03',
                 title: 'Aprendé a tu ritmo',
-                desc: 'Mirá las clases en video cuando puedas y consultá dudas directamente en el curso.',
+                desc: 'Mirá las clases cuando puedas, sumate a las clases en vivo y consultá tus dudas.',
                 icon: '🎓',
               },
             ].map((step) => (
-              <div key={step.num} className="relative">
-                <div className="flex flex-col items-center text-center">
-                  <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center text-3xl mb-4 shadow-sm">
-                    {step.icon}
-                  </div>
-                  <span className="text-xs font-bold text-blue-400 tracking-widest uppercase mb-2">Paso {step.num}</span>
-                  <h3 className="font-bold text-gray-900 text-lg mb-2">{step.title}</h3>
-                  <p className="text-gray-500 text-sm leading-relaxed">{step.desc}</p>
+              <div key={step.num} className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center text-3xl mb-4 shadow-sm">
+                  {step.icon}
                 </div>
+                <span className="text-xs font-bold text-emerald-500 tracking-widest uppercase mb-2">Paso {step.num}</span>
+                <h3 className="font-bold text-gray-900 text-lg mb-2">{step.title}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">{step.desc}</p>
               </div>
             ))}
           </div>
@@ -275,17 +302,16 @@ const LandingPage: React.FC = () => {
       </section>
 
       {/* ── CTA final ── */}
-      <section className="px-6 py-20 bg-linear-to-br from-blue-600 to-indigo-700 text-white">
+      <section className="px-6 py-20 bg-gradient-to-br from-slate-900 to-blue-950 text-white">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
-            Empezá a aprender hoy
-          </h2>
-          <p className="text-blue-100 text-lg mb-8 max-w-xl mx-auto">
-            Registrate gratis y accedé a todos los cursos disponibles. Sin compromisos.
+          <img src="/logo.png" alt={BRAND} className="h-14 w-14 mx-auto mb-5 rounded-xl" />
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Empezá a formarte hoy</h2>
+          <p className="text-blue-100/80 text-lg mb-8 max-w-xl mx-auto">
+            Registrate gratis y accedé a los cursos y clases en vivo de la Escuela.
           </p>
           <Link
             to={isAuthenticated ? '/courses' : '/register'}
-            className="inline-flex items-center gap-2 bg-white text-blue-700 hover:bg-blue-50 font-bold px-8 py-4 rounded-xl shadow-lg transition-all"
+            className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold px-8 py-4 rounded-xl shadow-lg transition-all"
           >
             {isAuthenticated ? 'Ver cursos disponibles' : 'Crear cuenta gratis'} →
           </Link>
@@ -294,7 +320,10 @@ const LandingPage: React.FC = () => {
 
       {/* ── Footer ── */}
       <footer className="px-6 py-8 bg-gray-950 text-gray-500 text-center text-sm">
-        <p className="font-medium text-gray-300 mb-1">Campus Norma</p>
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <img src="/logo.png" alt={BRAND} className="h-7 w-7 rounded-md" />
+          <span className="font-medium text-gray-300">{BRAND}</span>
+        </div>
         <p>© {new Date().getFullYear()} · Todos los derechos reservados</p>
       </footer>
     </div>

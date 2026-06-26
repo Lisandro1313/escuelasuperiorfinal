@@ -155,7 +155,7 @@ const Dashboard: React.FC = () => {
 
         {/* Banner clase en vivo */}
         {data.next_live_class && (
-          <div className="bg-linear-to-r from-red-500 to-rose-600 text-white rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-lg shadow-red-100">
+          <div className="bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-lg shadow-red-100">
             <div>
               <p className="text-xs uppercase tracking-widest text-red-200 mb-1">Próxima clase en vivo</p>
               <p className="text-xl font-bold">{data.next_live_class.title}</p>
@@ -204,7 +204,7 @@ const Dashboard: React.FC = () => {
               {data.courses.map((c) => (
                 <div key={c.id} className="px-6 py-4 flex flex-col md:flex-row md:items-center gap-4 hover:bg-gray-50/50 transition">
                   {/* Color block en vez de emoji */}
-                  <div className="w-12 h-12 rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-2xl shrink-0">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-2xl shrink-0">
                     {c.imagen || '📚'}
                   </div>
                   <div className="flex-1 min-w-0">

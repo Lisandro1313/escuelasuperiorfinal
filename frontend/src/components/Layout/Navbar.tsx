@@ -33,8 +33,9 @@ const Navbar: React.FC = () => {
         <div className="flex items-center justify-between h-16">
           {/* Logo + nav */}
           <div className="flex items-center gap-8">
-            <Link to={usuario ? '/dashboard' : '/'} className="text-xl font-bold text-blue-600">
-              🎓 Campus Norma
+            <Link to={usuario ? '/dashboard' : '/'} className="flex items-center gap-2">
+              <img src="/logo.png" alt="Escuela Superior de Formación" className="h-8 w-8 rounded-lg object-contain" />
+              <span className="font-bold text-gray-900 leading-none hidden sm:inline">Escuela Superior<br />de Formación</span>
             </Link>
 
             {usuario && (

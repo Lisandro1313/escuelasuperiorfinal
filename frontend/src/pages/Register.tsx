@@ -57,8 +57,8 @@ const Register: React.FC = () => {
   return (
     <div className="min-h-screen flex">
       {/* Panel izquierdo — brand */}
-      <div className="hidden lg:flex flex-col justify-between w-[42%] bg-linear-to-br from-indigo-600 to-blue-700 px-12 py-10 text-white">
-        <Link to="/" className="text-2xl font-bold tracking-tight">Campus Norma</Link>
+      <div className="hidden lg:flex flex-col justify-between w-[42%] bg-gradient-to-br from-indigo-600 to-blue-700 px-12 py-10 text-white">
+        <Link to="/" className="text-2xl font-bold tracking-tight">Escuela Superior de Formación</Link>
         <div>
           <h2 className="text-3xl font-semibold leading-snug mb-4">
             Empezá a aprender hoy, sin costo.
@@ -72,13 +72,13 @@ const Register: React.FC = () => {
             ))}
           </ul>
         </div>
-        <p className="text-blue-300 text-xs">© {new Date().getFullYear()} Campus Norma</p>
+        <p className="text-blue-300 text-xs">© {new Date().getFullYear()} Escuela Superior de Formación</p>
       </div>
 
       {/* Panel derecho — formulario */}
       <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white">
         <div className="w-full max-w-md">
-          <Link to="/" className="lg:hidden block text-xl font-bold text-blue-600 mb-8">Campus Norma</Link>
+          <Link to="/" className="lg:hidden block text-xl font-bold text-blue-600 mb-8">Escuela Superior de Formación</Link>
 
           <h1 className="text-3xl font-bold text-gray-900 mb-1">Crear cuenta gratis</h1>
           <p className="text-gray-500 mb-8">Completá el formulario y empezá ahora</p>

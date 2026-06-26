@@ -49,15 +49,15 @@ const Login: React.FC = () => {
   return (
     <div className="min-h-screen flex">
       {/* Panel izquierdo — brand */}
-      <div className="hidden lg:flex flex-col justify-between w-[42%] bg-linear-to-br from-blue-600 to-indigo-700 px-12 py-10 text-white">
-        <Link to="/" className="text-2xl font-bold tracking-tight">Campus Norma</Link>
+      <div className="hidden lg:flex flex-col justify-between w-[42%] bg-gradient-to-br from-blue-600 to-indigo-700 px-12 py-10 text-white">
+        <Link to="/" className="text-2xl font-bold tracking-tight">Escuela Superior de Formación</Link>
         <div>
           <blockquote className="text-3xl font-semibold leading-snug mb-4">
             "Aprendé a tu ritmo, desde donde estés."
           </blockquote>
           <p className="text-blue-200 text-sm">Cursos en video con profesoras reales.</p>
         </div>
-        <p className="text-blue-300 text-xs">© {new Date().getFullYear()} Campus Norma</p>
+        <p className="text-blue-300 text-xs">© {new Date().getFullYear()} Escuela Superior de Formación</p>
       </div>
 
       {/* Panel derecho — formulario */}
@@ -65,7 +65,7 @@ const Login: React.FC = () => {
         <div className="w-full max-w-md">
           {/* Logo mobile */}
           <Link to="/" className="lg:hidden block text-xl font-bold text-blue-600 mb-8">
-            Campus Norma
+            Escuela Superior de Formación
           </Link>
 
           <h1 className="text-3xl font-bold text-gray-900 mb-1">Bienvenido de vuelta</h1>

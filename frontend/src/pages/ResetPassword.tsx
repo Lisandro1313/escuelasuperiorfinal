@@ -62,7 +62,7 @@ const ResetPassword: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-12">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
         <div className="text-center mb-8">
-          <Link to="/" className="text-2xl font-bold text-blue-600">🎓 Campus Norma</Link>
+          <Link to="/" className="text-2xl font-bold text-blue-600">🎓 Escuela Superior de Formación</Link>
           <h1 className="text-2xl font-bold text-gray-900 mt-4">Nueva contraseña</h1>
           <p className="text-gray-600 text-sm mt-1">Elegí una contraseña nueva para tu cuenta</p>
         </div>

@@ -145,7 +145,7 @@ export const StudentDashboard: React.FC = () => {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDERS[idx % PLACEHOLDERS.length]; }}
                       />
-                      <div className="absolute inset-0 bg-linear-to-t from-black/50 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                       <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
                         <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${isCompleted ? 'bg-green-500 text-white' : 'bg-white/90 text-gray-700'}`}>
                           {isCompleted ? '✅ Completado' : `${progress}% completado`}
@@ -188,7 +188,7 @@ export const StudentDashboard: React.FC = () => {
         {myCourses.length === 0 && recommended.length === 0 && (
           <div className="text-center py-20 bg-white rounded-2xl border-2 border-dashed border-gray-200">
             <div className="text-6xl mb-4">📚</div>
-            <h3 className="text-xl font-bold text-gray-800 mb-2">¡Bienvenido a Campus Norma!</h3>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">¡Bienvenido a Escuela Superior de Formación!</h3>
             <p className="text-gray-400 mb-6 max-w-xs mx-auto text-sm">
               Todavía no hay cursos publicados. Pronto van a aparecer acá.
             </p>
@@ -229,7 +229,7 @@ export const StudentDashboard: React.FC = () => {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDERS[idx % PLACEHOLDERS.length]; }}
                       />
-                      <div className="absolute inset-0 bg-linear-to-t from-black/30 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
                     </div>
                     <div className="p-4 flex-1 flex flex-col">
                       <h3 className="font-bold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors mb-1">{c.nombre}</h3>
