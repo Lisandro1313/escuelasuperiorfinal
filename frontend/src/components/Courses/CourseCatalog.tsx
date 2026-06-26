@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { fetchJSON } from '../../lib/fetchJSON';
 
 interface Course {
   id: number;
@@ -44,8 +45,7 @@ const CourseCatalog: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('Todas');
 
   useEffect(() => {
-    fetch('/api/courses')
-      .then((r) => r.json())
+    fetchJSON<Course[]>('/api/courses')
       .then((d) => setCourses(Array.isArray(d) ? d : []))
       .catch(() => setCourses([]))
       .finally(() => setLoading(false));

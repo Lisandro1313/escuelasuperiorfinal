@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { fetchJSON } from '../../lib/fetchJSON';
+import EducatorQuote from '../Common/EducatorQuote';
 
 interface Course {
   id: number;
@@ -59,13 +61,11 @@ const LandingPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/courses')
-      .then((r) => r.json())
+    fetchJSON<Course[]>('/api/courses')
       .then((data) => setCourses(Array.isArray(data) ? data : []))
       .catch(() => setCourses([]))
       .finally(() => setLoading(false));
-    fetch('/api/live/upcoming')
-      .then((r) => r.json())
+    fetchJSON<LiveClassItem[]>('/api/live/upcoming')
       .then((data) => setLives(Array.isArray(data) ? data : []))
       .catch(() => setLives([]));
   }, []);
@@ -155,6 +155,13 @@ const LandingPage: React.FC = () => {
               </Link>
             </p>
           )}
+        </div>
+      </section>
+
+      {/* ── Frase rotativa de educadores ── */}
+      <section className="bg-gradient-to-r from-slate-800 to-blue-900 text-white px-6 py-10">
+        <div className="max-w-3xl mx-auto text-center">
+          <EducatorQuote intervalMs={7000} />
         </div>
       </section>
 

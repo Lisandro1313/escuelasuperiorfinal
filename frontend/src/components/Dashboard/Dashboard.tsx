@@ -283,7 +283,29 @@ const NewCourseModal: React.FC<{
 }> = ({ onClose, onCreated, navigate }) => {
   const [form, setForm] = useState({ nombre: '', descripcion: '', categoria: 'General', precio: 0, duracion: '', imagen: '📚' });
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState('');
+
+  const uploadImage = async (file: File) => {
+    setUploading(true);
+    setErr('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: fd,
+      });
+      const d = await res.json();
+      if (res.ok && d.url) setForm((f) => ({ ...f, imagen: d.url }));
+      else setErr(d.error || 'No se pudo subir la imagen');
+    } catch {
+      setErr('No se pudo subir la imagen');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const submit = async () => {
     if (!form.nombre.trim()) { setErr('Poné un nombre al curso'); return; }
@@ -352,27 +374,42 @@ const NewCourseModal: React.FC<{
               />
             </Field>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Precio en ARS">
-              <input
-                type="number"
-                min={0}
-                value={form.precio}
-                onChange={(e) => setForm({ ...form, precio: Number(e.target.value) })}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-blue-500 outline-none transition"
-              />
-              <p className="text-xs text-gray-400 mt-1">Poné 0 para curso gratuito</p>
-            </Field>
-            <Field label="Emoji o ícono">
-              <input
-                type="text"
-                value={form.imagen}
-                onChange={(e) => setForm({ ...form, imagen: e.target.value })}
-                maxLength={4}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-blue-500 outline-none transition text-2xl text-center"
-              />
-            </Field>
-          </div>
+          <Field label="Precio en ARS">
+            <input
+              type="number"
+              min={0}
+              value={form.precio}
+              onChange={(e) => setForm({ ...form, precio: Number(e.target.value) })}
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-blue-500 outline-none transition"
+            />
+            <p className="text-xs text-gray-400 mt-1">Poné 0 para curso gratuito</p>
+          </Field>
+          <Field label="Foto del curso">
+            {form.imagen && form.imagen.startsWith('http') ? (
+              <div className="relative">
+                <img src={form.imagen} alt="Portada" className="w-full h-36 object-cover rounded-xl border border-gray-200" />
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, imagen: '📚' })}
+                  className="absolute top-2 right-2 bg-white/90 hover:bg-white rounded-full w-7 h-7 flex items-center justify-center text-gray-600 shadow"
+                >
+                  ×
+                </button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center h-36 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition">
+                <span className="text-3xl">🖼️</span>
+                <span className="text-sm text-gray-500 mt-1">{uploading ? 'Subiendo...' : 'Subir una foto del curso'}</span>
+                <span className="text-xs text-gray-400">JPG o PNG</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => e.target.files?.[0] && uploadImage(e.target.files[0])}
+                />
+              </label>
+            )}
+          </Field>
           {err && <p className="text-red-500 text-sm bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{err}</p>}
         </div>
         <div className="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end">
