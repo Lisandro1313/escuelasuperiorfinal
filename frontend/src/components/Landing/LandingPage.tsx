@@ -35,9 +35,27 @@ const PLACEHOLDER_IMAGES = [
 
 const BRAND = 'Escuela Superior de Formación';
 
+interface LiveClassItem {
+  id: number;
+  title: string;
+  start_date: string;
+  precio: number;
+  course_nombre?: string | null;
+  instructor_nombre?: string | null;
+}
+
+const formatLiveFecha = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleString('es-AR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return iso;
+  }
+};
+
 const LandingPage: React.FC = () => {
   const { isAuthenticated, usuario } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
+  const [lives, setLives] = useState<LiveClassItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -46,6 +64,10 @@ const LandingPage: React.FC = () => {
       .then((data) => setCourses(Array.isArray(data) ? data : []))
       .catch(() => setCourses([]))
       .finally(() => setLoading(false));
+    fetch('/api/live/upcoming')
+      .then((r) => r.json())
+      .then((data) => setLives(Array.isArray(data) ? data : []))
+      .catch(() => setLives([]));
   }, []);
 
   const ctaTo = isAuthenticated
@@ -152,6 +174,41 @@ const LandingPage: React.FC = () => {
           ))}
         </div>
       </section>
+
+      {/* ── Próximas clases en vivo ── */}
+      {lives.length > 0 && (
+        <section className="px-6 py-16 bg-white">
+          <div className="max-w-5xl mx-auto">
+            <div className="flex items-center gap-2 mb-6">
+              <span className="inline-flex items-center gap-2 bg-red-50 text-red-600 text-xs font-bold px-3 py-1 rounded-full">
+                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" /> EN VIVO
+              </span>
+              <h2 className="text-2xl font-bold text-gray-900">Próximas clases en vivo</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {lives.slice(0, 4).map((lc) => (
+                <Link
+                  key={lc.id}
+                  to={`/live/${lc.id}`}
+                  className="group bg-gradient-to-br from-slate-900 to-blue-900 text-white rounded-2xl p-5 flex items-center justify-between gap-4 hover:-translate-y-0.5 transition shadow-md"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold leading-tight line-clamp-2">{lc.title}</p>
+                    <p className="text-blue-200 text-xs mt-1 capitalize">📅 {formatLiveFecha(lc.start_date)} hs</p>
+                    {lc.instructor_nombre && <p className="text-blue-300 text-xs">con {lc.instructor_nombre}</p>}
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <span className={`block font-bold ${Number(lc.precio) === 0 ? 'text-emerald-300' : 'text-white'}`}>
+                      {Number(lc.precio) === 0 ? 'Gratis' : formatARS(lc.precio)}
+                    </span>
+                    <span className="text-xs text-blue-200 group-hover:underline">Reservar →</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ── Cursos disponibles ── */}
       <section className="px-6 py-20 bg-gray-50">

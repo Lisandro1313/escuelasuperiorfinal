@@ -101,7 +101,7 @@ const CourseManagement: React.FC = () => {
   const [uploading, setUploading] = useState<'lesson' | 'resource' | null>(null);
   const [uploadError, setUploadError] = useState<string>('');
   const [showLiveClassModal, setShowLiveClassModal] = useState(false);
-  const [liveClassForm, setLiveClassForm] = useState({ title: '', date: '', time: '', duration: 60 });
+  const [liveClassForm, setLiveClassForm] = useState({ title: '', date: '', time: '', duration: 60, meeting_url: '', precio: 0 });
   const [liveClassResult, setLiveClassResult] = useState<{ url: string; date: string } | null>(null);
   const [scheduling, setScheduling] = useState(false);
 
@@ -375,12 +375,14 @@ const CourseManagement: React.FC = () => {
           title: liveClassForm.title,
           scheduled_at: scheduledAt,
           duration_minutes: liveClassForm.duration,
+          meeting_url: liveClassForm.meeting_url.trim() || undefined,
+          precio: Number(liveClassForm.precio || 0),
         }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || 'Error');
       setLiveClassResult({ url: d.meeting_url, date: scheduledAt });
-      setLiveClassForm({ title: '', date: '', time: '', duration: 60 });
+      setLiveClassForm({ title: '', date: '', time: '', duration: 60, meeting_url: '', precio: 0 });
     } catch (e: any) {
       toast.error(e.message || 'Error al programar la clase');
     } finally {
@@ -1217,19 +1219,45 @@ const CourseManagement: React.FC = () => {
                     />
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Duración (min)</label>
+                    <input
+                      type="number"
+                      min={15}
+                      step={15}
+                      value={liveClassForm.duration}
+                      onChange={(e) => setLiveClassForm({ ...liveClassForm, duration: Number(e.target.value) })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Precio (ARS)</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={liveClassForm.precio}
+                      onChange={(e) => setLiveClassForm({ ...liveClassForm, precio: Number(e.target.value || 0) })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                      placeholder="0 = gratis"
+                    />
+                  </div>
+                </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Duración (minutos)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Link de la transmisión (YouTube en vivo)</label>
                   <input
-                    type="number"
-                    min={15}
-                    step={15}
-                    value={liveClassForm.duration}
-                    onChange={(e) => setLiveClassForm({ ...liveClassForm, duration: Number(e.target.value) })}
+                    type="url"
+                    value={liveClassForm.meeting_url}
+                    onChange={(e) => setLiveClassForm({ ...liveClassForm, meeting_url: e.target.value })}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg"
+                    placeholder="https://youtube.com/live/... (recomendado: oculto)"
                   />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Con YouTube en vivo (oculto) los alumnos solo miran, no comparten pantalla. Si lo dejás vacío, generamos un Jitsi.
+                  </p>
                 </div>
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800">
-                  💡 Te vamos a generar un link de Jitsi (gratis, sin instalar nada). Los alumnos inscriptos van a recibir notificación.
+                  💡 La clase va a aparecer en el inicio. Los alumnos {liveClassForm.precio > 0 ? 'la pagan' : 'reservan'} y entran a la transmisión.
                 </div>
                 <div className="flex gap-3">
                   <button
