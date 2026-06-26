@@ -58,7 +58,10 @@ const Register: React.FC = () => {
     <div className="min-h-screen flex">
       {/* Panel izquierdo — brand */}
       <div className="hidden lg:flex flex-col justify-between w-[42%] bg-gradient-to-br from-indigo-600 to-blue-700 px-12 py-10 text-white">
-        <Link to="/" className="text-2xl font-bold tracking-tight">Escuela Superior de Formación</Link>
+        <Link to="/" className="flex items-center gap-2.5">
+          <img src="/logo.png" alt="Escuela Superior de Formación" className="h-10 w-10 rounded-lg object-contain" />
+          <span className="text-xl font-bold tracking-tight leading-tight">Escuela Superior<br />de Formación</span>
+        </Link>
         <div>
           <h2 className="text-3xl font-semibold leading-snug mb-4">
             Empezá a aprender hoy, sin costo.

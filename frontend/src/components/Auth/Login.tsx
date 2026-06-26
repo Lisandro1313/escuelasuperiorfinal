@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import EducatorQuote from '../Common/EducatorQuote';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -50,12 +51,12 @@ const Login: React.FC = () => {
     <div className="min-h-screen flex">
       {/* Panel izquierdo — brand */}
       <div className="hidden lg:flex flex-col justify-between w-[42%] bg-gradient-to-br from-blue-600 to-indigo-700 px-12 py-10 text-white">
-        <Link to="/" className="text-2xl font-bold tracking-tight">Escuela Superior de Formación</Link>
+        <Link to="/" className="flex items-center gap-2.5">
+          <img src="/logo.png" alt="Escuela Superior de Formación" className="h-10 w-10 rounded-lg object-contain" />
+          <span className="text-xl font-bold tracking-tight leading-tight">Escuela Superior<br />de Formación</span>
+        </Link>
         <div>
-          <blockquote className="text-3xl font-semibold leading-snug mb-4">
-            "Aprendé a tu ritmo, desde donde estés."
-          </blockquote>
-          <p className="text-blue-200 text-sm">Cursos en video con profesoras reales.</p>
+          <EducatorQuote />
         </div>
         <p className="text-blue-300 text-xs">© {new Date().getFullYear()} Escuela Superior de Formación</p>
       </div>
