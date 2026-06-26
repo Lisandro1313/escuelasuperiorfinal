@@ -8,6 +8,17 @@ const Flipbook = React.lazy(() => import('../Common/Flipbook'));
 const isPdfUrl = (url?: string | null): boolean =>
   !!url && (/\.pdf($|\?)/i.test(url) || /\/raw\/upload\//.test(url));
 
+// Convierte una URL de video a algo embebible (YouTube/Vimeo iframe o <video>).
+const toVideoEmbed = (url?: string | null): { type: 'iframe' | 'video'; src: string } | null => {
+  if (!url) return null;
+  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|live\/)|youtu\.be\/)([\w-]{11})/);
+  if (yt) return { type: 'iframe', src: `https://www.youtube.com/embed/${yt[1]}` };
+  const vimeo = url.match(/vimeo\.com\/(\d+)/);
+  if (vimeo) return { type: 'iframe', src: `https://player.vimeo.com/video/${vimeo[1]}` };
+  if (/\.(mp4|webm|ogg)($|\?)/i.test(url) || /\/video\/upload\//.test(url)) return { type: 'video', src: url };
+  return null;
+};
+
 interface PlayerLesson {
   id: number;
   module_id: number;
@@ -302,7 +313,21 @@ const CoursePlayer: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  {openLesson.tipo === 'pdf' && /^(https?:|\/)/.test(openLesson.contenido || '') ? (
+                  {openLesson.tipo === 'video' && toVideoEmbed(openLesson.contenido) ? (
+                    <div className="mb-4 aspect-video rounded-xl overflow-hidden bg-black shadow">
+                      {toVideoEmbed(openLesson.contenido)!.type === 'iframe' ? (
+                        <iframe
+                          src={toVideoEmbed(openLesson.contenido)!.src}
+                          className="w-full h-full"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          title={openLesson.titulo}
+                        />
+                      ) : (
+                        <video src={toVideoEmbed(openLesson.contenido)!.src} controls className="w-full h-full" />
+                      )}
+                    </div>
+                  ) : openLesson.tipo === 'pdf' && /^(https?:|\/)/.test(openLesson.contenido || '') ? (
                     <button
                       onClick={() => setFlipbook({ url: openLesson.contenido as string, title: openLesson.titulo })}
                       className="w-full mb-4 bg-gradient-to-br from-slate-800 to-blue-900 text-white rounded-xl p-5 flex items-center gap-4 hover:-translate-y-0.5 transition"
