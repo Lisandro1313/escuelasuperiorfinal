@@ -66,8 +66,8 @@ const NotificationCenter: React.FC = () => {
         
         // Mostrar notificación del navegador si está permitido
         if (Notification.permission === 'granted') {
-          new Notification(notification.title, {
-            body: notification.message,
+          new Notification(notification.title || notification.titulo || 'Notificación', {
+            body: notification.message || notification.mensaje || '',
             icon: '/favicon.ico'
           });
         }
@@ -226,7 +226,7 @@ const NotificationCenter: React.FC = () => {
                   }`}
                 >
                   <div className="flex items-start space-x-3">
-                    <div className={`p-2 rounded-full ${getTypeColor(notification.type)}`}>
+                    <div className={`p-2 rounded-full ${getTypeColor(notification.type || notification.tipo || '')}`}>
                       <span>{notification.icon || '📢'}</span>
                     </div>
                     
