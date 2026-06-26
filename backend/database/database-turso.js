@@ -206,12 +206,12 @@ class TursoDatabase {
   }
 
   // Cursos
-  async createCourse({ nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen }) {
+  async createCourse({ nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null, unlock_mode = 'abierto' }) {
     const r = await this._query(
-      'INSERT INTO courses (nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, 1]
+      'INSERT INTO courses (nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado, drip_intervalo_dias, unlock_mode, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, unlock_mode, 1]
     );
-    return { id: Number(r.lastInsertRowid), nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, publicado: true };
+    return { id: Number(r.lastInsertRowid), nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado, drip_intervalo_dias, unlock_mode, publicado: true };
   }
 
   async getAllCourses() {
@@ -229,12 +229,12 @@ class TursoDatabase {
     return r.rows;
   }
 
-  async updateCourse(id, { nombre, descripcion, categoria, precio, duracion }) {
+  async updateCourse(id, { nombre, descripcion, categoria, precio, duracion, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null, unlock_mode = 'abierto' }) {
     await this._query(
-      'UPDATE courses SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, duracion = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [nombre, descripcion, categoria, precio, duracion, id]
+      'UPDATE courses SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, duracion = ?, modalidad_precio = ?, drip_habilitado = ?, drip_intervalo_dias = ?, unlock_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [nombre, descripcion, categoria, precio, duracion, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, unlock_mode, id]
     );
-    return { id, nombre, descripcion, categoria, precio, duracion };
+    return { id, nombre, descripcion, categoria, precio, duracion, modalidad_precio, drip_habilitado, drip_intervalo_dias, unlock_mode };
   }
 
   async deleteCourse(id) {
@@ -341,20 +341,20 @@ class TursoDatabase {
     return r.rows;
   }
 
-  async createModule({ course_id, titulo, descripcion, orden, publicado }) {
+  async createModule({ course_id, titulo, descripcion, orden, precio = 0, unlock_at = null, unlock_days_offset = null, publicado }) {
     const r = await this._query(
-      'INSERT INTO modules (course_id, titulo, descripcion, orden, publicado) VALUES (?, ?, ?, ?, ?)',
-      [course_id, titulo, descripcion, orden, publicado ? 1 : 0]
+      'INSERT INTO modules (course_id, titulo, descripcion, orden, precio, unlock_at, unlock_days_offset, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [course_id, titulo, descripcion, orden, precio, unlock_at, unlock_days_offset, publicado ? 1 : 0]
     );
-    return { id: Number(r.lastInsertRowid), course_id, titulo, descripcion, orden, publicado };
+    return { id: Number(r.lastInsertRowid), course_id, titulo, descripcion, orden, precio, unlock_at, unlock_days_offset, publicado };
   }
 
-  async updateModule(moduleId, { titulo, descripcion, orden, publicado }) {
+  async updateModule(moduleId, { titulo, descripcion, orden, precio = 0, unlock_at = null, unlock_days_offset = null, publicado }) {
     await this._query(
-      'UPDATE modules SET titulo = ?, descripcion = ?, orden = ?, publicado = ? WHERE id = ?',
-      [titulo, descripcion, orden, publicado ? 1 : 0, moduleId]
+      'UPDATE modules SET titulo = ?, descripcion = ?, orden = ?, precio = ?, unlock_at = ?, unlock_days_offset = ?, publicado = ? WHERE id = ?',
+      [titulo, descripcion, orden, precio, unlock_at, unlock_days_offset, publicado ? 1 : 0, moduleId]
     );
-    return { id: moduleId, titulo, descripcion, orden, publicado };
+    return { id: moduleId, titulo, descripcion, orden, precio, unlock_at, unlock_days_offset, publicado };
   }
 
   async deleteModule(moduleId) {
@@ -369,24 +369,24 @@ class TursoDatabase {
     return r.rows.map((l) => ({ ...l, recursos: l.recursos ? JSON.parse(l.recursos) : [] }));
   }
 
-  async createLesson({ module_id, titulo, contenido, tipo, orden, duracion, recursos, publicado }) {
+  async createLesson({ module_id, titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, publicado }) {
     const recursosStr = typeof recursos === 'string' ? recursos : (recursos ? JSON.stringify(recursos) : null);
     const r = await this._query(
-      'INSERT INTO lessons (module_id, titulo, contenido, tipo, orden, duracion, recursos, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [module_id, titulo, contenido, tipo, orden, duracion, recursosStr, publicado ? 1 : 0]
+      'INSERT INTO lessons (module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursosStr, publicado ? 1 : 0]
     );
-    const out = { id: Number(r.lastInsertRowid), module_id, titulo, contenido, tipo, orden, duracion, publicado };
+    const out = { id: Number(r.lastInsertRowid), module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, publicado };
     out.recursos = recursosStr ? JSON.parse(recursosStr) : [];
     return out;
   }
 
-  async updateLesson(lessonId, { titulo, contenido, tipo, orden, duracion, recursos, publicado }) {
+  async updateLesson(lessonId, { titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, publicado }) {
     const recursosStr = typeof recursos === 'string' ? recursos : (recursos ? JSON.stringify(recursos) : null);
     await this._query(
-      'UPDATE lessons SET titulo = ?, contenido = ?, tipo = ?, orden = ?, duracion = ?, recursos = ?, publicado = ? WHERE id = ?',
-      [titulo, contenido, tipo, orden, duracion, recursosStr, publicado ? 1 : 0, lessonId]
+      'UPDATE lessons SET titulo = ?, contenido = ?, tipo = ?, orden = ?, precio = ?, unlock_at = ?, unlock_days_offset = ?, duracion = ?, recursos = ?, publicado = ? WHERE id = ?',
+      [titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursosStr, publicado ? 1 : 0, lessonId]
     );
-    return { id: lessonId, titulo, contenido, tipo, orden, duracion, publicado, recursos: recursosStr ? JSON.parse(recursosStr) : [] };
+    return { id: lessonId, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, publicado, recursos: recursosStr ? JSON.parse(recursosStr) : [] };
   }
 
   async deleteLesson(lessonId) {
@@ -715,6 +715,57 @@ class TursoDatabase {
       [quizId, userId]
     );
     return r.rows;
+  }
+
+  // ---- Acceso por modulo/clase, drip y desbloqueo (paridad con database.js) ----
+  async getModuleById(moduleId) {
+    const r = await this._query('SELECT * FROM modules WHERE id = ?', [moduleId]);
+    return r.rows[0] || null;
+  }
+
+  async getLessonById(lessonId) {
+    const r = await this._query('SELECT * FROM lessons WHERE id = ?', [lessonId]);
+    return r.rows[0] || null;
+  }
+
+  async getUserEnrollmentForCourse(userId, courseId) {
+    const r = await this._query(
+      'SELECT * FROM enrollments WHERE user_id = ? AND course_id = ? ORDER BY enrolled_at DESC LIMIT 1',
+      [userId, courseId]
+    );
+    return r.rows[0] || null;
+  }
+
+  async hasAccessGrant({ userId, courseId, moduleId = null, lessonId = null }) {
+    let sql = 'SELECT id FROM access_grants WHERE user_id = ? AND course_id = ?';
+    const params = [userId, courseId];
+    if (moduleId) { sql += ' AND module_id = ?'; params.push(moduleId); }
+    if (lessonId) { sql += ' AND lesson_id = ?'; params.push(lessonId); }
+    sql += ' LIMIT 1';
+    const r = await this._query(sql, params);
+    return !!r.rows[0];
+  }
+
+  async createAccessGrant({ user_id, course_id, module_id = null, lesson_id = null, source_payment_id = null }) {
+    const exists = await this.hasAccessGrant({ userId: user_id, courseId: course_id, moduleId: module_id, lessonId: lesson_id });
+    if (exists) return { reused: true };
+    const r = await this._query(
+      'INSERT INTO access_grants (user_id, course_id, module_id, lesson_id, source_payment_id) VALUES (?, ?, ?, ?, ?)',
+      [user_id, course_id, module_id, lesson_id, source_payment_id]
+    );
+    return { id: Number(r.lastInsertRowid) };
+  }
+
+  async getCompletedLessonIds(userId, courseId) {
+    const r = await this._query(
+      `SELECT l.id as lesson_id
+       FROM lessons l
+       JOIN modules m ON l.module_id = m.id
+       JOIN lesson_progress lp ON lp.lesson_id = l.id
+       WHERE m.course_id = ? AND lp.user_id = ? AND lp.completed = 1`,
+      [courseId, userId]
+    );
+    return (r.rows || []).map((x) => x.lesson_id);
   }
 
   close() {

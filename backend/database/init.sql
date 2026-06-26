@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS courses (
     modalidad_precio VARCHAR(20) DEFAULT 'curso', -- curso | modulo | clase
     drip_habilitado BOOLEAN DEFAULT 0,
     drip_intervalo_dias INTEGER,
+    unlock_mode VARCHAR(20) DEFAULT 'abierto', -- abierto | fecha | secuencial | goteo
     duracion VARCHAR(100),
     estudiantes INTEGER DEFAULT 0,
     rating DECIMAL(3,2) DEFAULT 0,

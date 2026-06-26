@@ -36,6 +36,7 @@ interface Lesson {
   orden: number;
   precio?: number;
   unlock_days_offset?: number | null;
+  unlock_at?: string | null;
   duracion: number;
   recursos: Resource[];
   publicado: boolean;
@@ -79,11 +80,13 @@ const CourseManagement: React.FC = () => {
     orden: 1,
     precio: 0,
     unlock_days_offset: null as number | null,
+    unlock_at: '' as string,
     duracion: 0,
     recursos: [] as Resource[]
   });
   const [courseSettings, setCourseSettings] = useState({
     modalidad_precio: 'curso' as 'curso' | 'modulo' | 'clase',
+    unlock_mode: 'abierto' as 'abierto' | 'fecha' | 'secuencial' | 'goteo',
     drip_habilitado: false,
     drip_intervalo_dias: 7,
   });
@@ -146,6 +149,7 @@ const CourseManagement: React.FC = () => {
       setCourse(courseData);
       setCourseSettings({
         modalidad_precio: (courseData.modalidad_precio || 'curso'),
+        unlock_mode: (courseData.unlock_mode || 'abierto'),
         drip_habilitado: !!courseData.drip_habilitado,
         drip_intervalo_dias: Number(courseData.drip_intervalo_dias || 7),
       });
@@ -270,6 +274,7 @@ const CourseManagement: React.FC = () => {
           orden: 1,
           precio: 0,
           unlock_days_offset: null,
+          unlock_at: '',
           duracion: 0,
           recursos: []
         });
@@ -304,6 +309,7 @@ const CourseManagement: React.FC = () => {
           orden: 1,
           precio: 0,
           unlock_days_offset: null,
+          unlock_at: '',
           duracion: 0,
           recursos: []
         });
@@ -403,6 +409,7 @@ const CourseManagement: React.FC = () => {
       orden: lesson.orden,
       precio: Number(lesson.precio || 0),
       unlock_days_offset: lesson.unlock_days_offset ?? null,
+      unlock_at: lesson.unlock_at ? String(lesson.unlock_at).slice(0, 10) : '',
       duracion: lesson.duracion,
       recursos: lesson.recursos || []
     });
@@ -419,6 +426,7 @@ const CourseManagement: React.FC = () => {
       orden: 1,
       precio: 0,
       unlock_days_offset: null,
+      unlock_at: '',
       duracion: 0,
       recursos: []
     });
@@ -513,6 +521,25 @@ const CourseManagement: React.FC = () => {
                 <option value="modulo">Módulo</option>
                 <option value="clase">Clase individual</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Modo de desbloqueo</label>
+              <select
+                value={courseSettings.unlock_mode}
+                onChange={(e) => setCourseSettings((p) => ({ ...p, unlock_mode: e.target.value as 'abierto' | 'fecha' | 'secuencial' | 'goteo' }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="abierto">Todo abierto</option>
+                <option value="fecha">Por fecha (la que ponés en cada clase)</option>
+                <option value="secuencial">Al completar la clase anterior</option>
+                <option value="goteo">Goteo cada X días desde la inscripción</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                {courseSettings.unlock_mode === 'fecha' && 'Cargá la fecha de habilitación en cada clase.'}
+                {courseSettings.unlock_mode === 'secuencial' && 'Cada clase se abre cuando el alumno completa la anterior.'}
+                {courseSettings.unlock_mode === 'goteo' && 'Usa el intervalo de días de acá abajo.'}
+                {courseSettings.unlock_mode === 'abierto' && 'Las clases se ven todas (según el pago).'}
+              </p>
             </div>
             <div className="flex items-center gap-2 mt-6 md:mt-0">
               <input
@@ -862,10 +889,15 @@ const CourseManagement: React.FC = () => {
               </div>
 
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-gray-700 font-semibold mb-2 text-sm">Precio de la clase (ARS)</label>
                   <input type="number" min="0" value={lessonForm.precio} onChange={(e) => setLessonForm(prev => ({ ...prev, precio: Number(e.target.value || 0) }))} className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-2 text-sm">Habilitar en fecha</label>
+                  <input type="date" value={lessonForm.unlock_at} onChange={(e) => setLessonForm(prev => ({ ...prev, unlock_at: e.target.value }))} className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl" />
+                  <p className="text-xs text-gray-400 mt-1">Para el modo "Por fecha"</p>
                 </div>
                 <div>
                   <label className="block text-gray-700 font-semibold mb-2 text-sm">Desbloquear a los X dias</label>

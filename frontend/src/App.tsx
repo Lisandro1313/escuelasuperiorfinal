@@ -9,6 +9,7 @@ import NotFound from './pages/NotFound';
 import Dashboard from './components/Dashboard/Dashboard';
 import CourseCatalog from './components/Courses/CourseCatalog';
 import CourseDetail from './components/Courses/CourseDetail';
+import CoursePlayer from './components/Courses/CoursePlayer';
 import CourseManagement from './components/CourseManagement';
 import CourseViewer from './components/Student/CourseViewer';
 import PaymentPage from './components/Payment/PaymentPage';
@@ -56,6 +57,7 @@ function AppContent() {
           <Route path="/dashboard" element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" />} />
           <Route path="/courses" element={<CourseCatalog />} />
           <Route path="/course/:id" element={<CourseDetail />} />
+          <Route path="/course/:id/aula" element={isAuthenticated ? <CoursePlayer /> : <Navigate to="/login" />} />
           <Route path="/course/:id/manage" element={isAuthenticated ? <CourseManagement /> : <Navigate to="/login" />} />
           <Route path="/course/:id/view" element={isAuthenticated ? <CourseViewer /> : <Navigate to="/login" />} />
           <Route path="/course/:courseId/payment" element={isAuthenticated ? <PaymentPage /> : <Navigate to="/login" />} />

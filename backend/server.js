@@ -201,6 +201,35 @@ function isUnlocked(entity, enrollmentDate, fallbackDays = null) {
   return new Date() >= unlockAt;
 }
 
+// Estado de desbloqueo de una clase segun el modo elegido por el profe.
+// Devuelve { unlocked, reason, unlockAt }. reason: 'fecha' | 'goteo' | 'secuencial' | null
+function lessonScheduleStatus(course, lesson, index, orderedLessons, enrollmentDate, completedSet) {
+  const mode = (course.unlock_mode || 'abierto').toLowerCase();
+  if (mode === 'abierto') return { unlocked: true, reason: null, unlockAt: null };
+
+  if (mode === 'fecha') {
+    const unlockAt = computeUnlockDate(lesson, enrollmentDate, null);
+    if (!unlockAt) return { unlocked: true, reason: null, unlockAt: null };
+    return { unlocked: new Date() >= unlockAt, reason: 'fecha', unlockAt };
+  }
+
+  if (mode === 'goteo') {
+    const dias = Number(course.drip_intervalo_dias || 7);
+    const unlockAt = computeUnlockDate(lesson, enrollmentDate, index * dias);
+    if (!unlockAt) return { unlocked: true, reason: null, unlockAt: null };
+    return { unlocked: new Date() >= unlockAt, reason: 'goteo', unlockAt };
+  }
+
+  if (mode === 'secuencial') {
+    if (index === 0) return { unlocked: true, reason: null, unlockAt: null };
+    const prev = orderedLessons[index - 1];
+    const prevDone = prev ? completedSet.has(prev.id) : true;
+    return { unlocked: prevDone, reason: prevDone ? null : 'secuencial', unlockAt: null };
+  }
+
+  return { unlocked: true, reason: null, unlockAt: null };
+}
+
 function sqlGet(query, params = []) {
   return new Promise((resolve, reject) => {
     db.db.get(query, params, (err, row) => (err ? reject(err) : resolve(row)));
@@ -509,7 +538,7 @@ app.get('/api/courses/:id', async (req, res) => {
 // Crear nuevo curso (solo profesores)
 app.post('/api/courses', authenticateToken, requireProfessor, async (req, res) => {
   try {
-    const { nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado, drip_intervalo_dias } = req.body;
+    const { nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado, drip_intervalo_dias, unlock_mode } = req.body;
 
     if (!nombre || !descripcion) {
       return res.status(400).json({ error: 'Nombre y descripción son requeridos' });
@@ -529,7 +558,8 @@ app.post('/api/courses', authenticateToken, requireProfessor, async (req, res) =
       imagen: imagen || '📚',
       modalidad_precio: ['curso', 'modulo', 'clase'].includes(modalidad_precio) ? modalidad_precio : 'curso',
       drip_habilitado: !!drip_habilitado,
-      drip_intervalo_dias: drip_intervalo_dias ? Number(drip_intervalo_dias) : null
+      drip_intervalo_dias: drip_intervalo_dias ? Number(drip_intervalo_dias) : null,
+      unlock_mode: ['abierto', 'fecha', 'secuencial', 'goteo'].includes(unlock_mode) ? unlock_mode : 'abierto'
     };
 
     const newCourse = await db.createCourse(courseData);
@@ -548,7 +578,7 @@ app.post('/api/courses', authenticateToken, requireProfessor, async (req, res) =
 app.put('/api/courses/:id', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const courseId = req.params.id;
-    const { nombre, descripcion, categoria, precio, duracion, modalidad_precio, drip_habilitado, drip_intervalo_dias } = req.body;
+    const { nombre, descripcion, categoria, precio, duracion, modalidad_precio, drip_habilitado, drip_intervalo_dias, unlock_mode } = req.body;
 
     // Verificar que el curso pertenece al profesor
     const course = await db.getCourseById(courseId);
@@ -564,7 +594,8 @@ app.put('/api/courses/:id', authenticateToken, requireProfessor, async (req, res
       duracion,
       modalidad_precio: ['curso', 'modulo', 'clase'].includes(modalidad_precio) ? modalidad_precio : 'curso',
       drip_habilitado: !!drip_habilitado,
-      drip_intervalo_dias: drip_intervalo_dias ? Number(drip_intervalo_dias) : null
+      drip_intervalo_dias: drip_intervalo_dias ? Number(drip_intervalo_dias) : null,
+      unlock_mode: ['abierto', 'fecha', 'secuencial', 'goteo'].includes(unlock_mode) ? unlock_mode : 'abierto'
     });
 
     res.json({
@@ -1641,6 +1672,106 @@ app.get('/api/courses/:id/syllabus', async (req, res) => {
     res.json({ courseId, modules: data });
   } catch (error) {
     console.error('Error al obtener syllabus:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Vista "aula": grilla de clases con estado por alumno (bloqueada/pagada/completada).
+app.get('/api/courses/:id/player', authenticateToken, async (req, res) => {
+  try {
+    const courseId = Number(req.params.id);
+    const course = await db.getCourseById(courseId);
+    if (!course) return res.status(404).json({ error: 'Curso no encontrado' });
+
+    const user = req.user;
+    const isOwner = user.tipo === 'admin' || course.profesor_id === user.userId;
+    const modality = (course.modalidad_precio || 'curso').toLowerCase();
+    const enrollment = await db.getUserEnrollmentForCourse(user.userId, courseId);
+    const completedSet = new Set(isOwner ? [] : await db.getCompletedLessonIds(user.userId, courseId));
+
+    // Modulos -> clases publicadas, en orden, aplanadas para el modo secuencial.
+    const modulesRaw = (await db.getCourseModules(courseId)).filter((m) => isOwner || !!m.publicado);
+    const grouped = [];
+    const orderedLessons = [];
+    for (const m of modulesRaw) {
+      const lessons = (await db.getModuleLessons(m.id)).filter((l) => isOwner || !!l.publicado);
+      grouped.push({ module: m, lessons });
+      for (const l of lessons) orderedLessons.push(l);
+    }
+
+    const outModules = [];
+    let total = 0;
+    let done = 0;
+    let globalIndex = 0;
+    for (const g of grouped) {
+      const outLessons = [];
+      for (const l of g.lessons) {
+        const idx = globalIndex++;
+        total++;
+        const completed = completedSet.has(l.id);
+        if (completed) done++;
+
+        let locked = false;
+        let lockReason = null;
+        let unlockAt = null;
+        let canBuy = false;
+
+        if (!isOwner) {
+          const paid = await hasLessonAccess(user.userId, course, l.module_id, l.id);
+          if (!paid) {
+            locked = true;
+            lockReason = 'pago';
+            canBuy = modality === 'clase' || modality === 'modulo';
+          } else {
+            const sched = lessonScheduleStatus(course, l, idx, orderedLessons, enrollment?.enrolled_at, completedSet);
+            if (!sched.unlocked) {
+              locked = true;
+              lockReason = sched.reason;
+              unlockAt = sched.unlockAt;
+            }
+          }
+        }
+
+        outLessons.push({
+          id: l.id,
+          module_id: l.module_id,
+          titulo: l.titulo,
+          tipo: l.tipo,
+          orden: l.orden,
+          duracion: l.duracion,
+          precio: Number(l.precio || 0),
+          completed,
+          locked,
+          lock_reason: lockReason,
+          unlock_at: unlockAt ? unlockAt.toISOString() : null,
+          can_buy: canBuy,
+          // El contenido solo viaja si la clase esta desbloqueada (no filtrar pago).
+          contenido: (!locked || isOwner) ? l.contenido : null,
+          recursos: (!locked || isOwner) ? l.recursos : null,
+        });
+      }
+      outModules.push({ id: g.module.id, titulo: g.module.titulo, orden: g.module.orden, lessons: outLessons });
+    }
+
+    res.json({
+      course: {
+        id: course.id,
+        nombre: course.nombre,
+        descripcion: course.descripcion,
+        imagen: course.imagen,
+        profesor: course.profesor,
+        profesor_id: course.profesor_id,
+        precio: Number(course.precio || 0),
+        modalidad_precio: modality,
+        unlock_mode: (course.unlock_mode || 'abierto').toLowerCase(),
+      },
+      isOwner,
+      enrolled: !!enrollment,
+      progress: { total, completed: done, percent: total ? Math.round((done / total) * 100) : 0 },
+      modules: outModules,
+    });
+  } catch (error) {
+    console.error('Error al obtener player del curso:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

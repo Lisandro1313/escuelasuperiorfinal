@@ -153,8 +153,8 @@ const CourseDetail: React.FC = () => {
         });
         if (res.ok) {
           setEnrolled(true);
-          toast.success('¡Te inscribiste! Te llevamos al contenido...');
-          setTimeout(() => navigate(`/course/${course.id}/view`), 800);
+          toast.success('¡Te inscribiste! Te llevamos al aula...');
+          setTimeout(() => navigate(`/course/${course.id}/aula`), 800);
         } else {
           const d = await res.json();
           toast.error(d.error || 'Error al inscribirse');
@@ -223,10 +223,10 @@ const CourseDetail: React.FC = () => {
                     <div className="text-green-700 font-semibold">✅ Ya tenés acceso</div>
                   </div>
                   <Link
-                    to={`/course/${course.id}/view`}
+                    to={`/course/${course.id}/aula`}
                     className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center py-3 rounded-lg font-semibold"
                   >
-                    Ir al contenido →
+                    Entrar al aula →
                   </Link>
                 </div>
               ) : isInstructor ? (
@@ -239,6 +239,12 @@ const CourseDetail: React.FC = () => {
                     className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center py-3 rounded-lg font-semibold"
                   >
                     Gestionar contenido
+                  </Link>
+                  <Link
+                    to={`/course/${course.id}/aula`}
+                    className="block w-full border border-blue-600 text-blue-700 hover:bg-blue-50 text-center py-2.5 rounded-lg font-semibold"
+                  >
+                    Ver el aula
                   </Link>
                 </div>
               ) : (

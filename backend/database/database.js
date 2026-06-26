@@ -82,6 +82,12 @@ class Database {
         console.error('Error agregando columna drip_intervalo_dias:', err);
       }
     });
+    // Modo de desbloqueo de clases: abierto | fecha | secuencial | goteo
+    this.db.run(`ALTER TABLE courses ADD COLUMN unlock_mode VARCHAR(20) DEFAULT 'abierto'`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error agregando columna unlock_mode:', err);
+      }
+    });
     this.db.run(`ALTER TABLE modules ADD COLUMN precio DECIMAL(10,2) DEFAULT 0`, (err) => {
       if (err && !err.message.includes('duplicate column name')) {
         console.error('Error agregando columna modules.precio:', err);
@@ -259,10 +265,10 @@ class Database {
   // Métodos para cursos
   async createCourse(courseData) {
     return new Promise((resolve, reject) => {
-      const { nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null } = courseData;
-      const sql = `INSERT INTO courses (nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado, drip_intervalo_dias, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-      
-      this.db.run(sql, [nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, true], function(err) {
+      const { nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null, unlock_mode = 'abierto' } = courseData;
+      const sql = `INSERT INTO courses (nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado, drip_intervalo_dias, unlock_mode, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+      this.db.run(sql, [nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, unlock_mode, true], function(err) {
         if (err) {
           reject(err);
         } else {
@@ -316,10 +322,10 @@ class Database {
 
   async updateCourse(id, courseData) {
     return new Promise((resolve, reject) => {
-      const { nombre, descripcion, categoria, precio, duracion, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null } = courseData;
-      const sql = `UPDATE courses SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, duracion = ?, modalidad_precio = ?, drip_habilitado = ?, drip_intervalo_dias = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
-      
-      this.db.run(sql, [nombre, descripcion, categoria, precio, duracion, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, id], function(err) {
+      const { nombre, descripcion, categoria, precio, duracion, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null, unlock_mode = 'abierto' } = courseData;
+      const sql = `UPDATE courses SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, duracion = ?, modalidad_precio = ?, drip_habilitado = ?, drip_intervalo_dias = ?, unlock_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+
+      this.db.run(sql, [nombre, descripcion, categoria, precio, duracion, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, unlock_mode, id], function(err) {
         if (err) {
           reject(err);
         } else {
@@ -759,10 +765,26 @@ class Database {
     });
   }
 
+  // IDs de lecciones que el alumno completó en un curso (para desbloqueo secuencial)
+  async getCompletedLessonIds(userId, courseId) {
+    return new Promise((resolve, reject) => {
+      const sql = `
+        SELECT l.id as lesson_id
+        FROM lessons l
+        JOIN modules m ON l.module_id = m.id
+        JOIN lesson_progress lp ON lp.lesson_id = l.id
+        WHERE m.course_id = ? AND lp.user_id = ? AND lp.completed = 1`;
+      this.db.all(sql, [courseId, userId], (err, rows) => {
+        if (err) reject(err);
+        else resolve((rows || []).map((r) => r.lesson_id));
+      });
+    });
+  }
+
   async getCourseProgress(userId, courseId) {
     return new Promise((resolve, reject) => {
       const sql = `
-        SELECT 
+        SELECT
           m.id as module_id,
           m.titulo as module_title,
           l.id as lesson_id,
