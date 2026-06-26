@@ -22,6 +22,9 @@ CREATE TABLE IF NOT EXISTS courses (
     profesor_id INTEGER,
     categoria VARCHAR(100),
     precio DECIMAL(10,2) DEFAULT 0,
+    modalidad_precio VARCHAR(20) DEFAULT 'curso', -- curso | modulo | clase
+    drip_habilitado BOOLEAN DEFAULT 0,
+    drip_intervalo_dias INTEGER,
     duracion VARCHAR(100),
     estudiantes INTEGER DEFAULT 0,
     rating DECIMAL(3,2) DEFAULT 0,
@@ -48,6 +51,9 @@ CREATE TABLE IF NOT EXISTS payments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     course_id INTEGER NOT NULL,
+    module_id INTEGER,
+    lesson_id INTEGER,
+    target_type VARCHAR(20) DEFAULT 'course', -- course | module | lesson
     amount DECIMAL(10,2) NOT NULL,
     status VARCHAR(50) DEFAULT 'pending',
     payment_id VARCHAR(255),
@@ -64,6 +70,9 @@ CREATE TABLE IF NOT EXISTS modules (
     titulo VARCHAR(255) NOT NULL,
     descripcion TEXT,
     orden INTEGER DEFAULT 1,
+    precio DECIMAL(10,2) DEFAULT 0,
+    unlock_at DATETIME,
+    unlock_days_offset INTEGER,
     publicado BOOLEAN DEFAULT false,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (course_id) REFERENCES courses(id)
@@ -76,6 +85,9 @@ CREATE TABLE IF NOT EXISTS lessons (
     contenido TEXT,
     tipo VARCHAR(50) DEFAULT 'texto',
     orden INTEGER DEFAULT 1,
+    precio DECIMAL(10,2) DEFAULT 0,
+    unlock_at DATETIME,
+    unlock_days_offset INTEGER,
     duracion INTEGER DEFAULT 0,
     recursos TEXT,
     publicado BOOLEAN DEFAULT false,
@@ -94,6 +106,24 @@ CREATE TABLE IF NOT EXISTS lesson_progress (
     FOREIGN KEY (lesson_id) REFERENCES lessons(id),
     UNIQUE(user_id, lesson_id)
 );
+
+CREATE TABLE IF NOT EXISTS access_grants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    course_id INTEGER NOT NULL,
+    module_id INTEGER,
+    lesson_id INTEGER,
+    source_payment_id INTEGER,
+    granted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+    FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE CASCADE,
+    FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE,
+    FOREIGN KEY (source_payment_id) REFERENCES payments(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_access_grants_user_course ON access_grants(user_id, course_id);
+CREATE INDEX IF NOT EXISTS idx_access_grants_module ON access_grants(user_id, module_id);
+CREATE INDEX IF NOT EXISTS idx_access_grants_lesson ON access_grants(user_id, lesson_id);
 
 -- El admin lo crea backend/database/database.js (createDefaultAdmin)
 -- usando ADMIN_EMAIL y ADMIN_PASSWORD del .env. NO insertarlo aqui.

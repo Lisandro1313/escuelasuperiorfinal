@@ -8,6 +8,12 @@ interface Course {
   nombre: string;
   descripcion: string;
   profesor_id: number;
+  categoria?: string;
+  precio?: number;
+  duracion?: string;
+  modalidad_precio?: 'curso' | 'modulo' | 'clase';
+  drip_habilitado?: boolean;
+  drip_intervalo_dias?: number | null;
 }
 
 interface Module {
@@ -16,6 +22,8 @@ interface Module {
   titulo: string;
   descripcion: string;
   orden: number;
+  precio?: number;
+  unlock_days_offset?: number | null;
   publicado: boolean;
 }
 
@@ -26,6 +34,8 @@ interface Lesson {
   contenido: string;
   tipo: 'texto' | 'video' | 'pdf' | 'quiz';
   orden: number;
+  precio?: number;
+  unlock_days_offset?: number | null;
   duracion: number;
   recursos: Resource[];
   publicado: boolean;
@@ -57,7 +67,9 @@ const CourseManagement: React.FC = () => {
   const [moduleForm, setModuleForm] = useState({
     titulo: '',
     descripcion: '',
-    orden: 1
+    orden: 1,
+    precio: 0,
+    unlock_days_offset: null as number | null
   });
 
   const [lessonForm, setLessonForm] = useState({
@@ -65,8 +77,15 @@ const CourseManagement: React.FC = () => {
     contenido: '',
     tipo: 'texto' as 'texto' | 'video' | 'pdf' | 'quiz',
     orden: 1,
+    precio: 0,
+    unlock_days_offset: null as number | null,
     duracion: 0,
     recursos: [] as Resource[]
+  });
+  const [courseSettings, setCourseSettings] = useState({
+    modalidad_precio: 'curso' as 'curso' | 'modulo' | 'clase',
+    drip_habilitado: false,
+    drip_intervalo_dias: 7,
   });
 
   const [newResource, setNewResource] = useState({
@@ -125,6 +144,11 @@ const CourseManagement: React.FC = () => {
       });
       const courseData = await courseResponse.json();
       setCourse(courseData);
+      setCourseSettings({
+        modalidad_precio: (courseData.modalidad_precio || 'curso'),
+        drip_habilitado: !!courseData.drip_habilitado,
+        drip_intervalo_dias: Number(courseData.drip_intervalo_dias || 7),
+      });
 
       // Verificar permisos
       if (courseData.profesor_id !== usuario?.id) {
@@ -172,7 +196,7 @@ const CourseManagement: React.FC = () => {
       if (response.ok) {
         fetchCourseData();
         setShowModuleModal(false);
-        setModuleForm({ titulo: '', descripcion: '', orden: 1 });
+        setModuleForm({ titulo: '', descripcion: '', orden: 1, precio: 0, unlock_days_offset: null });
       }
     } catch (error) {
       console.error('Error al crear módulo:', error);
@@ -197,7 +221,7 @@ const CourseManagement: React.FC = () => {
         fetchCourseData();
         setShowModuleModal(false);
         setEditingModule(null);
-        setModuleForm({ titulo: '', descripcion: '', orden: 1 });
+        setModuleForm({ titulo: '', descripcion: '', orden: 1, precio: 0, unlock_days_offset: null });
       }
     } catch (error) {
       console.error('Error al actualizar módulo:', error);
@@ -244,6 +268,8 @@ const CourseManagement: React.FC = () => {
           contenido: '',
           tipo: 'texto',
           orden: 1,
+          precio: 0,
+          unlock_days_offset: null,
           duracion: 0,
           recursos: []
         });
@@ -276,6 +302,8 @@ const CourseManagement: React.FC = () => {
           contenido: '',
           tipo: 'texto',
           orden: 1,
+          precio: 0,
+          unlock_days_offset: null,
           duracion: 0,
           recursos: []
         });
@@ -360,6 +388,8 @@ const CourseManagement: React.FC = () => {
       titulo: module.titulo,
       descripcion: module.descripcion,
       orden: module.orden
+      ,precio: Number(module.precio || 0)
+      ,unlock_days_offset: module.unlock_days_offset ?? null
     });
     setShowModuleModal(true);
   };
@@ -371,6 +401,8 @@ const CourseManagement: React.FC = () => {
       contenido: lesson.contenido,
       tipo: lesson.tipo,
       orden: lesson.orden,
+      precio: Number(lesson.precio || 0),
+      unlock_days_offset: lesson.unlock_days_offset ?? null,
       duracion: lesson.duracion,
       recursos: lesson.recursos || []
     });
@@ -385,10 +417,42 @@ const CourseManagement: React.FC = () => {
       contenido: '',
       tipo: 'texto',
       orden: 1,
+      precio: 0,
+      unlock_days_offset: null,
       duracion: 0,
       recursos: []
     });
     setShowLessonModal(true);
+  };
+
+  const saveCourseSettings = async () => {
+    if (!course) return;
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/courses/${course.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          nombre: course.nombre,
+          descripcion: course.descripcion,
+          categoria: course.categoria || 'general',
+          precio: Number(course.precio || 0),
+          duracion: course.duracion || 'A tu ritmo',
+          ...courseSettings
+        })
+      });
+      if (response.ok) {
+        toast.success('Configuración de cobro y desbloqueo actualizada');
+        fetchCourseData();
+      } else {
+        toast.error('No se pudo actualizar la configuración del curso');
+      }
+    } catch {
+      toast.error('Error de conexión al guardar configuración');
+    }
   };
 
   if (loading) {
@@ -435,6 +499,49 @@ const CourseManagement: React.FC = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="bg-white rounded-2xl shadow-lg p-6 mb-6 border border-gray-100">
+          <h3 className="text-lg font-bold text-gray-900 mb-4">Cobro y desbloqueo</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Modalidad de cobro</label>
+              <select
+                value={courseSettings.modalidad_precio}
+                onChange={(e) => setCourseSettings((p) => ({ ...p, modalidad_precio: e.target.value as 'curso' | 'modulo' | 'clase' }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              >
+                <option value="curso">Curso completo</option>
+                <option value="modulo">Módulo</option>
+                <option value="clase">Clase individual</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2 mt-6 md:mt-0">
+              <input
+                id="drip_habilitado"
+                type="checkbox"
+                checked={courseSettings.drip_habilitado}
+                onChange={(e) => setCourseSettings((p) => ({ ...p, drip_habilitado: e.target.checked }))}
+              />
+              <label htmlFor="drip_habilitado" className="text-sm text-gray-700">Desbloqueo gradual activo</label>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Intervalo drip (días)</label>
+              <input
+                type="number"
+                min={1}
+                value={courseSettings.drip_intervalo_dias}
+                onChange={(e) => setCourseSettings((p) => ({ ...p, drip_intervalo_dias: Number(e.target.value || 7) }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+          </div>
+          <button
+            onClick={saveCourseSettings}
+            className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-semibold"
+          >
+            Guardar configuración
+          </button>
+        </div>
+
         {modules.length === 0 ? (
           /* Estado vacío mejorado */
           <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
@@ -582,7 +689,7 @@ const CourseManagement: React.FC = () => {
                   onClick={() => {
                     setShowModuleModal(false);
                     setEditingModule(null);
-                    setModuleForm({ titulo: '', descripcion: '', orden: 1 });
+                    setModuleForm({ titulo: '', descripcion: '', orden: 1, precio: 0, unlock_days_offset: null });
                   }}
                   className="text-white hover:bg-white hover:bg-opacity-20 rounded-full p-2 transition duration-200"
                 >
@@ -644,7 +751,7 @@ const CourseManagement: React.FC = () => {
                 onClick={() => {
                   setShowModuleModal(false);
                   setEditingModule(null);
-                  setModuleForm({ titulo: '', descripcion: '', orden: 1 });
+                  setModuleForm({ titulo: '', descripcion: '', orden: 1, precio: 0, unlock_days_offset: null });
                 }}
                 className="px-6 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition duration-200"
               >
@@ -751,6 +858,18 @@ const CourseManagement: React.FC = () => {
                     min="0"
                     className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-green-500 focus:ring focus:ring-green-200 transition duration-200 text-base"
                   />
+                </div>
+              </div>
+
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-2 text-sm">Precio de la clase (ARS)</label>
+                  <input type="number" min="0" value={lessonForm.precio} onChange={(e) => setLessonForm(prev => ({ ...prev, precio: Number(e.target.value || 0) }))} className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-2 text-sm">Desbloquear a los X dias</label>
+                  <input type="number" min="0" value={lessonForm.unlock_days_offset ?? ''} onChange={(e) => setLessonForm(prev => ({ ...prev, unlock_days_offset: e.target.value === '' ? null : Number(e.target.value) }))} className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl" placeholder="0 = inmediato" />
                 </div>
               </div>
 

@@ -9,7 +9,10 @@ interface Course {
   profesor_nombre?: string;
   duracion?: string;
   categoria?: string;
+  modalidad_precio?: 'curso' | 'modulo' | 'clase';
 }
+interface LessonOption { id: number; titulo: string; precio: number; }
+interface ModuleOption { id: number; titulo: string; precio: number; lessons: LessonOption[]; }
 
 const PaymentPage: React.FC = () => {
   const { courseId } = useParams<{ courseId: string }>();
@@ -19,6 +22,10 @@ const PaymentPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
+  const [modules, setModules] = useState<ModuleOption[]>([]);
+  const [targetType, setTargetType] = useState<'course' | 'module' | 'lesson'>('course');
+  const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
+  const [selectedLessonId, setSelectedLessonId] = useState<number | null>(null);
 
   useEffect(() => {
     if (courseId) {
@@ -39,8 +46,15 @@ const PaymentPage: React.FC = () => {
       if (response.ok) {
         const courseData = await response.json();
         setCourse(courseData);
+        if (courseData.modalidad_precio === 'modulo') setTargetType('module');
+        if (courseData.modalidad_precio === 'clase') setTargetType('lesson');
       } else {
         setError('Error al cargar el curso');
+      }
+      const syllabusRes = await fetch(`/api/courses/${courseId}/syllabus`);
+      if (syllabusRes.ok) {
+        const syllabusData = await syllabusRes.json();
+        setModules(syllabusData.modules || []);
       }
     } catch (error) {
       console.error('Error al cargar curso:', error);
@@ -56,13 +70,16 @@ const PaymentPage: React.FC = () => {
       setProcessing(true);
       setError('');
 
+      const payload: any = { courseId: course.id, targetType };
+      if (targetType === 'module') payload.moduleId = selectedModuleId;
+      if (targetType === 'lesson') payload.lessonId = selectedLessonId;
       const response = await fetch('/api/payments/create-preference', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
-        body: JSON.stringify({ courseId: course.id }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
@@ -93,6 +110,14 @@ const PaymentPage: React.FC = () => {
       currency: 'ARS'
     }).format(amount);
   };
+
+  const selectedModule = modules.find((m) => m.id === selectedModuleId) || null;
+  const selectedLesson = selectedModule?.lessons?.find((l) => l.id === selectedLessonId) || null;
+  const total = targetType === 'course'
+    ? Number(course?.precio || 0)
+    : targetType === 'module'
+      ? Number(selectedModule?.precio || 0)
+      : Number(selectedLesson?.precio || 0);
 
   if (loading) {
     return (
@@ -198,9 +223,73 @@ const PaymentPage: React.FC = () => {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Resumen de Compra</h3>
               
               <div className="space-y-3">
+                {course.modalidad_precio && course.modalidad_precio !== 'curso' && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Comprar</label>
+                    <select
+                      value={targetType}
+                      onChange={(e) => {
+                        const t = e.target.value as 'course' | 'module' | 'lesson';
+                        setTargetType(t);
+                        setSelectedModuleId(null);
+                        setSelectedLessonId(null);
+                      }}
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="course">Curso completo</option>
+                      <option value="module">Módulo</option>
+                      <option value="lesson">Clase individual</option>
+                    </select>
+                  </div>
+                )}
+                {targetType === 'module' && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Módulo</label>
+                    <select
+                      value={selectedModuleId || ''}
+                      onChange={(e) => setSelectedModuleId(Number(e.target.value))}
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="">Seleccionar módulo</option>
+                      {modules.map((m) => (
+                        <option key={m.id} value={m.id}>{m.titulo} - {formatCurrency(Number(m.precio || 0))}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {targetType === 'lesson' && (
+                  <>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Módulo</label>
+                      <select
+                        value={selectedModuleId || ''}
+                        onChange={(e) => { setSelectedModuleId(Number(e.target.value)); setSelectedLessonId(null); }}
+                        className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="">Seleccionar módulo</option>
+                        {modules.map((m) => (
+                          <option key={m.id} value={m.id}>{m.titulo}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Clase</label>
+                      <select
+                        value={selectedLessonId || ''}
+                        onChange={(e) => setSelectedLessonId(Number(e.target.value))}
+                        className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-lg"
+                      >
+                        <option value="">Seleccionar clase</option>
+                        {(selectedModule?.lessons || []).map((l) => (
+                          <option key={l.id} value={l.id}>{l.titulo} - {formatCurrency(Number(l.precio || 0))}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Precio del curso</span>
-                  <span className="font-medium">{formatCurrency(course.precio)}</span>
+                  <span className="text-gray-600">Precio</span>
+                  <span className="font-medium">{formatCurrency(total)}</span>
                 </div>
                 
                 <div className="flex justify-between">
@@ -212,7 +301,7 @@ const PaymentPage: React.FC = () => {
                 
                 <div className="flex justify-between text-lg font-semibold">
                   <span>Total</span>
-                  <span className="text-blue-600">{formatCurrency(course.precio)}</span>
+                  <span className="text-blue-600">{formatCurrency(total)}</span>
                 </div>
               </div>
 
@@ -224,7 +313,7 @@ const PaymentPage: React.FC = () => {
 
               <button
                 onClick={handlePayment}
-                disabled={processing}
+                disabled={processing || (targetType === 'module' && !selectedModuleId) || (targetType === 'lesson' && !selectedLessonId)}
                 className="w-full mt-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center"
               >
                 {processing ? (

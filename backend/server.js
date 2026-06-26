@@ -169,14 +169,11 @@ function requireCourseAccess({ courseParam, moduleParam, lessonParam } = { cours
         return next();
       }
 
-      if (Number(course.precio) === 0) {
-        req.course = course;
-        return next();
-      }
-
-      const enrolled = await db.isUserEnrolled(u.userId, courseId);
-      if (!enrolled) {
-        return res.status(402).json({ error: 'Debes inscribirte y pagar para acceder a este contenido', courseId });
+      const isFree = Number(course.precio || 0) === 0;
+      const hasEnrollment = await db.isUserEnrolled(u.userId, courseId);
+      const hasCourseGrant = await db.hasAccessGrant({ userId: u.userId, courseId });
+      if (!isFree && !hasEnrollment && !hasCourseGrant) {
+        return res.status(402).json({ error: 'Debes comprar este contenido para acceder', courseId });
       }
 
       req.course = course;
@@ -186,6 +183,59 @@ function requireCourseAccess({ courseParam, moduleParam, lessonParam } = { cours
       res.status(500).json({ error: 'Error verificando acceso al curso' });
     }
   };
+}
+
+function computeUnlockDate(entity, enrollmentDate, fallbackDays = null) {
+  if (entity?.unlock_at) return new Date(entity.unlock_at);
+  const offset = entity?.unlock_days_offset ?? fallbackDays;
+  if (offset === null || offset === undefined) return null;
+  const base = enrollmentDate ? new Date(enrollmentDate) : new Date();
+  const d = new Date(base);
+  d.setDate(d.getDate() + Number(offset || 0));
+  return d;
+}
+
+function isUnlocked(entity, enrollmentDate, fallbackDays = null) {
+  const unlockAt = computeUnlockDate(entity, enrollmentDate, fallbackDays);
+  if (!unlockAt) return true;
+  return new Date() >= unlockAt;
+}
+
+function sqlGet(query, params = []) {
+  return new Promise((resolve, reject) => {
+    db.db.get(query, params, (err, row) => (err ? reject(err) : resolve(row)));
+  });
+}
+
+function sqlAll(query, params = []) {
+  return new Promise((resolve, reject) => {
+    db.db.all(query, params, (err, rows) => (err ? reject(err) : resolve(rows || [])));
+  });
+}
+
+async function hasModuleAccess(userId, course, moduleId) {
+  const modality = (course.modalidad_precio || 'curso').toLowerCase();
+  const enrollment = await db.getUserEnrollmentForCourse(userId, course.id);
+  if (modality === 'curso') return !!enrollment || await db.hasAccessGrant({ userId, courseId: course.id });
+  if (modality === 'modulo') {
+    const hasCourseGrant = await db.hasAccessGrant({ userId, courseId: course.id });
+    const hasModuleGrant = await db.hasAccessGrant({ userId, courseId: course.id, moduleId });
+    return !!enrollment || hasCourseGrant || hasModuleGrant;
+  }
+  const hasCourseGrant = await db.hasAccessGrant({ userId, courseId: course.id });
+  const hasModuleGrant = await db.hasAccessGrant({ userId, courseId: course.id, moduleId });
+  return !!enrollment || hasCourseGrant || hasModuleGrant;
+}
+
+async function hasLessonAccess(userId, course, moduleId, lessonId) {
+  const modality = (course.modalidad_precio || 'curso').toLowerCase();
+  const enrollment = await db.getUserEnrollmentForCourse(userId, course.id);
+  if (modality === 'curso') return !!enrollment || await db.hasAccessGrant({ userId, courseId: course.id });
+  const hasCourseGrant = await db.hasAccessGrant({ userId, courseId: course.id });
+  const hasModuleGrant = await db.hasAccessGrant({ userId, courseId: course.id, moduleId });
+  const hasLessonGrant = await db.hasAccessGrant({ userId, courseId: course.id, lessonId });
+  if (modality === 'modulo') return !!enrollment || hasCourseGrant || hasModuleGrant;
+  return !!enrollment || hasCourseGrant || hasModuleGrant || hasLessonGrant;
 }
 
 const VideoConference = require('./src/models/VideoConference');
@@ -333,7 +383,7 @@ app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
 
 app.post('/api/auth/register', authLimiter, async (req, res) => {
   try {
-    const { email, password, nombre } = req.body;
+    const { email, password, nombre, tipo: tipoSolicitado, teacherCode } = req.body;
 
     if (!email || !password || !nombre) {
       return res.status(400).json({ error: 'Todos los campos son obligatorios' });
@@ -347,9 +397,18 @@ app.post('/api/auth/register', authLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Ese email ya está registrado' });
     }
 
-    // SEGURIDAD: el registro publico SOLO crea alumnos.
-    // Las cuentas de profesor las crea el admin desde /admin/users.
-    const tipo = 'alumno';
+    const requestedType = (tipoSolicitado || 'alumno').toLowerCase();
+    let tipo = 'alumno';
+    if (requestedType === 'profesor') {
+      const validCodes = (process.env.TEACHER_REGISTER_CODES || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (!teacherCode || !validCodes.includes(String(teacherCode).trim())) {
+        return res.status(403).json({ error: 'Código de docente inválido' });
+      }
+      tipo = 'profesor';
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -450,7 +509,7 @@ app.get('/api/courses/:id', async (req, res) => {
 // Crear nuevo curso (solo profesores)
 app.post('/api/courses', authenticateToken, requireProfessor, async (req, res) => {
   try {
-    const { nombre, descripcion, categoria, precio, duracion, imagen } = req.body;
+    const { nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado, drip_intervalo_dias } = req.body;
 
     if (!nombre || !descripcion) {
       return res.status(400).json({ error: 'Nombre y descripción son requeridos' });
@@ -467,7 +526,10 @@ app.post('/api/courses', authenticateToken, requireProfessor, async (req, res) =
       categoria: categoria || 'general',
       precio: parseFloat(precio) || 0,
       duracion: duracion || '4 semanas',
-      imagen: imagen || '📚'
+      imagen: imagen || '📚',
+      modalidad_precio: ['curso', 'modulo', 'clase'].includes(modalidad_precio) ? modalidad_precio : 'curso',
+      drip_habilitado: !!drip_habilitado,
+      drip_intervalo_dias: drip_intervalo_dias ? Number(drip_intervalo_dias) : null
     };
 
     const newCourse = await db.createCourse(courseData);
@@ -486,7 +548,7 @@ app.post('/api/courses', authenticateToken, requireProfessor, async (req, res) =
 app.put('/api/courses/:id', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const courseId = req.params.id;
-    const { nombre, descripcion, categoria, precio, duracion } = req.body;
+    const { nombre, descripcion, categoria, precio, duracion, modalidad_precio, drip_habilitado, drip_intervalo_dias } = req.body;
 
     // Verificar que el curso pertenece al profesor
     const course = await db.getCourseById(courseId);
@@ -499,7 +561,10 @@ app.put('/api/courses/:id', authenticateToken, requireProfessor, async (req, res
       descripcion,
       categoria,
       precio: parseFloat(precio),
-      duracion
+      duracion,
+      modalidad_precio: ['curso', 'modulo', 'clase'].includes(modalidad_precio) ? modalidad_precio : 'curso',
+      drip_habilitado: !!drip_habilitado,
+      drip_intervalo_dias: drip_intervalo_dias ? Number(drip_intervalo_dias) : null
     });
 
     res.json({
@@ -1261,9 +1326,21 @@ app.post('/api/courses/:courseId/grades/:userId', authenticateToken, requireProf
 // Obtener módulos de un curso
 app.get('/api/courses/:id/modules', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
   try {
-    const courseId = req.params.id;
+    const courseId = Number(req.params.id);
     const modules = await db.getCourseModules(courseId);
-    res.json(modules);
+    const user = req.user;
+    const isOwner = user.tipo === 'admin' || req.course.profesor_id === user.userId;
+    if (isOwner) return res.json(modules);
+
+    const enrollment = await db.getUserEnrollmentForCourse(user.userId, courseId);
+    const dripDays = req.course.drip_habilitado ? Number(req.course.drip_intervalo_dias || 7) : null;
+    const filtered = [];
+    for (const m of modules) {
+      const paid = await hasModuleAccess(user.userId, req.course, m.id);
+      const unlocked = isUnlocked(m, enrollment?.enrolled_at, dripDays !== null ? (Number(m.orden || 1) - 1) * dripDays : null);
+      if (m.publicado && paid && unlocked) filtered.push(m);
+    }
+    res.json(filtered);
   } catch (error) {
     console.error('Error al obtener módulos:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -1274,7 +1351,7 @@ app.get('/api/courses/:id/modules', authenticateToken, requireCourseAccess({ cou
 app.post('/api/courses/:id/modules', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const courseId = req.params.id;
-    const { titulo, descripcion, orden } = req.body;
+    const { titulo, descripcion, orden, precio, unlock_at, unlock_days_offset } = req.body;
 
     // Verificar que el profesor sea dueño del curso
     const course = await db.getCourseById(courseId);
@@ -1287,6 +1364,9 @@ app.post('/api/courses/:id/modules', authenticateToken, requireProfessor, async 
       titulo,
       descripcion,
       orden: orden || 1,
+      precio: Number(precio || 0),
+      unlock_at: unlock_at || null,
+      unlock_days_offset: unlock_days_offset !== undefined && unlock_days_offset !== null ? Number(unlock_days_offset) : null,
       publicado: true
     });
 
@@ -1301,12 +1381,15 @@ app.post('/api/courses/:id/modules', authenticateToken, requireProfessor, async 
 app.put('/api/modules/:id', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const moduleId = req.params.id;
-    const { titulo, descripcion, orden, publicado } = req.body;
+    const { titulo, descripcion, orden, precio, unlock_at, unlock_days_offset, publicado } = req.body;
 
     const updatedModule = await db.updateModule(moduleId, {
       titulo,
       descripcion,
       orden,
+      precio: Number(precio || 0),
+      unlock_at: unlock_at || null,
+      unlock_days_offset: unlock_days_offset !== undefined && unlock_days_offset !== null ? Number(unlock_days_offset) : null,
       publicado
     });
 
@@ -1332,9 +1415,23 @@ app.delete('/api/modules/:id', authenticateToken, requireProfessor, async (req, 
 // Obtener lecciones de un módulo (paywall por curso)
 app.get('/api/modules/:id/lessons', authenticateToken, requireCourseAccess({ moduleParam: 'id' }), async (req, res) => {
   try {
-    const moduleId = req.params.id;
+    const moduleId = Number(req.params.id);
     const lessons = await db.getModuleLessons(moduleId);
-    res.json(lessons);
+    const user = req.user;
+    const moduleData = await db.getModuleById(moduleId);
+    const isOwner = user.tipo === 'admin' || req.course.profesor_id === user.userId;
+    if (isOwner) return res.json(lessons);
+
+    const enrollment = await db.getUserEnrollmentForCourse(user.userId, req.course.id);
+    const dripDays = req.course.drip_habilitado ? Number(req.course.drip_intervalo_dias || 7) : null;
+    const filtered = [];
+    for (const l of lessons) {
+      const paid = await hasLessonAccess(user.userId, req.course, moduleId, l.id);
+      const fallbackOffset = dripDays !== null ? (Number(moduleData?.orden || 1) - 1) * dripDays + (Number(l.orden || 1) - 1) * dripDays : null;
+      const unlocked = isUnlocked(l, enrollment?.enrolled_at, fallbackOffset);
+      if (l.publicado && paid && unlocked) filtered.push(l);
+    }
+    res.json(filtered);
   } catch (error) {
     console.error('Error al obtener lecciones:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -1345,7 +1442,7 @@ app.get('/api/modules/:id/lessons', authenticateToken, requireCourseAccess({ mod
 app.post('/api/modules/:id/lessons', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const moduleId = req.params.id;
-    const { titulo, contenido, tipo, orden, duracion, recursos } = req.body;
+    const { titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos } = req.body;
 
     const lesson = await db.createLesson({
       module_id: moduleId,
@@ -1353,6 +1450,9 @@ app.post('/api/modules/:id/lessons', authenticateToken, requireProfessor, async 
       contenido,
       tipo: tipo || 'texto',
       orden: orden || 1,
+      precio: Number(precio || 0),
+      unlock_at: unlock_at || null,
+      unlock_days_offset: unlock_days_offset !== undefined && unlock_days_offset !== null ? Number(unlock_days_offset) : null,
       duracion: duracion || 0,
       recursos: recursos ? JSON.stringify(recursos) : null,
       publicado: true
@@ -1369,13 +1469,16 @@ app.post('/api/modules/:id/lessons', authenticateToken, requireProfessor, async 
 app.put('/api/lessons/:id', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const lessonId = req.params.id;
-    const { titulo, contenido, tipo, orden, duracion, recursos, publicado } = req.body;
+    const { titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, publicado } = req.body;
 
     const updatedLesson = await db.updateLesson(lessonId, {
       titulo,
       contenido,
       tipo,
       orden,
+      precio: Number(precio || 0),
+      unlock_at: unlock_at || null,
+      unlock_days_offset: unlock_days_offset !== undefined && unlock_days_offset !== null ? Number(unlock_days_offset) : null,
       duracion,
       recursos: recursos ? JSON.stringify(recursos) : null,
       publicado
@@ -1403,8 +1506,12 @@ app.delete('/api/lessons/:id', authenticateToken, requireProfessor, async (req, 
 // Marcar lección como completada (paywall)
 app.post('/api/lessons/:id/complete', authenticateToken, requireCourseAccess({ lessonParam: 'id' }), async (req, res) => {
   try {
-    const lessonId = req.params.id;
+    const lessonId = Number(req.params.id);
     const userId = req.user.userId;
+    const lesson = await db.getLessonById(lessonId);
+    if (!lesson) return res.status(404).json({ error: 'Lección no encontrada' });
+    const allowed = await hasLessonAccess(userId, req.course, lesson.module_id, lessonId);
+    if (!allowed) return res.status(402).json({ error: 'Necesitás comprar esta lección para marcarla' });
 
     await db.markLessonComplete(userId, lessonId);
     res.json({ message: 'Lección marcada como completada' });
@@ -1435,7 +1542,7 @@ app.get('/api/courses/:id/progress', authenticateToken, requireCourseAccess({ co
 // Crear preferencia de pago
 app.post('/api/payments/create-preference', authenticateToken, async (req, res) => {
   try {
-    const { courseId } = req.body;
+    const { courseId, targetType = 'course', moduleId, lessonId } = req.body;
 
     if (!courseId) {
       return res.status(400).json({ error: 'ID del curso es requerido' });
@@ -1443,12 +1550,37 @@ app.post('/api/payments/create-preference', authenticateToken, async (req, res) 
 
     const course = await db.getCourseById(courseId);
     if (!course) return res.status(404).json({ error: 'Curso no encontrado' });
-    if (Number(course.precio) === 0) {
+    if (Number(course.precio) === 0 && targetType === 'course') {
       return res.status(400).json({ error: 'El curso es gratuito, usa /api/courses/:id/enroll' });
     }
 
-    const isEnrolled = await db.isUserEnrolled(req.user.userId, courseId);
-    if (isEnrolled) return res.status(400).json({ error: 'Ya estás inscrito en este curso' });
+    const normalizedType = ['course', 'module', 'lesson'].includes(targetType) ? targetType : 'course';
+    let amount = Number(course.precio || 0);
+    let refModuleId = null;
+    let refLessonId = null;
+
+    if (normalizedType === 'module') {
+      const moduleData = await db.getModuleById(Number(moduleId));
+      if (!moduleData || Number(moduleData.course_id) !== Number(courseId)) return res.status(400).json({ error: 'M?dulo inv?lido' });
+      refModuleId = moduleData.id;
+      amount = Number(moduleData.precio || 0);
+    }
+
+    if (normalizedType === 'lesson') {
+      const lessonData = await db.getLessonById(Number(lessonId));
+      if (!lessonData) return res.status(400).json({ error: 'Lecci?n inv?lida' });
+      const moduleData = await db.getModuleById(Number(lessonData.module_id));
+      if (!moduleData || Number(moduleData.course_id) !== Number(courseId)) {
+        return res.status(400).json({ error: 'Lecci?n inv?lida para este curso' });
+      }
+      refModuleId = moduleData.id;
+      refLessonId = lessonData.id;
+      amount = Number(lessonData.precio || 0);
+    }
+
+    if (amount <= 0) {
+      return res.status(400).json({ error: 'Este contenido no tiene precio para compra individual' });
+    }
 
     const user = await db.getUserById(req.user.userId);
 
@@ -1457,9 +1589,12 @@ app.post('/api/payments/create-preference', authenticateToken, async (req, res) 
         id: course.id,
         nombre: course.nombre,
         descripcion: course.descripcion,
-        precio: course.precio,
+        precio: amount,
         categoria: course.categoria,
         imagen: course.imagen,
+        targetType: normalizedType,
+        moduleId: refModuleId,
+        lessonId: refLessonId,
       },
       { id: user.id, nombre: user.nombre, email: user.email }
     );
@@ -1472,7 +1607,10 @@ app.post('/api/payments/create-preference', authenticateToken, async (req, res) 
     await db.createPayment({
       user_id: user.id,
       course_id: course.id,
-      amount: course.precio,
+      module_id: refModuleId,
+      lesson_id: refLessonId,
+      target_type: normalizedType,
+      amount,
       preference_id: result.preferenceId,
       status: 'pending',
     });
@@ -1484,6 +1622,25 @@ app.post('/api/payments/create-preference', authenticateToken, async (req, res) 
     });
   } catch (error) {
     console.error('Error al crear preferencia:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Syllabus público (para mostrar opciones de compra por módulo/clase sin acceso completo)
+app.get('/api/courses/:id/syllabus', async (req, res) => {
+  try {
+    const courseId = Number(req.params.id);
+    const course = await db.getCourseById(courseId);
+    if (!course) return res.status(404).json({ error: 'Curso no encontrado' });
+    const modules = (await db.getCourseModules(courseId)).filter((m) => !!m.publicado);
+    const data = [];
+    for (const m of modules) {
+      const lessons = (await db.getModuleLessons(m.id)).filter((l) => !!l.publicado);
+      data.push({ ...m, lessons });
+    }
+    res.json({ courseId, modules: data });
+  } catch (error) {
+    console.error('Error al obtener syllabus:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -1517,37 +1674,34 @@ app.post('/api/payments/webhook', async (req, res) => {
 
     const type = req.query.type || (req.body && req.body.type);
     const dataId = (req.query['data.id'] || (req.body && req.body.data && req.body.data.id) || '').toString();
-
     if (type !== 'payment' || !dataId) return res.status(200).send('OK');
 
     const info = await mercadoPagoService.getPayment(dataId);
-    if (!info.success) {
-      console.error('Webhook MP: getPayment fallo:', info.error);
-      return res.status(200).send('OK'); // 200 para que MP no reintente eternamente
-    }
+    if (!info.success) return res.status(200).send('OK');
 
     const p = info.payment;
     const externalRef = p.external_reference || '';
-    const m = externalRef.match(/^course_(\d+)_user_(\d+)_/);
-    if (!m) {
-      console.warn('Webhook MP: external_reference no parseable:', externalRef);
-      return res.status(200).send('OK');
-    }
+    const m = externalRef.match(/^course_(\d+)_user_(\d+)_type_(course|module|lesson)(?:_module_(\d+))?(?:_lesson_(\d+))?_/);
+    if (!m) return res.status(200).send('OK');
+
     const courseId = Number(m[1]);
     const userId = Number(m[2]);
+    const targetType = m[3];
+    const moduleId = m[4] ? Number(m[4]) : null;
+    const lessonId = m[5] ? Number(m[5]) : null;
 
-    // Buscar el payment guardado por preference_id
     const preferenceId = (p.order && p.order.id) || p.preference_id || '';
-    if (preferenceId) {
-      await db.updatePaymentByPreferenceId(preferenceId, { payment_id: dataId, status: p.status });
-    }
+    if (preferenceId) await db.updatePaymentByPreferenceId(preferenceId, { payment_id: dataId, status: p.status });
 
     if (p.status === 'approved') {
       const already = await db.isUserEnrolled(userId, courseId);
-      if (!already) {
-        await db.enrollUser(userId, courseId);
-        console.log(`✅ Usuario ${userId} inscrito en curso ${courseId} via webhook`);
-      }
+      if (!already) await db.enrollUser(userId, courseId);
+      await db.createAccessGrant({
+        user_id: userId,
+        course_id: courseId,
+        module_id: targetType === 'module' || targetType === 'lesson' ? moduleId : null,
+        lesson_id: targetType === 'lesson' ? lessonId : null,
+      });
     }
 
     res.status(200).send('OK');
@@ -1574,16 +1728,25 @@ app.get('/api/payments/status', authenticateToken, async (req, res) => {
       const info = await mercadoPagoService.getPayment(payment_id);
       if (info.success && info.payment) {
         const p = info.payment;
-        const m = (p.external_reference || '').match(/^course_(\d+)_user_(\d+)_/);
+        const m = (p.external_reference || '').match(/^course_(\d+)_user_(\d+)_type_(course|module|lesson)(?:_module_(\d+))?(?:_lesson_(\d+))?_/);
         if (m) {
           const cid = Number(m[1]);
           const uid = Number(m[2]);
+          const tType = m[3];
+          const mId = m[4] ? Number(m[4]) : null;
+          const lId = m[5] ? Number(m[5]) : null;
           if (uid === userId && p.status === 'approved') {
             const already = await db.isUserEnrolled(uid, cid);
             if (!already) await db.enrollUser(uid, cid);
-            return res.json({ status: 'approved', enrolled: true, courseId: cid });
+            await db.createAccessGrant({
+              user_id: uid,
+              course_id: cid,
+              module_id: tType === 'module' || tType === 'lesson' ? mId : null,
+              lesson_id: tType === 'lesson' ? lId : null,
+            });
+            return res.json({ status: 'approved', enrolled: true, courseId: cid, targetType: tType, moduleId: mId, lessonId: lId });
           }
-          return res.json({ status: p.status, enrolled: false, courseId: cid });
+          return res.json({ status: p.status, enrolled: false, courseId: cid, targetType: tType, moduleId: mId, lessonId: lId });
         }
       }
     }
@@ -1592,7 +1755,7 @@ app.get('/api/payments/status', authenticateToken, async (req, res) => {
     if (payment.user_id !== userId) return res.status(403).json({ error: 'No autorizado' });
 
     const enrolled = await db.isUserEnrolled(payment.user_id, payment.course_id);
-    res.json({ status: payment.status, enrolled, courseId: payment.course_id });
+    res.json({ status: payment.status, enrolled, courseId: payment.course_id, targetType: payment.target_type, moduleId: payment.module_id, lessonId: payment.lesson_id });
   } catch (err) {
     console.error('payments/status error:', err);
     res.status(500).json({ error: 'Error obteniendo estado del pago' });
@@ -2123,26 +2286,119 @@ app.get('/api/analytics', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Acceso denegado' });
     }
 
-    // Por ahora retornamos datos básicos, más tarde implementar en DB
-    const analytics = {
+    const isAdmin = userType === 'admin';
+    const scopeCourseWhere = isAdmin ? '' : 'WHERE c.profesor_id = ?';
+    const scopeParams = isAdmin ? [] : [req.user.userId];
+
+    const totals = await sqlGet(
+      `SELECT
+        COUNT(DISTINCT c.id) as totalCourses,
+        COUNT(DISTINCT e.user_id) as totalStudents,
+        COUNT(DISTINCT q.id) as totalQuizzes
+       FROM courses c
+       LEFT JOIN enrollments e ON e.course_id = c.id
+       LEFT JOIN quizzes q ON q.course_id = c.id
+       ${scopeCourseWhere}`,
+      scopeParams
+    );
+
+    const activeUsersRow = await sqlGet(
+      isAdmin
+        ? `SELECT COUNT(*) as activeUsers FROM users WHERE activo = 1`
+        : `SELECT COUNT(DISTINCT e.user_id) as activeUsers
+           FROM enrollments e
+           JOIN courses c ON c.id = e.course_id
+           WHERE c.profesor_id = ?`,
+      scopeParams
+    );
+
+    const completionRow = await sqlGet(
+      `SELECT
+         COUNT(*) as totalEnrollments,
+         SUM(CASE WHEN e.completed = 1 THEN 1 ELSE 0 END) as completedEnrollments
+       FROM enrollments e
+       JOIN courses c ON c.id = e.course_id
+       ${isAdmin ? '' : 'WHERE c.profesor_id = ?'}`,
+      scopeParams
+    );
+
+    const avgScoreRow = await sqlGet(
+      `SELECT AVG(qa.score * 100.0 / NULLIF(qa.max_score,0)) as averageScore
+       FROM quiz_attempts qa
+       JOIN quizzes q ON q.id = qa.quiz_id
+       JOIN courses c ON c.id = q.course_id
+       ${isAdmin ? '' : 'WHERE c.profesor_id = ?'}`,
+      scopeParams
+    );
+
+    const coursePerformance = await sqlAll(
+      `SELECT c.id, c.nombre,
+              COUNT(DISTINCT e.user_id) as students,
+              COUNT(DISTINCT lp.user_id) as usersWithProgress
+       FROM courses c
+       LEFT JOIN enrollments e ON e.course_id = c.id
+       LEFT JOIN modules m ON m.course_id = c.id
+       LEFT JOIN lessons l ON l.module_id = m.id
+       LEFT JOIN lesson_progress lp ON lp.lesson_id = l.id AND lp.completed = 1
+       ${scopeCourseWhere}
+       GROUP BY c.id, c.nombre
+       ORDER BY students DESC
+       LIMIT 20`,
+      scopeParams
+    );
+
+    const revenueData = await sqlAll(
+      `SELECT substr(p.created_at,1,7) as month, SUM(p.amount) as revenue
+       FROM payments p
+       JOIN courses c ON c.id = p.course_id
+       WHERE p.status = 'approved' ${isAdmin ? '' : 'AND c.profesor_id = ?'}
+       GROUP BY substr(p.created_at,1,7)
+       ORDER BY month DESC
+       LIMIT 12`,
+      scopeParams
+    );
+
+    const userActivity = await sqlAll(
+      `SELECT action_type, COUNT(*) as count
+       FROM activity_logs
+       GROUP BY action_type
+       ORDER BY count DESC
+       LIMIT 20`
+    );
+
+    const quizAnalytics = await sqlAll(
+      `SELECT q.id, q.title,
+              COUNT(qa.id) as attempts,
+              AVG(qa.score * 100.0 / NULLIF(qa.max_score,0)) as avg_percentage
+       FROM quizzes q
+       JOIN courses c ON c.id = q.course_id
+       LEFT JOIN quiz_attempts qa ON qa.quiz_id = q.id
+       ${scopeCourseWhere}
+       GROUP BY q.id, q.title
+       ORDER BY attempts DESC
+       LIMIT 20`,
+      scopeParams
+    );
+
+    const totalEnrollments = Number(completionRow?.totalEnrollments || 0);
+    const completedEnrollments = Number(completionRow?.completedEnrollments || 0);
+    const completionRate = totalEnrollments > 0 ? (completedEnrollments * 100) / totalEnrollments : 0;
+
+    res.json({
       overview: {
-        totalStudents: 0,
-        totalCourses: 0,
-        totalQuizzes: 0,
-        averageScore: 0,
-        completionRate: 0,
-        activeUsers: 0
+        totalStudents: Number(totals?.totalStudents || 0),
+        totalCourses: Number(totals?.totalCourses || 0),
+        totalQuizzes: Number(totals?.totalQuizzes || 0),
+        averageScore: Number(avgScoreRow?.averageScore || 0),
+        completionRate: Number(completionRate.toFixed(2)),
+        activeUsers: Number(activeUsersRow?.activeUsers || 0),
       },
       studentEngagement: [],
-      coursePerformance: [],
-      userActivity: [],
-      quizAnalytics: [],
-      revenueData: []
-    };
-
-    res.json(analytics);
-
-    // TODO: Implementar cálculos reales de analytics
+      coursePerformance,
+      userActivity,
+      quizAnalytics,
+      revenueData,
+    });
   } catch (error) {
     console.error('Error al obtener analytics:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -2257,19 +2513,57 @@ app.get('/api/admin/stats', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Acceso denegado' });
     }
 
-    const users = await db.getAllUsers();
-    const courses = await db.getAllCourses();
+    const [
+      usersTotal,
+      usersActive,
+      studentsTotal,
+      teachersTotal,
+      coursesTotal,
+      enrollmentsTotal,
+      paymentsApproved,
+      revenueTotal,
+      revenueMonth,
+      certificatesTotal,
+      forumThreadsTotal,
+      recentUsers,
+      topCourses,
+    ] = await Promise.all([
+      sqlGet(`SELECT COUNT(*) as n FROM users`),
+      sqlGet(`SELECT COUNT(*) as n FROM users WHERE activo = 1`),
+      sqlGet(`SELECT COUNT(*) as n FROM users WHERE tipo = 'alumno'`),
+      sqlGet(`SELECT COUNT(*) as n FROM users WHERE tipo = 'profesor'`),
+      sqlGet(`SELECT COUNT(*) as n FROM courses`),
+      sqlGet(`SELECT COUNT(*) as n FROM enrollments`),
+      sqlGet(`SELECT COUNT(*) as n FROM payments WHERE status = 'approved'`),
+      sqlGet(`SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE status = 'approved'`),
+      sqlGet(`SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE status = 'approved' AND created_at >= date('now','start of month')`),
+      sqlGet(`SELECT COUNT(*) as n FROM certificates`),
+      sqlGet(`SELECT COUNT(*) as n FROM forum_threads`),
+      sqlAll(`SELECT id, nombre, email, tipo, created_at FROM users ORDER BY created_at DESC LIMIT 10`),
+      sqlAll(`SELECT c.id, c.nombre, COUNT(e.id) as students
+              FROM courses c
+              LEFT JOIN enrollments e ON e.course_id = c.id
+              GROUP BY c.id, c.nombre
+              ORDER BY students DESC
+              LIMIT 10`),
+    ]);
 
-    const stats = {
-      totalUsers: users.length,
-      activeUsers: users.filter(u => u.activo !== false).length,
-      totalCourses: courses.length,
-      totalForumPosts: 0,
-      totalCertificates: 0,
-      systemUptime: process.uptime()
-    };
-
-    res.json(stats);
+    res.json({
+      totalUsers: Number(usersTotal?.n || 0),
+      activeUsers: Number(usersActive?.n || 0),
+      totalStudents: Number(studentsTotal?.n || 0),
+      totalTeachers: Number(teachersTotal?.n || 0),
+      totalCourses: Number(coursesTotal?.n || 0),
+      totalEnrollments: Number(enrollmentsTotal?.n || 0),
+      approvedPayments: Number(paymentsApproved?.n || 0),
+      totalRevenue: Number(revenueTotal?.total || 0),
+      monthRevenue: Number(revenueMonth?.total || 0),
+      totalForumPosts: Number(forumThreadsTotal?.n || 0),
+      totalCertificates: Number(certificatesTotal?.n || 0),
+      systemUptime: process.uptime(),
+      recentUsers,
+      topCourses,
+    });
   } catch (error) {
     console.error('Error al obtener estadísticas:', error);
     res.status(500).json({ error: 'Error interno del servidor' });

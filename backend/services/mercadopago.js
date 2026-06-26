@@ -47,7 +47,7 @@ class MercadoPagoService {
         auto_return: 'approved',
         notification_url: `${process.env.BACKEND_URL}/api/payments/webhook`,
         statement_descriptor: 'Campus Norma',
-        external_reference: `course_${courseData.id}_user_${userData.id}_${Date.now()}`,
+        external_reference: `course_${courseData.id}_user_${userData.id}_type_${courseData.targetType || 'course'}${courseData.moduleId ? `_module_${courseData.moduleId}` : ''}${courseData.lessonId ? `_lesson_${courseData.lessonId}` : ''}_${Date.now()}`,
         expires: true,
         expiration_date_from: new Date().toISOString(),
         expiration_date_to: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 horas

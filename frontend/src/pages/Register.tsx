@@ -1,13 +1,22 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import RotatingQuote from '../components/Common/RotatingQuote';
+
+const onboardingQuotes = [
+  'Planificar tambien es ensenar: ordena la experiencia de aprendizaje.',
+  'Una clase clara empieza por objetivos claros.',
+  'La educacion no cambia al mundo, cambia a las personas que van a cambiar el mundo. - Paulo Freire',
+  'Donde hay una buena pregunta, hay aprendizaje.',
+  'Docencia real: acompanar procesos, no solo contenidos.',
+];
 
 const Register: React.FC = () => {
   const navigate = useNavigate();
   const { register } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ nombre: '', email: '', password: '', confirmPassword: '' });
+  const [form, setForm] = useState({ nombre: '', email: '', password: '', confirmPassword: '', tipo: 'alumno', teacherCode: '' });
 
   const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -18,15 +27,15 @@ const Register: React.FC = () => {
     setError('');
 
     if (!form.nombre.trim() || !form.email.trim() || !form.password) {
-      setError('Completá todos los campos');
+      setError('Completa todos los campos');
       return;
     }
     if (form.password !== form.confirmPassword) {
-      setError('Las contraseñas no coinciden');
+      setError('Las contrasenas no coinciden');
       return;
     }
     if (form.password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
+      setError('La contrasena debe tener al menos 6 caracteres');
       return;
     }
 
@@ -36,10 +45,11 @@ const Register: React.FC = () => {
         form.email.trim().toLowerCase(),
         form.password,
         form.nombre.trim(),
-        'alumno'
+        form.tipo,
+        form.teacherCode.trim() || undefined
       );
       if (ok) navigate('/dashboard');
-      else setError('No pudimos crear tu cuenta. Probá con otro email.');
+      else setError('No pudimos crear tu cuenta. Proba con otro email.');
     } catch (err: any) {
       setError(err?.message || 'Error al crear la cuenta');
     } finally {
@@ -51,9 +61,10 @@ const Register: React.FC = () => {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-12">
       <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
         <div className="text-center mb-8">
-          <Link to="/" className="text-2xl font-bold text-blue-600">🎓 Campus Norma</Link>
+          <Link to="/" className="text-2xl font-bold text-blue-600">Campus Norma</Link>
           <h1 className="text-2xl font-bold text-gray-900 mt-4">Crear una cuenta</h1>
-          <p className="text-gray-600 text-sm mt-1">Sumate gratis y empezá a aprender</p>
+          <p className="text-gray-600 text-sm mt-1">Sumate y empeza a aprender</p>
+          <RotatingQuote quotes={onboardingQuotes} className="mt-4" />
         </div>
 
         {error && (
@@ -63,6 +74,34 @@ const Register: React.FC = () => {
         )}
 
         <form onSubmit={onSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de cuenta</label>
+            <select
+              name="tipo"
+              value={form.tipo}
+              onChange={(e) => setForm({ ...form, tipo: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+            >
+              <option value="alumno">Alumno</option>
+              <option value="profesor">Docente</option>
+            </select>
+          </div>
+
+          {form.tipo === 'profesor' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Codigo docente</label>
+              <input
+                name="teacherCode"
+                type="text"
+                value={form.teacherCode}
+                onChange={onChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                placeholder="Codigo entregado por administracion"
+                required
+              />
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nombre completo</label>
             <input
@@ -92,7 +131,7 @@ const Register: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Contrasena</label>
             <input
               name="password"
               type="password"
@@ -101,13 +140,13 @@ const Register: React.FC = () => {
               autoComplete="new-password"
               minLength={6}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-              placeholder="Mínimo 6 caracteres"
+              placeholder="Minimo 6 caracteres"
               required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contrasena</label>
             <input
               name="confirmPassword"
               type="password"
@@ -115,7 +154,7 @@ const Register: React.FC = () => {
               onChange={onChange}
               autoComplete="new-password"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-              placeholder="Repetí la contraseña"
+              placeholder="Repeti la contrasena"
               required
             />
           </div>
@@ -130,11 +169,11 @@ const Register: React.FC = () => {
         </form>
 
         <p className="text-center text-sm text-gray-600 mt-6">
-          ¿Ya tenés cuenta? <Link to="/login" className="text-blue-600 hover:underline font-medium">Iniciá sesión</Link>
+          Ya tenes cuenta? <Link to="/login" className="text-blue-600 hover:underline font-medium">Inicia sesion</Link>
         </p>
 
         <p className="text-center text-xs text-gray-400 mt-6">
-          ¿Vas a publicar cursos? Pedile al administrador que te dé una cuenta de profesor.
+          Si vas a publicar cursos, pedi al administrador tu codigo docente.
         </p>
       </div>
     </div>

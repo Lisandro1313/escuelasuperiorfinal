@@ -27,6 +27,18 @@ interface DashboardData {
   } | null;
 }
 
+interface AdminStatsData {
+  totalUsers: number;
+  activeUsers: number;
+  totalStudents: number;
+  totalTeachers: number;
+  totalCourses: number;
+  totalEnrollments: number;
+  approvedPayments: number;
+  totalRevenue: number;
+  monthRevenue: number;
+}
+
 const formatARS = (n: number) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n || 0);
 
@@ -38,18 +50,24 @@ const Dashboard: React.FC = () => {
   if (usuario?.tipo === 'alumno') return <StudentDashboard />;
 
   const [data, setData] = useState<DashboardData | null>(null);
+  const [adminStats, setAdminStats] = useState<AdminStatsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showNewCourse, setShowNewCourse] = useState(false);
 
   const fetchDashboard = async () => {
     try {
-      const res = await fetch('/api/professor/dashboard', {
+      const endpoint = usuario?.tipo === 'admin' ? '/api/admin/stats' : '/api/professor/dashboard';
+      const res = await fetch(endpoint, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       if (!res.ok) throw new Error('No se pudo cargar');
       const d = await res.json();
-      setData(d);
+      if (usuario?.tipo === 'admin') {
+        setAdminStats(d);
+      } else {
+        setData(d);
+      }
     } catch (e) {
       setError('No se pudo cargar el panel.');
     } finally {
@@ -69,13 +87,46 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  if (error || !data) {
+  if (error || (!data && usuario?.tipo !== 'admin') || (!adminStats && usuario?.tipo === 'admin')) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-red-600">{error || 'Error'}</div>
       </div>
     );
   }
+
+  if (usuario?.tipo === 'admin' && adminStats) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">Panel Administrador</h1>
+            <p className="text-gray-600 mt-1">Vista global de usuarios, cursos e ingresos</p>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <MetricCard label="Usuarios" value={adminStats.totalUsers} sub={`${adminStats.activeUsers} activos`} icon="👥" />
+            <MetricCard label="Profesores" value={adminStats.totalTeachers} sub={`${adminStats.totalStudents} alumnos`} icon="👨‍🏫" />
+            <MetricCard label="Cursos" value={adminStats.totalCourses} sub={`${adminStats.totalEnrollments} inscripciones`} icon="📚" />
+            <MetricCard label="Ingresos mes" value={formatARS(adminStats.monthRevenue)} sub={`Total ${formatARS(adminStats.totalRevenue)}`} icon="💰" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Link to="/admin/users" className="bg-white border border-gray-200 hover:border-blue-400 rounded-lg p-5 transition">
+              <div className="text-3xl mb-2">🛡️</div>
+              <h3 className="font-semibold text-gray-900">Gestión de usuarios</h3>
+              <p className="text-sm text-gray-600">Roles, bloqueo, altas y bajas</p>
+            </Link>
+            <Link to="/courses" className="bg-white border border-gray-200 hover:border-blue-400 rounded-lg p-5 transition">
+              <div className="text-3xl mb-2">📘</div>
+              <h3 className="font-semibold text-gray-900">Catálogo público</h3>
+              <p className="text-sm text-gray-600">Revisar oferta y calidad de cursos</p>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -79,3 +79,10 @@ CREDENCIALES.js
 CREDENCIALES.json
 credenciales.*
 secrets.json
+
+# Firebase / Google service accounts (private keys - NUNCA commitear)
+*firebase-adminsdk*.json
+*-adminsdk-*.json
+serviceAccount*.json
+*service-account*.json
+google-services.json

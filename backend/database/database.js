@@ -66,6 +66,81 @@ class Database {
         console.error('Error agregando columna recursos:', err);
       }
     });
+
+    this.db.run(`ALTER TABLE courses ADD COLUMN modalidad_precio VARCHAR(20) DEFAULT 'curso'`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error agregando columna modalidad_precio:', err);
+      }
+    });
+    this.db.run(`ALTER TABLE courses ADD COLUMN drip_habilitado BOOLEAN DEFAULT 0`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error agregando columna drip_habilitado:', err);
+      }
+    });
+    this.db.run(`ALTER TABLE courses ADD COLUMN drip_intervalo_dias INTEGER`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error agregando columna drip_intervalo_dias:', err);
+      }
+    });
+    this.db.run(`ALTER TABLE modules ADD COLUMN precio DECIMAL(10,2) DEFAULT 0`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error agregando columna modules.precio:', err);
+      }
+    });
+    this.db.run(`ALTER TABLE modules ADD COLUMN unlock_at DATETIME`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error agregando columna modules.unlock_at:', err);
+      }
+    });
+    this.db.run(`ALTER TABLE modules ADD COLUMN unlock_days_offset INTEGER`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error agregando columna modules.unlock_days_offset:', err);
+      }
+    });
+    this.db.run(`ALTER TABLE lessons ADD COLUMN precio DECIMAL(10,2) DEFAULT 0`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error agregando columna lessons.precio:', err);
+      }
+    });
+    this.db.run(`ALTER TABLE lessons ADD COLUMN unlock_at DATETIME`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error agregando columna lessons.unlock_at:', err);
+      }
+    });
+    this.db.run(`ALTER TABLE lessons ADD COLUMN unlock_days_offset INTEGER`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error agregando columna lessons.unlock_days_offset:', err);
+      }
+    });
+    this.db.run(`ALTER TABLE payments ADD COLUMN module_id INTEGER`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error agregando columna payments.module_id:', err);
+      }
+    });
+    this.db.run(`ALTER TABLE payments ADD COLUMN lesson_id INTEGER`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error agregando columna payments.lesson_id:', err);
+      }
+    });
+    this.db.run(`ALTER TABLE payments ADD COLUMN target_type VARCHAR(20) DEFAULT 'course'`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) {
+        console.error('Error agregando columna payments.target_type:', err);
+      }
+    });
+    this.db.run(
+      `CREATE TABLE IF NOT EXISTS access_grants (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        course_id INTEGER NOT NULL,
+        module_id INTEGER,
+        lesson_id INTEGER,
+        source_payment_id INTEGER,
+        granted_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      (err) => {
+        if (err) console.error('Error creando access_grants:', err);
+      }
+    );
   }
 
   async createDefaultAdmin() {
@@ -184,10 +259,10 @@ class Database {
   // Métodos para cursos
   async createCourse(courseData) {
     return new Promise((resolve, reject) => {
-      const { nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen } = courseData;
-      const sql = `INSERT INTO courses (nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      const { nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null } = courseData;
+      const sql = `INSERT INTO courses (nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado, drip_intervalo_dias, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
       
-      this.db.run(sql, [nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, true], function(err) {
+      this.db.run(sql, [nombre, descripcion, profesor, profesor_id, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, true], function(err) {
         if (err) {
           reject(err);
         } else {
@@ -241,10 +316,10 @@ class Database {
 
   async updateCourse(id, courseData) {
     return new Promise((resolve, reject) => {
-      const { nombre, descripcion, categoria, precio, duracion } = courseData;
-      const sql = `UPDATE courses SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, duracion = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+      const { nombre, descripcion, categoria, precio, duracion, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null } = courseData;
+      const sql = `UPDATE courses SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, duracion = ?, modalidad_precio = ?, drip_habilitado = ?, drip_intervalo_dias = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
       
-      this.db.run(sql, [nombre, descripcion, categoria, precio, duracion, id], function(err) {
+      this.db.run(sql, [nombre, descripcion, categoria, precio, duracion, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, id], function(err) {
         if (err) {
           reject(err);
         } else {
@@ -375,13 +450,79 @@ class Database {
     });
   }
 
+  async getModuleById(moduleId) {
+    return new Promise((resolve, reject) => {
+      this.db.get(`SELECT * FROM modules WHERE id = ?`, [moduleId], (err, row) => {
+        if (err) reject(err);
+        else resolve(row || null);
+      });
+    });
+  }
+
+  async getLessonById(lessonId) {
+    return new Promise((resolve, reject) => {
+      this.db.get(`SELECT * FROM lessons WHERE id = ?`, [lessonId], (err, row) => {
+        if (err) reject(err);
+        else resolve(row || null);
+      });
+    });
+  }
+
+  async getUserEnrollmentForCourse(userId, courseId) {
+    return new Promise((resolve, reject) => {
+      this.db.get(
+        `SELECT * FROM enrollments WHERE user_id = ? AND course_id = ? ORDER BY enrolled_at DESC LIMIT 1`,
+        [userId, courseId],
+        (err, row) => (err ? reject(err) : resolve(row || null))
+      );
+    });
+  }
+
+  async hasAccessGrant({ userId, courseId, moduleId = null, lessonId = null }) {
+    return new Promise((resolve, reject) => {
+      let sql = `SELECT id FROM access_grants WHERE user_id = ? AND course_id = ?`;
+      const params = [userId, courseId];
+      if (moduleId) {
+        sql += ` AND module_id = ?`;
+        params.push(moduleId);
+      }
+      if (lessonId) {
+        sql += ` AND lesson_id = ?`;
+        params.push(lessonId);
+      }
+      sql += ` LIMIT 1`;
+      this.db.get(sql, params, (err, row) => (err ? reject(err) : resolve(!!row)));
+    });
+  }
+
+  async createAccessGrant({ user_id, course_id, module_id = null, lesson_id = null, source_payment_id = null }) {
+    const exists = await this.hasAccessGrant({
+      userId: user_id,
+      courseId: course_id,
+      moduleId: module_id,
+      lessonId: lesson_id,
+    });
+    if (exists) return { reused: true };
+
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        `INSERT INTO access_grants (user_id, course_id, module_id, lesson_id, source_payment_id) VALUES (?, ?, ?, ?, ?)`,
+        [user_id, course_id, module_id, lesson_id, source_payment_id],
+        function (err) {
+          if (err) reject(err);
+          else resolve({ id: this.lastID });
+        }
+      );
+    });
+  }
+
   // Métodos para pagos
   async createPayment(paymentData) {
     return new Promise((resolve, reject) => {
-      const { user_id, course_id, amount, payment_id, preference_id, status = 'pending' } = paymentData;
-      const sql = `INSERT INTO payments (user_id, course_id, amount, payment_id, preference_id, status) VALUES (?, ?, ?, ?, ?, ?)`;
+      const { user_id, course_id, module_id = null, lesson_id = null, target_type = 'course', amount, payment_id, preference_id, status = 'pending' } = paymentData;
+      const sql = `INSERT INTO payments (user_id, course_id, module_id, lesson_id, target_type, amount, payment_id, preference_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
       
-      this.db.run(sql, [user_id, course_id, amount, payment_id, preference_id, status], function(err) {
+      this.db.run(sql, [user_id, course_id, module_id, lesson_id, target_type, amount, payment_id, preference_id, status], function(err) {
         if (err) {
           reject(err);
         } else {
@@ -465,10 +606,10 @@ class Database {
 
   async createModule(moduleData) {
     return new Promise((resolve, reject) => {
-      const { course_id, titulo, descripcion, orden, publicado } = moduleData;
-      const sql = `INSERT INTO modules (course_id, titulo, descripcion, orden, publicado) VALUES (?, ?, ?, ?, ?)`;
+      const { course_id, titulo, descripcion, orden, precio = 0, unlock_at = null, unlock_days_offset = null, publicado } = moduleData;
+      const sql = `INSERT INTO modules (course_id, titulo, descripcion, orden, precio, unlock_at, unlock_days_offset, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
       
-      this.db.run(sql, [course_id, titulo, descripcion, orden, publicado], function(err) {
+      this.db.run(sql, [course_id, titulo, descripcion, orden, precio, unlock_at, unlock_days_offset, publicado], function(err) {
         if (err) {
           reject(err);
         } else {
@@ -480,10 +621,10 @@ class Database {
 
   async updateModule(moduleId, moduleData) {
     return new Promise((resolve, reject) => {
-      const { titulo, descripcion, orden, publicado } = moduleData;
-      const sql = `UPDATE modules SET titulo = ?, descripcion = ?, orden = ?, publicado = ? WHERE id = ?`;
+      const { titulo, descripcion, orden, precio = 0, unlock_at = null, unlock_days_offset = null, publicado } = moduleData;
+      const sql = `UPDATE modules SET titulo = ?, descripcion = ?, orden = ?, precio = ?, unlock_at = ?, unlock_days_offset = ?, publicado = ? WHERE id = ?`;
       
-      this.db.run(sql, [titulo, descripcion, orden, publicado, moduleId], function(err) {
+      this.db.run(sql, [titulo, descripcion, orden, precio, unlock_at, unlock_days_offset, publicado, moduleId], function(err) {
         if (err) {
           reject(err);
         } else {
@@ -541,10 +682,10 @@ class Database {
 
   async createLesson(lessonData) {
     return new Promise((resolve, reject) => {
-      const { module_id, titulo, contenido, tipo, orden, duracion, recursos, publicado } = lessonData;
-      const sql = `INSERT INTO lessons (module_id, titulo, contenido, tipo, orden, duracion, recursos, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+      const { module_id, titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, publicado } = lessonData;
+      const sql = `INSERT INTO lessons (module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
       
-      this.db.run(sql, [module_id, titulo, contenido, tipo, orden, duracion, recursos, publicado], function(err) {
+      this.db.run(sql, [module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, publicado], function(err) {
         if (err) {
           reject(err);
         } else {
@@ -560,10 +701,10 @@ class Database {
 
   async updateLesson(lessonId, lessonData) {
     return new Promise((resolve, reject) => {
-      const { titulo, contenido, tipo, orden, duracion, recursos, publicado } = lessonData;
-      const sql = `UPDATE lessons SET titulo = ?, contenido = ?, tipo = ?, orden = ?, duracion = ?, recursos = ?, publicado = ? WHERE id = ?`;
+      const { titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, publicado } = lessonData;
+      const sql = `UPDATE lessons SET titulo = ?, contenido = ?, tipo = ?, orden = ?, precio = ?, unlock_at = ?, unlock_days_offset = ?, duracion = ?, recursos = ?, publicado = ? WHERE id = ?`;
       
-      this.db.run(sql, [titulo, contenido, tipo, orden, duracion, recursos, publicado, lessonId], function(err) {
+      this.db.run(sql, [titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, publicado, lessonId], function(err) {
         if (err) {
           reject(err);
         } else {
