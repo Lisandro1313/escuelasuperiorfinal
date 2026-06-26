@@ -173,9 +173,8 @@ const CoursePlayer: React.FC = () => {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
       });
       if (!res.ok) throw new Error();
-      toast?.success?.('¡Clase completada!');
+      toast?.success?.('🎉 ¡Clase completada! Vas sumando.');
       setOpenLesson(null);
-      setLoading(true);
       await load();
     } catch {
       toast?.error?.('No se pudo marcar la clase.');
