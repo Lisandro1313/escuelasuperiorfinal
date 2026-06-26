@@ -91,15 +91,15 @@ function emailLayout(title, body) {
   return `<!DOCTYPE html>
 <html><body style="font-family: -apple-system, system-ui, Segoe UI, Roboto, Arial, sans-serif; background: #f3f4f6; padding: 24px; margin: 0;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="max-width: 560px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-    <tr><td style="background: #2563eb; padding: 24px; text-align: center;">
-      <h1 style="color: white; margin: 0; font-size: 22px;">🎓 Campus Norma</h1>
+    <tr><td style="background: #0f172a; padding: 24px; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 20px;">Escuela Superior de Formación</h1>
     </td></tr>
     <tr><td style="padding: 32px 24px; color: #374151; line-height: 1.6;">
       <h2 style="margin: 0 0 16px 0; font-size: 20px; color: #111827;">${title}</h2>
       ${body}
     </td></tr>
     <tr><td style="background: #f9fafb; padding: 16px 24px; text-align: center; color: #6b7280; font-size: 12px;">
-      Campus Norma · Si no esperabas este email, podés ignorarlo.
+      Escuela Superior de Formación · Si no esperabas este email, podés ignorarlo.
     </td></tr>
   </table>
 </body></html>`;
@@ -158,10 +158,23 @@ async function sendLiveClassEmail({ to, name, courseName, classTitle, scheduledA
   });
 }
 
+// Aviso genérico (nuevo contenido, nuevo curso, etc.). Reutilizable.
+async function sendNotificationEmail({ to, name, subject, heading, message, ctaLabel, ctaUrl }) {
+  const cta = ctaUrl
+    ? `<p style="text-align: center; margin: 28px 0;">
+         <a href="${ctaUrl}" style="background: #2563eb; color: white; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 600; display: inline-block;">${ctaLabel || 'Ver más'}</a>
+       </p>`
+    : '';
+  const html = emailLayout(heading || subject, `<p>Hola ${name || ''},</p><p>${message}</p>${cta}`);
+  const text = `${heading || subject}\n\n${message}\n\n${ctaUrl ? `${ctaLabel || 'Ver'}: ${ctaUrl}` : ''}`;
+  return sendEmail({ to, subject, html, text });
+}
+
 module.exports = {
   sendEmail,
   sendPasswordResetEmail,
   sendEnrollmentEmail,
   sendLiveClassEmail,
+  sendNotificationEmail,
   mode: () => mode,
 };

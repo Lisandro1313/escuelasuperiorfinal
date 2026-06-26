@@ -571,6 +571,28 @@ app.post('/api/courses', authenticateToken, requireProfessor, async (req, res) =
       message: 'Curso creado exitosamente',
       course: newCourse
     });
+
+    // Aviso por email a los alumnos: hay un curso nuevo (no bloquea).
+    (async () => {
+      try {
+        const users = await db.getAllUsers();
+        const alumnos = (users || []).filter((u) => u.tipo === 'alumno' && u.email && u.activo !== 0);
+        const frontUrl = process.env.FRONTEND_URL || '';
+        for (const a of alumnos) {
+          emailService.sendNotificationEmail({
+            to: a.email,
+            name: a.nombre,
+            subject: `Nuevo curso: ${newCourse.nombre}`,
+            heading: '✨ Nuevo curso disponible',
+            message: `Sumamos el curso <strong>${newCourse.nombre}</strong>. Entrá a ver de qué se trata.`,
+            ctaLabel: 'Ver el curso',
+            ctaUrl: `${frontUrl}/course/${newCourse.id}`,
+          }).catch(() => {});
+        }
+      } catch (e) {
+        console.warn('Aviso de nuevo curso falló:', e.message);
+      }
+    })();
   } catch (error) {
     console.error('Error al crear curso:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
@@ -1620,6 +1642,31 @@ app.post('/api/modules/:id/lessons', authenticateToken, requireProfessor, async 
     });
 
     res.status(201).json(lesson);
+
+    // Aviso por email a los inscriptos: hay contenido nuevo (no bloquea).
+    (async () => {
+      try {
+        const mod = await db.getModuleById(Number(moduleId));
+        const course = mod && await db.getCourseById(mod.course_id);
+        if (!course) return;
+        const students = await db.getCourseEnrollments(course.id);
+        const frontUrl = process.env.FRONTEND_URL || '';
+        for (const s of (students || [])) {
+          if (!s.email) continue;
+          emailService.sendNotificationEmail({
+            to: s.email,
+            name: s.nombre,
+            subject: `Nueva clase en ${course.nombre}`,
+            heading: '📚 Hay contenido nuevo',
+            message: `Se agregó la clase <strong>${titulo}</strong> al curso <strong>${course.nombre}</strong>. ¡Entrá a verla!`,
+            ctaLabel: 'Ir al curso',
+            ctaUrl: `${frontUrl}/course/${course.id}/aula`,
+          }).catch(() => {});
+        }
+      } catch (e) {
+        console.warn('Aviso de nueva clase falló:', e.message);
+      }
+    })();
   } catch (error) {
     console.error('Error al crear lección:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
