@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { fetchJSON } from '../../lib/fetchJSON';
+import EducatorQuote from '../Common/EducatorQuote';
 
 interface MyCourse {
   id: number;
@@ -30,11 +32,21 @@ const formatARS = (n: number) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n || 0);
 
 const PLACEHOLDERS = [
-  'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=220&fit=crop',
-  'https://images.unsplash.com/photo-1594736797933-d0501ba2fe65?w=400&h=220&fit=crop',
-  'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=400&h=220&fit=crop',
-  'https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=400&h=220&fit=crop',
-  'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=400&h=220&fit=crop',
+  'https://images.unsplash.com/photo-1513258496099-48168024aec0?w=400&h=220&fit=crop',
+  'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=400&h=220&fit=crop',
+  'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=400&h=220&fit=crop',
+  'https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=400&h=220&fit=crop',
+  'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=400&h=220&fit=crop',
+];
+
+const imgFor = (imagen: string | undefined, idx: number) =>
+  imagen && imagen.startsWith('http') ? imagen : PLACEHOLDERS[idx % PLACEHOLDERS.length];
+
+const motivQuotes = [
+  { text: 'El éxito es la suma de pequeños esfuerzos repetidos día tras día.', author: 'Robert Collier' },
+  { text: 'Aprender nunca agota la mente.', author: 'Leonardo da Vinci' },
+  { text: 'La constancia vence lo que la dicha no alcanza.', author: 'Refrán' },
+  { text: 'Un poco cada día logra mucho con el tiempo.', author: 'Anónimo' },
 ];
 
 export const StudentDashboard: React.FC = () => {
@@ -46,21 +58,33 @@ export const StudentDashboard: React.FC = () => {
   useEffect(() => {
     const token = localStorage.getItem('token');
     Promise.all([
-      fetch('/api/my-courses', { headers: { Authorization: `Bearer ${token}` } }).then((r) => r.json()),
-      fetch('/api/courses').then((r) => r.json()),
+      fetchJSON<MyCourse[]>('/api/my-courses', { headers: { Authorization: `Bearer ${token}` } }).catch(() => []),
+      fetchJSON<CatalogCourse[]>('/api/courses').catch(() => []),
     ])
       .then(([mine, all]) => {
         setMyCourses(Array.isArray(mine) ? mine : []);
         setCatalog(Array.isArray(all) ? all : []);
       })
-      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  const enrolledIds = new Set(myCourses.map((c) => c.id ?? c.course_id));
+  const enrolledIds = useMemo(() => new Set(myCourses.map((c) => c.id ?? c.course_id)), [myCourses]);
   const recommended = catalog.filter((c) => !enrolledIds.has(c.id)).slice(0, 6);
+
+  // Gamificación derivada del progreso real (XP = suma de % de avance).
+  const xp = useMemo(() => Math.round(myCourses.reduce((acc, c) => acc + Number(c.progress || 0), 0)), [myCourses]);
+  const level = Math.floor(xp / 100) + 1;
+  const xpIntoLevel = xp % 100;
   const completedCount = myCourses.filter((c) => Number(c.progress) >= 100).length;
   const inProgressCount = myCourses.filter((c) => Number(c.progress) > 0 && Number(c.progress) < 100).length;
+
+  // "Continuá donde dejaste": el curso en progreso con más avance.
+  const resume = useMemo(() => {
+    const inProg = myCourses
+      .filter((c) => Number(c.progress) > 0 && Number(c.progress) < 100)
+      .sort((a, b) => Number(b.progress) - Number(a.progress));
+    return inProg[0] || myCourses.find((c) => Number(c.progress || 0) === 0) || null;
+  }, [myCourses]);
 
   if (loading) {
     return (
@@ -75,103 +99,127 @@ export const StudentDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-
-      {/* Header con saludo */}
-      <div className="bg-white border-b border-gray-100">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Hero premium con gamificación */}
+      <div className="bg-gradient-to-br from-slate-900 to-blue-900 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div>
-              <h1 className="text-3xl font-extrabold text-gray-900">
+              <h1 className="text-3xl md:text-4xl font-extrabold">
                 Hola, {usuario?.nombre?.split(' ')[0]} 👋
               </h1>
-              <p className="text-gray-500 mt-1">
-                {myCourses.length === 0
-                  ? 'Explorá el catálogo y empezá a aprender'
-                  : `${myCourses.length} curso${myCourses.length > 1 ? 's' : ''} en tu biblioteca`}
+              <p className="text-blue-200 mt-1">
+                {myCourses.length === 0 ? 'Empezá tu camino de aprendizaje' : 'Seguí sumando, vas muy bien'}
               </p>
+              {myCourses.length > 0 && (
+                <div className="mt-5 flex flex-wrap gap-6">
+                  <div>
+                    <p className="text-2xl font-bold">{myCourses.length}</p>
+                    <p className="text-xs text-blue-200">Cursos</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-emerald-300">{inProgressCount}</p>
+                    <p className="text-xs text-blue-200">En progreso</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-emerald-300">{completedCount}</p>
+                    <p className="text-xs text-blue-200">Completados</p>
+                  </div>
+                </div>
+              )}
             </div>
-            <Link
-              to="/courses"
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl transition shadow-sm"
-            >
-              Explorar cursos →
-            </Link>
-          </div>
 
-          {/* Mini stats si tiene cursos */}
-          {myCourses.length > 0 && (
-            <div className="flex gap-6 mt-6 pt-6 border-t border-gray-100">
-              <div>
-                <p className="text-2xl font-bold text-gray-900">{myCourses.length}</p>
-                <p className="text-xs text-gray-500">Inscripto{myCourses.length > 1 ? 's' : ''}</p>
+            {/* Tarjeta de nivel / XP */}
+            <div className="bg-white/10 border border-white/15 rounded-2xl p-5 w-full lg:w-72 backdrop-blur">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-12 h-12 rounded-xl bg-emerald-500 text-slate-900 flex items-center justify-center text-xl font-extrabold">
+                  {level}
+                </div>
+                <div>
+                  <p className="font-bold leading-tight">Nivel {level}</p>
+                  <p className="text-xs text-blue-200">{xp} XP acumulados</p>
+                </div>
               </div>
-              <div className="w-px bg-gray-200" />
-              <div>
-                <p className="text-2xl font-bold text-blue-600">{inProgressCount}</p>
-                <p className="text-xs text-gray-500">En progreso</p>
+              <div className="h-2 rounded-full bg-white/15 overflow-hidden">
+                <div className="h-full bg-emerald-400 transition-all" style={{ width: `${xpIntoLevel}%` }} />
               </div>
-              <div className="w-px bg-gray-200" />
-              <div>
-                <p className="text-2xl font-bold text-green-600">{completedCount}</p>
-                <p className="text-xs text-gray-500">Completado{completedCount !== 1 ? 's' : ''}</p>
-              </div>
+              <p className="text-[11px] text-blue-200 mt-1">{100 - xpIntoLevel} XP para el nivel {level + 1}</p>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-12">
+      {/* Continuá donde dejaste (Coursera-style) */}
+      {resume && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6">
+          <Link
+            to={`/course/${resume.id ?? resume.course_id}/aula`}
+            className="block bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition group"
+          >
+            <div className="flex flex-col sm:flex-row">
+              <div className="sm:w-56 h-36 sm:h-auto overflow-hidden shrink-0">
+                <img src={imgFor(resume.imagen, 0)} alt={resume.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              </div>
+              <div className="p-5 flex-1 flex flex-col justify-center">
+                <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-1">Continuá donde dejaste</p>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">{resume.nombre}</h2>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden max-w-xs">
+                    <div className="h-full bg-blue-500" style={{ width: `${Math.round(Number(resume.progress || 0))}%` }} />
+                  </div>
+                  <span className="text-sm text-gray-500">{Math.round(Number(resume.progress || 0))}%</span>
+                </div>
+                <span className="mt-3 inline-flex items-center gap-1 text-blue-600 font-semibold text-sm group-hover:gap-2 transition-all">
+                  {Number(resume.progress || 0) === 0 ? 'Empezar curso' : 'Continuar'} →
+                </span>
+              </div>
+            </div>
+          </Link>
+        </div>
+      )}
 
-        {/* Mis cursos en progreso */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-12">
+        {/* Frase motivacional */}
+        <div className="bg-gradient-to-r from-slate-800 to-blue-900 text-white rounded-2xl px-6 py-6 text-center">
+          <EducatorQuote quotes={motivQuotes} intervalMs={8000} />
+        </div>
+
+        {/* Mis cursos */}
         {myCourses.length > 0 && (
           <section>
-            <h2 className="text-xl font-bold text-gray-900 mb-5">Continuá donde dejaste</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-5">Mis cursos</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {myCourses.map((c, idx) => {
                 const courseId = c.id ?? c.course_id;
                 const progress = Math.round(Number(c.progress || 0));
-                const img = c.imagen && c.imagen.startsWith('http') ? c.imagen : PLACEHOLDERS[idx % PLACEHOLDERS.length];
                 const isCompleted = progress >= 100;
                 return (
                   <Link
                     key={courseId}
-                    to={`/course/${courseId}/view`}
+                    to={`/course/${courseId}/aula`}
                     className="group bg-white rounded-2xl border border-gray-100 hover:border-blue-200 hover:shadow-xl shadow-sm transition-all duration-300 overflow-hidden flex flex-col"
                   >
                     <div className="relative h-36 overflow-hidden shrink-0">
                       <img
-                        src={img}
+                        src={imgFor(c.imagen, idx)}
                         alt={c.nombre}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDERS[idx % PLACEHOLDERS.length]; }}
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
-                      <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${isCompleted ? 'bg-green-500 text-white' : 'bg-white/90 text-gray-700'}`}>
+                      <div className="absolute bottom-3 left-3 right-3">
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${isCompleted ? 'bg-emerald-500 text-white' : 'bg-white/90 text-gray-700'}`}>
                           {isCompleted ? '✅ Completado' : `${progress}% completado`}
                         </span>
                       </div>
                     </div>
-
-                    {/* Barra de progreso */}
                     <div className="h-1 bg-gray-100">
-                      <div
-                        className={`h-1 transition-all ${isCompleted ? 'bg-green-500' : 'bg-blue-500'}`}
-                        style={{ width: `${progress}%` }}
-                      />
+                      <div className={`h-1 transition-all ${isCompleted ? 'bg-emerald-500' : 'bg-blue-500'}`} style={{ width: `${progress}%` }} />
                     </div>
-
                     <div className="p-4 flex-1 flex flex-col">
-                      <h3 className="font-bold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors mb-1">
-                        {c.nombre}
-                      </h3>
-                      {c.profesor && (
-                        <p className="text-xs text-gray-400 mb-3">por {c.profesor}</p>
-                      )}
+                      <h3 className="font-bold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors mb-1">{c.nombre}</h3>
+                      {c.profesor && <p className="text-xs text-gray-400 mb-3">por {c.profesor}</p>}
                       <div className="mt-auto flex items-center justify-between">
-                        <span className="text-xs text-gray-400">
-                          {progress === 0 ? 'Sin empezar' : isCompleted ? 'Finalizado' : 'En curso'}
-                        </span>
+                        <span className="text-xs text-gray-400">{progress === 0 ? 'Sin empezar' : isCompleted ? 'Finalizado' : 'En curso'}</span>
                         <span className="text-xs text-blue-600 font-semibold group-hover:underline">
                           {progress === 0 ? 'Comenzar →' : isCompleted ? 'Repasar →' : 'Continuar →'}
                         </span>
@@ -184,67 +232,51 @@ export const StudentDashboard: React.FC = () => {
           </section>
         )}
 
-        {/* Estado vacío si no tiene cursos */}
         {myCourses.length === 0 && recommended.length === 0 && (
           <div className="text-center py-20 bg-white rounded-2xl border-2 border-dashed border-gray-200">
-            <div className="text-6xl mb-4">📚</div>
+            <img src="/logo.png" alt="ESF" className="h-16 w-16 mx-auto mb-4 rounded-xl" />
             <h3 className="text-xl font-bold text-gray-800 mb-2">¡Bienvenido a Escuela Superior de Formación!</h3>
-            <p className="text-gray-400 mb-6 max-w-xs mx-auto text-sm">
-              Todavía no hay cursos publicados. Pronto van a aparecer acá.
-            </p>
-            <Link
-              to="/courses"
-              className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition"
-            >
-              Ver catálogo
-            </Link>
+            <p className="text-gray-400 mb-6 max-w-xs mx-auto text-sm">Todavía no hay cursos publicados. Pronto van a aparecer acá.</p>
+            <Link to="/courses" className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-xl transition">Ver catálogo</Link>
           </div>
         )}
 
-        {/* Recomendados / disponibles */}
+        {/* Recomendados */}
         {recommended.length > 0 && (
           <section>
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-xl font-bold text-gray-900">
-                {myCourses.length === 0 ? 'Cursos disponibles' : 'Te puede interesar'}
-              </h2>
-              <Link to="/courses" className="text-sm text-blue-600 hover:underline font-medium">
-                Ver todos →
-              </Link>
+              <h2 className="text-xl font-bold text-gray-900">{myCourses.length === 0 ? 'Cursos disponibles' : 'Te puede interesar'}</h2>
+              <Link to="/courses" className="text-sm text-blue-600 hover:underline font-medium">Ver todos →</Link>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {recommended.map((c, idx) => {
-                const img = c.imagen && c.imagen.startsWith('http') ? c.imagen : PLACEHOLDERS[idx % PLACEHOLDERS.length];
-                return (
-                  <Link
-                    key={c.id}
-                    to={`/course/${c.id}`}
-                    className="group bg-white rounded-2xl border border-gray-100 hover:border-blue-200 hover:shadow-xl shadow-sm transition-all duration-300 overflow-hidden flex flex-col"
-                  >
-                    <div className="relative h-36 overflow-hidden shrink-0">
-                      <img
-                        src={img}
-                        alt={c.nombre}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDERS[idx % PLACEHOLDERS.length]; }}
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+              {recommended.map((c, idx) => (
+                <Link
+                  key={c.id}
+                  to={`/course/${c.id}`}
+                  className="group bg-white rounded-2xl border border-gray-100 hover:border-blue-200 hover:shadow-xl shadow-sm transition-all duration-300 overflow-hidden flex flex-col"
+                >
+                  <div className="relative h-36 overflow-hidden shrink-0">
+                    <img
+                      src={imgFor(c.imagen, idx)}
+                      alt={c.nombre}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDERS[idx % PLACEHOLDERS.length]; }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+                  </div>
+                  <div className="p-4 flex-1 flex flex-col">
+                    <h3 className="font-bold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors mb-1">{c.nombre}</h3>
+                    <p className="text-xs text-gray-400 mb-2">por {c.profesor}</p>
+                    <p className="text-sm text-gray-500 line-clamp-2 flex-1 mb-3">{c.descripcion}</p>
+                    <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-100">
+                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{c.categoria}</span>
+                      <span className={`font-bold text-sm ${Number(c.precio) === 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
+                        {Number(c.precio) === 0 ? 'Gratis' : formatARS(Number(c.precio))}
+                      </span>
                     </div>
-                    <div className="p-4 flex-1 flex flex-col">
-                      <h3 className="font-bold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors mb-1">{c.nombre}</h3>
-                      <p className="text-xs text-gray-400 mb-2">por {c.profesor}</p>
-                      <p className="text-sm text-gray-500 line-clamp-2 flex-1 mb-3">{c.descripcion}</p>
-                      <div className="flex items-center justify-between mt-auto pt-3 border-t border-gray-100">
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{c.categoria}</span>
-                        <span className={`font-bold text-sm ${Number(c.precio) === 0 ? 'text-green-600' : 'text-gray-900'}`}>
-                          {Number(c.precio) === 0 ? 'Gratis' : formatARS(Number(c.precio))}
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
+                  </div>
+                </Link>
+              ))}
             </div>
           </section>
         )}
