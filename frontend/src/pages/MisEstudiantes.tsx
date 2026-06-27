@@ -22,6 +22,7 @@ const MisEstudiantes: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filterCourse, setFilterCourse] = useState<string>('all');
   const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<{ id: number; name: string } | null>(null);
 
   useEffect(() => {
     fetch('/api/professor/my-students', {
@@ -117,9 +118,9 @@ const MisEstudiantes: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filtered.map((r) => (
-                    <tr key={r.enrollment_id + '-' + r.course_id} className="hover:bg-gray-50">
+                    <tr key={r.enrollment_id + '-' + r.course_id} onClick={() => setSelected({ id: r.student_id, name: r.student_name })} className="hover:bg-blue-50 cursor-pointer">
                       <td className="px-4 py-3">
-                        <div className="font-medium text-gray-900">{r.student_name}</div>
+                        <div className="font-medium text-gray-900">{r.student_name} <span className="text-blue-500 text-xs">· ver ficha</span></div>
                         <div className="text-gray-500 text-xs">{r.student_email}</div>
                       </td>
                       <td className="px-4 py-3 text-gray-700">{r.course_name}</td>
@@ -146,6 +147,104 @@ const MisEstudiantes: React.FC = () => {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      </div>
+
+      {selected && <StudentDetailModal studentId={selected.id} name={selected.name} onClose={() => setSelected(null)} />}
+    </div>
+  );
+};
+
+interface Detail {
+  student: { nombre: string; email: string; avatar: string | null; created_at: string };
+  courses: { id: number; nombre: string; progress: number; done: number; total: number; enrolled_at: string }[];
+  activity: { action_type: string; action_description: string; created_at: string }[];
+  lastLogin: string | null;
+}
+
+const fechaHora = (iso?: string | null) => {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch { return '—'; }
+};
+
+const StudentDetailModal: React.FC<{ studentId: number; name: string; onClose: () => void }> = ({ studentId, name, onClose }) => {
+  const [data, setData] = useState<Detail | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(`/api/professor/students/${studentId}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then(setData)
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [studentId]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-gradient-to-r from-slate-900 to-blue-900 text-white p-5 rounded-t-2xl flex items-center justify-between sticky top-0">
+          <div className="flex items-center gap-3 min-w-0">
+            {data?.student.avatar
+              ? <img src={data.student.avatar.startsWith('http') ? data.student.avatar : data.student.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+              : <span className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center font-bold">{name[0]?.toUpperCase()}</span>}
+            <div className="min-w-0">
+              <h3 className="text-lg font-bold truncate">{data?.student.nombre || name}</h3>
+              <p className="text-blue-200 text-xs truncate">{data?.student.email}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="bg-white/15 hover:bg-white/25 rounded-lg w-8 h-8 shrink-0">✕</button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {loading ? <p className="text-center text-gray-500 py-8">Cargando…</p> : !data ? <p className="text-center text-gray-500 py-8">No se pudo cargar.</p> : (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-400">Último ingreso</p>
+                  <p className="font-semibold text-gray-900 text-sm">{fechaHora(data.lastLogin)}</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-3">
+                  <p className="text-xs text-gray-400">Se registró</p>
+                  <p className="font-semibold text-gray-900 text-sm">{fechaHora(data.student.created_at)}</p>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-bold text-gray-900 mb-2">📚 Sus cursos</h4>
+                {data.courses.length === 0 ? <p className="text-sm text-gray-400">No está inscripto en tus cursos.</p> : (
+                  <div className="space-y-2">
+                    {data.courses.map((c) => (
+                      <div key={c.id} className="border border-gray-100 rounded-xl p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="font-medium text-gray-900 text-sm truncate">{c.nombre}</p>
+                          <span className="text-xs font-semibold text-blue-600 shrink-0">{c.progress}%</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full mt-1.5 overflow-hidden">
+                          <div className="h-full bg-blue-500" style={{ width: `${c.progress}%` }} />
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">{c.done}/{c.total} clases · inscripto {fechaHora(c.enrolled_at)}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <h4 className="font-bold text-gray-900 mb-2">🕑 Actividad reciente</h4>
+                {data.activity.length === 0 ? <p className="text-sm text-gray-400">Sin actividad registrada.</p> : (
+                  <ul className="space-y-1.5">
+                    {data.activity.map((a, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm">
+                        <span className="text-gray-300 mt-0.5">•</span>
+                        <span className="text-gray-700 flex-1">{a.action_description}</span>
+                        <span className="text-gray-400 text-xs whitespace-nowrap">{fechaHora(a.created_at)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
           )}
         </div>
       </div>
