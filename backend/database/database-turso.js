@@ -140,6 +140,7 @@ class TursoDatabase {
       `ALTER TABLE lessons ADD COLUMN unlock_at DATETIME`,
       `ALTER TABLE lessons ADD COLUMN unlock_days_offset INTEGER`,
       `ALTER TABLE lessons ADD COLUMN objetivos TEXT`,
+      `ALTER TABLE lessons ADD COLUMN portada TEXT`,
       `ALTER TABLE payments ADD COLUMN module_id INTEGER`,
       `ALTER TABLE payments ADD COLUMN lesson_id INTEGER`,
       `ALTER TABLE payments ADD COLUMN target_type VARCHAR(20) DEFAULT 'course'`,
@@ -897,6 +898,11 @@ class TursoDatabase {
       [userId, courseId]
     );
     return !!r.rows[0];
+  }
+
+  // Registra que un usuario entró a una clase en vivo (para contar asistentes).
+  async recordLiveAttendance(eventId, userId) {
+    try { await this._query('INSERT OR IGNORE INTO live_attendance (event_id, user_id) VALUES (?, ?)', [eventId, userId]); } catch (_) { /* ignore */ }
   }
 
   async createAccessGrant({ user_id, course_id, module_id = null, lesson_id = null, event_id = null, source_payment_id = null }) {

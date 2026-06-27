@@ -122,6 +122,9 @@ class Database {
     this.db.run(`ALTER TABLE lessons ADD COLUMN objetivos TEXT`, (err) => {
       if (err && !err.message.includes('duplicate column name')) console.error('Error lessons.objetivos:', err);
     });
+    this.db.run(`ALTER TABLE lessons ADD COLUMN portada TEXT`, (err) => {
+      if (err && !err.message.includes('duplicate column name')) console.error('Error lessons.portada:', err);
+    });
     this.db.run(`ALTER TABLE lessons ADD COLUMN unlock_days_offset INTEGER`, (err) => {
       if (err && !err.message.includes('duplicate column name')) {
         console.error('Error agregando columna lessons.unlock_days_offset:', err);
@@ -531,6 +534,13 @@ class Database {
       this.db.get(
         `SELECT id FROM access_grants WHERE user_id = ? AND course_id = ? AND module_id IS NULL AND lesson_id IS NULL AND event_id IS NULL LIMIT 1`,
         [userId, courseId], (err, row) => (err ? reject(err) : resolve(!!row)));
+    });
+  }
+
+  // Registra que un usuario entró a una clase en vivo (para contar asistentes).
+  recordLiveAttendance(eventId, userId) {
+    return new Promise((resolve) => {
+      this.db.run('INSERT OR IGNORE INTO live_attendance (event_id, user_id) VALUES (?, ?)', [eventId, userId], () => resolve());
     });
   }
 

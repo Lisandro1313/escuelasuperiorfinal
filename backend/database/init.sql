@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS lessons (
     duracion INTEGER DEFAULT 0,
     recursos TEXT,
     objetivos TEXT,
+    portada TEXT,
     publicado BOOLEAN DEFAULT false,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (module_id) REFERENCES modules(id)
@@ -327,6 +328,15 @@ CREATE TABLE IF NOT EXISTS forum_votes (
 CREATE INDEX IF NOT EXISTS idx_forum_threads_course ON forum_threads(course_id);
 CREATE INDEX IF NOT EXISTS idx_forum_replies_thread ON forum_replies(thread_id);
 CREATE INDEX IF NOT EXISTS idx_forum_votes ON forum_votes(votable_type, votable_id);
+
+-- Asistencia real a clases en vivo (quién entró efectivamente).
+CREATE TABLE IF NOT EXISTS live_attendance (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(event_id, user_id)
+);
 
 -- ================================
 -- TABLAS DE GAMIFICACIÓN

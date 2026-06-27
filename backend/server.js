@@ -1201,6 +1201,8 @@ app.get('/api/live/:eventId/join', authenticateToken, async (req, res) => {
     if (!event || event.type !== 'live_class') return res.status(404).json({ error: 'Clase no encontrada' });
     const allowed = await hasLiveAccess(req.user.userId, req.user.tipo, event);
     if (!allowed) return res.status(402).json({ error: 'Necesitás reservar/pagar esta clase para entrar' });
+    // Registrar asistencia (solo alumnos cuentan como asistentes).
+    if (req.user.tipo === 'alumno') await db.recordLiveAttendance(event.id, req.user.userId);
     res.json({ meeting_url: liveUrl(event), title: event.title });
   } catch (error) {
     console.error('Error al entrar a la clase en vivo:', error);
@@ -2876,21 +2878,41 @@ app.get('/api/analytics', authenticateToken, async (req, res) => {
       scopeParams
     );
 
-    const coursePerformance = await sqlAll(
-      `SELECT c.id, c.nombre,
-              COUNT(DISTINCT e.user_id) as students,
-              COUNT(DISTINCT lp.user_id) as usersWithProgress
+    // Rendimiento por curso. El progreso real vive en lesson_progress (no en
+    // enrollments.progress, que queda desactualizado), así que se calcula desde ahí.
+    const coursePerfRaw = await sqlAll(
+      `SELECT c.id, c.nombre, c.precio,
+         (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id) as anotados,
+         (SELECT COUNT(DISTINCT p.user_id) FROM payments p WHERE p.course_id = c.id AND p.status = 'approved') as pagaron,
+         (SELECT COUNT(*) FROM lessons l JOIN modules m ON m.id = l.module_id WHERE m.course_id = c.id AND l.publicado = 1) as totalLessons,
+         (SELECT COUNT(*) FROM lesson_progress lp JOIN lessons l ON l.id = lp.lesson_id JOIN modules m ON m.id = l.module_id
+           WHERE m.course_id = c.id AND l.publicado = 1 AND lp.completed = 1
+             AND lp.user_id IN (SELECT user_id FROM enrollments WHERE course_id = c.id)) as completedSum,
+         (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id
+            AND (SELECT COUNT(*) FROM lesson_progress lp JOIN lessons l ON l.id = lp.lesson_id JOIN modules m ON m.id = l.module_id
+                 WHERE m.course_id = c.id AND l.publicado = 1 AND lp.completed = 1 AND lp.user_id = e.user_id)
+              >= (SELECT COUNT(*) FROM lessons l2 JOIN modules m2 ON m2.id = l2.module_id WHERE m2.course_id = c.id AND l2.publicado = 1)
+         ) as completaronRaw
        FROM courses c
-       LEFT JOIN enrollments e ON e.course_id = c.id
-       LEFT JOIN modules m ON m.course_id = c.id
-       LEFT JOIN lessons l ON l.module_id = m.id
-       LEFT JOIN lesson_progress lp ON lp.lesson_id = l.id AND lp.completed = 1
        ${scopeCourseWhere}
-       GROUP BY c.id, c.nombre
-       ORDER BY students DESC
+       ORDER BY anotados DESC
        LIMIT 20`,
       scopeParams
     );
+    const coursePerformance = coursePerfRaw.map((x) => {
+      const total = Number(x.totalLessons || 0);
+      const anotados = Number(x.anotados || 0);
+      const avancePromedio = total > 0 && anotados > 0 ? Math.round((Number(x.completedSum || 0) / (anotados * total)) * 100) : 0;
+      return {
+        id: x.id,
+        nombre: x.nombre,
+        anotados,
+        pagaron: Number(x.pagaron || 0),
+        totalLessons: total,
+        completaron: total > 0 ? Number(x.completaronRaw || 0) : 0,
+        avancePromedio,
+      };
+    });
 
     const revenueData = await sqlAll(
       `SELECT substr(COALESCE(p.date_created, p.date_approved),1,7) as month, SUM(p.amount) as revenue
@@ -2925,11 +2947,12 @@ app.get('/api/analytics', authenticateToken, async (req, res) => {
       scopeParams
     );
 
-    // Clases en vivo: anotados (reservaron, incluye gratis) vs pagaron + recaudado.
+    // Clases en vivo: anotados (reservaron) vs pagaron vs asistieron (entraron) + recaudado.
     const liveClasses = await sqlAll(
       `SELECT ev.id, ev.title, ev.start_date, ev.precio,
          (SELECT COUNT(*) FROM access_grants ag WHERE ag.event_id = ev.id) as anotados,
          (SELECT COUNT(*) FROM payments p WHERE p.event_id = ev.id AND p.status = 'approved') as pagaron,
+         (SELECT COUNT(*) FROM live_attendance la WHERE la.event_id = ev.id) as asistieron,
          (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.event_id = ev.id AND p.status = 'approved') as recaudado
        FROM events ev
        JOIN courses c ON c.id = ev.course_id
