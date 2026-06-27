@@ -52,20 +52,25 @@ app.use(compression());
 // Rate limiting - protección contra ataques
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // 1000 requests en desarrollo
+  max: process.env.NODE_ENV === 'production' ? 600 : 5000,
   message: 'Demasiadas solicitudes desde esta IP, por favor intente más tarde.',
   standardHeaders: true,
   legacyHeaders: false,
+  // El health check de Render (y de cualquier monitor) NUNCA se limita.
+  skip: (req) => (req.originalUrl || '').startsWith('/api/health'),
 });
 
 // Aplicar rate limiting a todas las rutas API
 app.use('/api/', limiter);
 
-// Rate limiting más estricto para login/register
+// Rate limiting más estricto para login/register (no tan bajo: detrás del
+// proxy varios usuarios comparten "IP" y se bloquearian entre si).
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 5 : 50, // 50 intentos en desarrollo
+  max: process.env.NODE_ENV === 'production' ? 30 : 100,
   message: 'Demasiados intentos de acceso, por favor intente más tarde.',
+  standardHeaders: true,
+  legacyHeaders: false,
 });
 
 // Middleware de seguridad
