@@ -1046,6 +1046,98 @@ app.post('/api/courses/:id/forum/thread/:threadId/pin', authenticateToken, requi
   } catch (e) { console.error('foro fijar:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
 });
 
+// ===== Tareas / entregas =====
+const parseFiles = (f) => { try { const v = JSON.parse(f || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } };
+
+// Listar tareas del curso. El alumno recibe además el estado de SU entrega.
+app.get('/api/courses/:id/assignments', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    const list = await db.getAssignmentsByCourse(Number(req.params.id));
+    const out = [];
+    for (const a of list) {
+      const sub = await db.getSubmission(a.id, req.user.userId);
+      out.push({ ...a, mySubmission: sub ? { status: sub.status, grade: sub.grade } : null });
+    }
+    res.json(out);
+  } catch (e) { console.error('tareas listar:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
+});
+
+// Crear tarea (docente).
+app.post('/api/courses/:id/assignments', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    if (!puedeModerarForo(req)) return res.status(403).json({ error: 'Solo el docente puede crear tareas' });
+    const title = (req.body?.title || '').trim();
+    if (title.length < 3) return res.status(400).json({ error: 'Poné un título un poco más largo.' });
+    const a = await db.createAssignment({
+      course_id: Number(req.params.id),
+      instructor_id: req.user.userId,
+      title,
+      description: (req.body?.description || '').trim(),
+      attachment_url: req.body?.attachment_url || null,
+      due_date: req.body?.due_date || null,
+    });
+    res.status(201).json({ id: a.id });
+  } catch (e) { console.error('tarea crear:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
+});
+
+// Borrar tarea (docente).
+app.delete('/api/courses/:id/assignments/:assignmentId', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    if (!puedeModerarForo(req)) return res.status(403).json({ error: 'No tenés permiso' });
+    const a = await db.getAssignmentById(Number(req.params.assignmentId));
+    if (!a || Number(a.course_id) !== Number(req.params.id)) return res.status(404).json({ error: 'Tarea no encontrada' });
+    await db.deleteAssignment(a.id);
+    res.json({ message: 'Tarea eliminada' });
+  } catch (e) { console.error('tarea borrar:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
+});
+
+// El alumno entrega (archivos + comentario). Puede re-entregar (resetea la corrección).
+app.post('/api/courses/:id/assignments/:assignmentId/submit', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    const a = await db.getAssignmentById(Number(req.params.assignmentId));
+    if (!a || Number(a.course_id) !== Number(req.params.id)) return res.status(404).json({ error: 'Tarea no encontrada' });
+    const files = Array.isArray(req.body?.files) ? req.body.files.filter((u) => typeof u === 'string') : [];
+    const comment = (req.body?.comment || '').trim();
+    if (files.length === 0 && !comment) return res.status(400).json({ error: 'Subí al menos un archivo o escribí un comentario.' });
+    await db.upsertSubmission({ assignment_id: a.id, user_id: req.user.userId, files: JSON.stringify(files), comment });
+    res.json({ message: 'Entrega enviada' });
+  } catch (e) { console.error('tarea entregar:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
+});
+
+// El alumno ve su propia entrega (con la corrección si ya la tiene).
+app.get('/api/courses/:id/assignments/:assignmentId/submission', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    const a = await db.getAssignmentById(Number(req.params.assignmentId));
+    if (!a || Number(a.course_id) !== Number(req.params.id)) return res.status(404).json({ error: 'Tarea no encontrada' });
+    const sub = await db.getSubmission(a.id, req.user.userId);
+    res.json({ assignment: a, submission: sub ? { ...sub, files: parseFiles(sub.files) } : null });
+  } catch (e) { console.error('tarea mi entrega:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
+});
+
+// El docente ve todas las entregas de una tarea.
+app.get('/api/courses/:id/assignments/:assignmentId/submissions', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    if (!puedeModerarForo(req)) return res.status(403).json({ error: 'No tenés permiso' });
+    const a = await db.getAssignmentById(Number(req.params.assignmentId));
+    if (!a || Number(a.course_id) !== Number(req.params.id)) return res.status(404).json({ error: 'Tarea no encontrada' });
+    const subs = await db.getSubmissionsForAssignment(a.id);
+    res.json({ assignment: a, submissions: subs.map((s) => ({ ...s, files: parseFiles(s.files) })) });
+  } catch (e) { console.error('tarea entregas:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
+});
+
+// El docente corrige (nota + devolución).
+app.post('/api/courses/:id/assignments/submission/:submissionId/grade', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    if (!puedeModerarForo(req)) return res.status(403).json({ error: 'No tenés permiso' });
+    const sub = await db.getSubmissionById(Number(req.params.submissionId));
+    if (!sub) return res.status(404).json({ error: 'Entrega no encontrada' });
+    const a = await db.getAssignmentById(sub.assignment_id);
+    if (!a || Number(a.course_id) !== Number(req.params.id)) return res.status(404).json({ error: 'Entrega no encontrada' });
+    await db.gradeSubmission(sub.id, (req.body?.grade || '').trim() || null, (req.body?.feedback || '').trim() || null);
+    res.json({ message: 'Corrección guardada' });
+  } catch (e) { console.error('tarea corregir:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
+});
+
 // Certificado del curso: elegible si el profe lo habilitó y el alumno completó todo.
 app.get('/api/courses/:id/certificate', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
   try {

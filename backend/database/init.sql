@@ -338,6 +338,32 @@ CREATE TABLE IF NOT EXISTS live_attendance (
   UNIQUE(event_id, user_id)
 );
 
+-- Tareas / entregas: el profe pide algo, el alumno entrega archivos y el profe corrige.
+CREATE TABLE IF NOT EXISTS assignments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id INTEGER NOT NULL,
+  instructor_id INTEGER,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  attachment_url TEXT,
+  due_date DATETIME,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  assignment_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL,
+  files TEXT,
+  comment TEXT,
+  grade VARCHAR(40),
+  feedback TEXT,
+  status VARCHAR(20) DEFAULT 'entregado',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  graded_at DATETIME,
+  UNIQUE(assignment_id, user_id)
+);
+
 -- ================================
 -- TABLAS DE GAMIFICACIÓN
 -- ================================

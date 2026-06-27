@@ -905,6 +905,57 @@ class TursoDatabase {
     try { await this._query('INSERT OR IGNORE INTO live_attendance (event_id, user_id) VALUES (?, ?)', [eventId, userId]); } catch (_) { /* ignore */ }
   }
 
+  // ===== Tareas / entregas =====
+  async createAssignment({ course_id, instructor_id, title, description, attachment_url = null, due_date = null }) {
+    const r = await this._query('INSERT INTO assignments (course_id, instructor_id, title, description, attachment_url, due_date) VALUES (?,?,?,?,?,?)',
+      [course_id, instructor_id, title, description, attachment_url, due_date]);
+    return { id: Number(r.lastInsertRowid) };
+  }
+  async getAssignmentsByCourse(courseId) {
+    const r = await this._query(
+      `SELECT a.*, (SELECT COUNT(*) FROM assignment_submissions s WHERE s.assignment_id = a.id) as entregas
+       FROM assignments a WHERE a.course_id = ? ORDER BY a.created_at DESC`, [courseId]);
+    return r.rows;
+  }
+  async getAssignmentById(id) {
+    const r = await this._query('SELECT * FROM assignments WHERE id = ?', [id]);
+    return r.rows[0] || null;
+  }
+  async deleteAssignment(id) {
+    try { await this._query('DELETE FROM assignment_submissions WHERE assignment_id = ?', [id]); } catch (_) { /* ignore */ }
+    await this._query('DELETE FROM assignments WHERE id = ?', [id]);
+    return { deleted: true };
+  }
+  async upsertSubmission({ assignment_id, user_id, files, comment }) {
+    await this._query(
+      `INSERT INTO assignment_submissions (assignment_id, user_id, files, comment, status, created_at)
+       VALUES (?, ?, ?, ?, 'entregado', CURRENT_TIMESTAMP)
+       ON CONFLICT(assignment_id, user_id) DO UPDATE SET files = excluded.files, comment = excluded.comment,
+         status = 'entregado', grade = NULL, feedback = NULL, graded_at = NULL, created_at = CURRENT_TIMESTAMP`,
+      [assignment_id, user_id, files, comment]);
+    return { ok: true };
+  }
+  async getSubmission(assignmentId, userId) {
+    const r = await this._query('SELECT * FROM assignment_submissions WHERE assignment_id = ? AND user_id = ?', [assignmentId, userId]);
+    return r.rows[0] || null;
+  }
+  async getSubmissionById(id) {
+    const r = await this._query('SELECT * FROM assignment_submissions WHERE id = ?', [id]);
+    return r.rows[0] || null;
+  }
+  async getSubmissionsForAssignment(assignmentId) {
+    const r = await this._query(
+      `SELECT s.*, u.nombre as user_name, u.email as user_email
+       FROM assignment_submissions s JOIN users u ON u.id = s.user_id
+       WHERE s.assignment_id = ? ORDER BY s.created_at DESC`, [assignmentId]);
+    return r.rows;
+  }
+  async gradeSubmission(id, grade, feedback) {
+    await this._query("UPDATE assignment_submissions SET grade = ?, feedback = ?, status = 'corregido', graded_at = CURRENT_TIMESTAMP WHERE id = ?",
+      [grade, feedback, id]);
+    return { ok: true };
+  }
+
   async createAccessGrant({ user_id, course_id, module_id = null, lesson_id = null, event_id = null, source_payment_id = null }) {
     const exists = await this.hasAccessGrant({ userId: user_id, courseId: course_id, moduleId: module_id, lessonId: lesson_id, eventId: event_id });
     if (exists) return { reused: true };

@@ -544,6 +544,69 @@ class Database {
     });
   }
 
+  // ===== Tareas / entregas =====
+  createAssignment({ course_id, instructor_id, title, description, attachment_url = null, due_date = null }) {
+    return new Promise((resolve, reject) => {
+      this.db.run('INSERT INTO assignments (course_id, instructor_id, title, description, attachment_url, due_date) VALUES (?,?,?,?,?,?)',
+        [course_id, instructor_id, title, description, attachment_url, due_date],
+        function (err) { return err ? reject(err) : resolve({ id: this.lastID }); });
+    });
+  }
+  getAssignmentsByCourse(courseId) {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        `SELECT a.*, (SELECT COUNT(*) FROM assignment_submissions s WHERE s.assignment_id = a.id) as entregas
+         FROM assignments a WHERE a.course_id = ? ORDER BY a.created_at DESC`,
+        [courseId], (err, rows) => (err ? reject(err) : resolve(rows || [])));
+    });
+  }
+  getAssignmentById(id) {
+    return new Promise((resolve, reject) => {
+      this.db.get('SELECT * FROM assignments WHERE id = ?', [id], (err, row) => (err ? reject(err) : resolve(row || null)));
+    });
+  }
+  deleteAssignment(id) {
+    const tryRun = (sql) => new Promise((res) => this.db.run(sql, [id], () => res()));
+    return tryRun('DELETE FROM assignment_submissions WHERE assignment_id = ?')
+      .then(() => new Promise((resolve, reject) => this.db.run('DELETE FROM assignments WHERE id = ?', [id], (err) => (err ? reject(err) : resolve({ deleted: true })))));
+  }
+  upsertSubmission({ assignment_id, user_id, files, comment }) {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        `INSERT INTO assignment_submissions (assignment_id, user_id, files, comment, status, created_at)
+         VALUES (?, ?, ?, ?, 'entregado', CURRENT_TIMESTAMP)
+         ON CONFLICT(assignment_id, user_id) DO UPDATE SET files = excluded.files, comment = excluded.comment,
+           status = 'entregado', grade = NULL, feedback = NULL, graded_at = NULL, created_at = CURRENT_TIMESTAMP`,
+        [assignment_id, user_id, files, comment], (err) => (err ? reject(err) : resolve({ ok: true })));
+    });
+  }
+  getSubmission(assignmentId, userId) {
+    return new Promise((resolve, reject) => {
+      this.db.get('SELECT * FROM assignment_submissions WHERE assignment_id = ? AND user_id = ?', [assignmentId, userId],
+        (err, row) => (err ? reject(err) : resolve(row || null)));
+    });
+  }
+  getSubmissionById(id) {
+    return new Promise((resolve, reject) => {
+      this.db.get('SELECT * FROM assignment_submissions WHERE id = ?', [id], (err, row) => (err ? reject(err) : resolve(row || null)));
+    });
+  }
+  getSubmissionsForAssignment(assignmentId) {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        `SELECT s.*, u.nombre as user_name, u.email as user_email
+         FROM assignment_submissions s JOIN users u ON u.id = s.user_id
+         WHERE s.assignment_id = ? ORDER BY s.created_at DESC`,
+        [assignmentId], (err, rows) => (err ? reject(err) : resolve(rows || [])));
+    });
+  }
+  gradeSubmission(id, grade, feedback) {
+    return new Promise((resolve, reject) => {
+      this.db.run("UPDATE assignment_submissions SET grade = ?, feedback = ?, status = 'corregido', graded_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [grade, feedback, id], (err) => (err ? reject(err) : resolve({ ok: true })));
+    });
+  }
+
   async createAccessGrant({ user_id, course_id, module_id = null, lesson_id = null, event_id = null, source_payment_id = null }) {
     const exists = await this.hasAccessGrant({
       userId: user_id,
