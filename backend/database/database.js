@@ -355,16 +355,18 @@ class Database {
   }
 
   async deleteCourse(id) {
+    // Borramos dependientes primero (FK). Cada paso tolera errores por tabla.
+    const tryRun = (sql) => new Promise((res) => this.db.run(sql, [id], () => res()));
+    await tryRun(`DELETE FROM lesson_progress WHERE lesson_id IN (SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ?)`);
+    await tryRun(`DELETE FROM lessons WHERE module_id IN (SELECT id FROM modules WHERE course_id = ?)`);
+    await tryRun(`DELETE FROM modules WHERE course_id = ?`);
+    await tryRun(`DELETE FROM enrollments WHERE course_id = ?`);
+    await tryRun(`DELETE FROM access_grants WHERE course_id = ?`);
+    await tryRun(`DELETE FROM payments WHERE course_id = ?`);
+    await tryRun(`DELETE FROM course_messages WHERE course_id = ?`);
+    await tryRun(`DELETE FROM events WHERE course_id = ?`);
     return new Promise((resolve, reject) => {
-      const sql = `DELETE FROM courses WHERE id = ?`;
-      
-      this.db.run(sql, [id], function(err) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve({ deleted: true });
-        }
-      });
+      this.db.run(`DELETE FROM courses WHERE id = ?`, [id], (err) => (err ? reject(err) : resolve({ deleted: true })));
     });
   }
 

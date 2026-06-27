@@ -278,6 +278,16 @@ class TursoDatabase {
   }
 
   async deleteCourse(id) {
+    // Borramos dependientes primero (Turso enforced FK). Tolera errores por tabla.
+    const tryRun = async (sql) => { try { await this._query(sql, [id]); } catch (_) { /* tabla ausente o sin filas */ } };
+    await tryRun('DELETE FROM lesson_progress WHERE lesson_id IN (SELECT l.id FROM lessons l JOIN modules m ON l.module_id = m.id WHERE m.course_id = ?)');
+    await tryRun('DELETE FROM lessons WHERE module_id IN (SELECT id FROM modules WHERE course_id = ?)');
+    await tryRun('DELETE FROM modules WHERE course_id = ?');
+    await tryRun('DELETE FROM enrollments WHERE course_id = ?');
+    await tryRun('DELETE FROM access_grants WHERE course_id = ?');
+    await tryRun('DELETE FROM payments WHERE course_id = ?');
+    await tryRun('DELETE FROM course_messages WHERE course_id = ?');
+    await tryRun('DELETE FROM events WHERE course_id = ?');
     await this._query('DELETE FROM courses WHERE id = ?', [id]);
     return { deleted: true };
   }
