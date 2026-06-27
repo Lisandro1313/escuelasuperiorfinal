@@ -943,6 +943,57 @@ app.post('/api/courses/:id/live-class', authenticateToken, requireProfessor, asy
   }
 });
 
+// Programar una clase en vivo SUELTA (charla) sin curso, desde el panel general.
+// Visible para todos los alumnos. Igual que la de curso: URL propia (YouTube/Zoom) o Jitsi.
+app.post('/api/live-class', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const { title, scheduled_at, duration_minutes = 60, meeting_url, precio = 0, cover_url } = req.body;
+    if (!title || !scheduled_at) return res.status(400).json({ error: 'Poné título y fecha/hora.' });
+    const slug = `ESF-charla-${Date.now().toString(36)}`;
+    const meetingUrl = (meeting_url && /^https?:\/\//.test(meeting_url)) ? meeting_url.trim() : `https://meet.jit.si/${slug}`;
+    const startDate = new Date(scheduled_at).toISOString();
+    const endDate = new Date(new Date(scheduled_at).getTime() + duration_minutes * 60 * 1000).toISOString();
+
+    const eventId = await db.createEvent({
+      title,
+      description: meetingUrl,
+      startDate,
+      endDate,
+      type: 'live_class',
+      courseId: null, // suelta: no pertenece a ningún curso
+      instructorId: req.user.userId,
+      precio: Number(precio || 0),
+      meetingUrl,
+      coverUrl: cover_url || null,
+    });
+
+    // Avisar in-app a todos los alumnos (la charla es abierta).
+    try {
+      const Notification = require('./src/models/Notification');
+      const notifModel = new Notification(db);
+      const alumnos = (await db.getAllUsers() || []).filter((u) => u.tipo === 'alumno');
+      for (const a of alumnos) {
+        try {
+          await notifModel.create({
+            user_id: a.id,
+            type: 'clase_vivo', tipo: 'clase_vivo',
+            title: '🔴 Nueva charla en vivo', titulo: '🔴 Nueva charla en vivo',
+            message: `"${title}" · ${new Date(startDate).toLocaleString('es-AR')}`,
+            mensaje: `"${title}"`,
+            related_type: 'event', related_id: eventId,
+            action_url: `/live/${eventId}`,
+          });
+        } catch (_) { /* una notif no bloquea */ }
+      }
+    } catch (e) { console.warn('No se pudo notificar la charla:', e.message); }
+
+    res.status(201).json({ id: eventId, title, meeting_url: meetingUrl, start_date: startDate, end_date: endDate, course_id: null });
+  } catch (error) {
+    console.error('Error programando charla en vivo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // Listar clases en vivo de un curso (para profe Y alumno inscripto)
 app.get('/api/courses/:id/live-classes', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
   try {
@@ -1342,12 +1393,15 @@ app.post('/api/courses/:id/enroll', authenticateToken, async (req, res) => {
     // Crear notificación para el profesor
     if (course.profesor_id) {
       try {
+        // El token no trae el nombre: lo buscamos para no mostrar "undefined".
+        const student = await db.getUserById(userId);
+        const studentName = student?.nombre || 'Un nuevo alumno';
         const Notification = require('./src/models/Notification');
         const notificationModel = new Notification(db);
         await notificationModel.create({
           user_id: course.profesor_id,
           title: '🎓 Nuevo estudiante inscrito',
-          message: `${req.user.nombre} se ha inscrito en tu curso "${course.nombre}"`,
+          message: `${studentName} se inscribió en tu curso "${course.nombre}"`,
           type: 'inscripcion',
           tipo: 'inscripcion', // Agregar para compatibilidad
           related_type: 'course',
@@ -1362,7 +1416,7 @@ app.post('/api/courses/:id/enroll', authenticateToken, async (req, res) => {
             id: Date.now(),
             tipo: 'inscripcion',
             titulo: '🎓 Nuevo estudiante inscrito',
-            mensaje: `${req.user.nombre} se ha inscrito en tu curso "${course.nombre}"`,
+            mensaje: `${studentName} se inscribió en tu curso "${course.nombre}"`,
             timestamp: new Date()
           }
         });
@@ -2019,8 +2073,9 @@ app.post('/api/payments/create-preference', authenticateToken, async (req, res) 
       const event = await db.getEventById(Number(eventId));
       if (!event || event.type !== 'live_class') return res.status(404).json({ error: 'Clase en vivo no encontrada' });
       if (Number(event.precio || 0) <= 0) return res.status(400).json({ error: 'Esta clase es gratuita, usá reservar' });
-      course = await db.getCourseById(event.course_id);
-      if (!course) return res.status(404).json({ error: 'Curso no encontrado' });
+      // Charla suelta: no tiene curso. Usamos un curso "virtual" solo para la preferencia.
+      course = event.course_id ? await db.getCourseById(event.course_id) : null;
+      if (!course) course = { id: 0, nombre: event.title, descripcion: 'Clase en vivo', categoria: 'Charla', imagen: event.cover_url || null };
       refEventId = event.id;
       amount = Number(event.precio || 0);
       prefTitle = `Clase en vivo: ${event.title}`;
@@ -2276,7 +2331,9 @@ app.post('/api/payments/webhook', async (req, res) => {
     if (p.status === 'approved') {
       if (targetType === 'live') {
         // Clase en vivo: solo acceso al evento, no inscribe al curso entero.
-        await db.createAccessGrant({ user_id: userId, course_id: courseId, event_id: eventId });
+        // El course_id real lo da el evento (null si es una charla suelta).
+        const ev = await db.getEventById(eventId);
+        await db.createAccessGrant({ user_id: userId, course_id: ev?.course_id || null, event_id: eventId });
       } else {
         // Inscribimos para que el curso aparezca en su panel. OJO: en modalidad
         // 'modulo'/'clase' la inscripción NO da acceso total (ver hasModuleAccess).

@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS lesson_progress (
 CREATE TABLE IF NOT EXISTS access_grants (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
-    course_id INTEGER NOT NULL,
+    course_id INTEGER, -- nullable: las clases en vivo "sueltas" (charlas) no tienen curso
     module_id INTEGER,
     lesson_id INTEGER,
     event_id INTEGER,
