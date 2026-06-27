@@ -32,6 +32,23 @@ const TakeQuizModal: React.FC<TakeQuizModalProps> = ({ quizId, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [bestPct, setBestPct] = useState<number | null>(null);
+  const [attemptCount, setAttemptCount] = useState(0);
+
+  const loadAttempts = () => {
+    fetch(`/api/quizzes/${quizId}/attempts`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list) => {
+        const arr = Array.isArray(list) ? list : [];
+        setAttemptCount(arr.length);
+        const best = arr.reduce((m: number, a: { score?: number; max_score?: number }) => {
+          const pct = a.max_score ? Math.round(((a.score || 0) / a.max_score) * 100) : 0;
+          return Math.max(m, pct);
+        }, 0);
+        setBestPct(arr.length ? best : null);
+      })
+      .catch(() => {});
+  };
 
   useEffect(() => {
     fetch(`/api/quizzes/${quizId}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
@@ -39,7 +56,15 @@ const TakeQuizModal: React.FC<TakeQuizModalProps> = ({ quizId, onClose }) => {
       .then((d) => setQuiz(d))
       .catch(() => setError('No se pudo cargar el cuestionario.'))
       .finally(() => setLoading(false));
+    loadAttempts();
   }, [quizId]);
+
+  const retry = () => {
+    setResult(null);
+    setAnswers({});
+    setError('');
+    loadAttempts();
+  };
 
   const submit = async () => {
     if (!quiz) return;
@@ -85,12 +110,25 @@ const TakeQuizModal: React.FC<TakeQuizModalProps> = ({ quizId, onClose }) => {
               <p className={`font-semibold mb-6 ${result.passed ? 'text-emerald-600' : 'text-orange-500'}`}>
                 {result.passed ? '¡Aprobaste! 👏' : 'No llegaste esta vez, pero seguí practicando.'}
               </p>
-              <button onClick={onClose} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-3 rounded-lg">
-                Cerrar
-              </button>
+              <div className="flex items-center justify-center gap-2">
+                <button onClick={retry} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-3 rounded-lg">
+                  🔄 Volver a intentar
+                </button>
+                <button onClick={onClose} className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold px-6 py-3 rounded-lg">
+                  Cerrar
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-3">Podés repetir el cuestionario las veces que quieras.</p>
             </div>
           ) : quiz ? (
             <div className="space-y-5">
+              {attemptCount > 0 && (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-800">
+                  Ya lo hiciste {attemptCount} {attemptCount === 1 ? 'vez' : 'veces'}
+                  {bestPct !== null && <> · tu mejor nota: <span className="font-bold">{bestPct}%</span></>}.
+                  <span className="text-blue-500"> Podés repetirlo cuando quieras.</span>
+                </div>
+              )}
               {quiz.questions.map((q, qi) => (
                 <div key={q.id}>
                   <p className="font-semibold text-gray-900 mb-2">{qi + 1}. {q.question_text}</p>
