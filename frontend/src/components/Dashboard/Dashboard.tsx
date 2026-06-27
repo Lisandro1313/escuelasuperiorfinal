@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { StudentDashboard } from '../Student/StudentDashboard';
 import TeacherAnalytics from './TeacherAnalytics';
+import CreateLiveTalkModal from '../LiveTalk/CreateLiveTalkModal';
 
 interface CourseStat {
   id: number;
@@ -41,6 +42,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showNewCourse, setShowNewCourse] = useState(false);
+  const [showLiveTalk, setShowLiveTalk] = useState(false);
 
   const fetchDashboard = async () => {
     try {
@@ -128,12 +130,20 @@ const Dashboard: React.FC = () => {
                 {usuario?.tipo === 'admin' ? 'Panel de administración' : 'Panel de profesora'}
               </p>
             </div>
-            <button
-              onClick={() => setShowNewCourse(true)}
-              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl transition shadow-sm"
-            >
-              <span className="text-lg leading-none font-bold">+</span> Nuevo curso
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setShowLiveTalk(true)}
+                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2.5 rounded-xl transition shadow-sm"
+              >
+                🔴 Charla en vivo
+              </button>
+              <button
+                onClick={() => setShowNewCourse(true)}
+                className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl transition shadow-sm"
+              >
+                <span className="text-lg leading-none font-bold">+</span> Nuevo curso
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -272,6 +282,8 @@ const Dashboard: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {showLiveTalk && <CreateLiveTalkModal onClose={() => setShowLiveTalk(false)} onCreated={fetchDashboard} />}
 
       {showNewCourse && (
         <NewCourseModal
