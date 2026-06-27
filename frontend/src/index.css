@@ -9,6 +9,12 @@
   box-sizing: border-box;
 }
 
+html, body {
+  /* Evita el scroll horizontal en mobile (decoraciones absolutas, etc.) */
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
