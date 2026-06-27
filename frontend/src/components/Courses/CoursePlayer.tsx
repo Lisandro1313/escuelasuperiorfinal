@@ -3,6 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../Toast/ToastProvider';
 import { useAuth } from '../../context/AuthContext';
 import CourseChat from './CourseChat';
+import TakeQuizModal from '../Quiz/TakeQuizModal';
+
+interface QuizItem { id: number; title: string; }
 
 // El flipbook (pdf.js) se carga sólo al abrir un material, no en el bundle principal.
 const Flipbook = React.lazy(() => import('../Common/Flipbook'));
@@ -128,6 +131,15 @@ const CoursePlayer: React.FC = () => {
   const [openLesson, setOpenLesson] = useState<PlayerLesson | null>(null);
   const [flipbook, setFlipbook] = useState<{ url: string; title: string } | null>(null);
   const [marking, setMarking] = useState(false);
+  const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
+  const [openQuiz, setOpenQuiz] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/quizzes?courseId=${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d) => setQuizzes(Array.isArray(d) ? d : (d.quizzes || [])))
+      .catch(() => {});
+  }, [id]);
 
   const load = useCallback(async () => {
     try {
@@ -287,7 +299,28 @@ const CoursePlayer: React.FC = () => {
             Todavía no hay clases publicadas en este curso.
           </div>
         )}
+
+        {/* Cuestionarios */}
+        {quizzes.length > 0 && (
+          <div className="mt-10">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">📝 Cuestionarios</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {quizzes.map((q) => (
+                <button
+                  key={q.id}
+                  onClick={() => setOpenQuiz(q.id)}
+                  className="bg-white border border-gray-100 hover:border-emerald-200 hover:shadow-md rounded-2xl p-4 text-left transition flex items-center gap-3"
+                >
+                  <span className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl">📝</span>
+                  <span className="font-semibold text-gray-900 text-sm leading-tight">{q.title}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+
+      {openQuiz && <TakeQuizModal quizId={openQuiz} onClose={() => setOpenQuiz(null)} />}
 
       {/* Modal de clase */}
       {openLesson && (

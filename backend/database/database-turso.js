@@ -722,6 +722,11 @@ class TursoDatabase {
     return quizId;
   }
 
+  async getQuizById(quizId) {
+    const r = await this._query('SELECT * FROM quizzes WHERE id = ?', [quizId]);
+    return r.rows[0] || null;
+  }
+
   async getQuizWithQuestions(quizId, _userId) {
     const q = await this._query(
       'SELECT q.*, c.nombre as course_name FROM quizzes q JOIN courses c ON q.course_id = c.id WHERE q.id = ?',

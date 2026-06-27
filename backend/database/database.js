@@ -1132,6 +1132,12 @@ class Database {
     });
   }
 
+  getQuizById(quizId) {
+    return new Promise((resolve, reject) => {
+      this.db.get('SELECT * FROM quizzes WHERE id = ?', [quizId], (err, row) => (err ? reject(err) : resolve(row || null)));
+    });
+  }
+
   getQuizWithQuestions(quizId, userId) {
     return new Promise((resolve, reject) => {
       // Primero obtener el quiz

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from './Toast/ToastProvider';
+import CreateQuizModal from './Quiz/CreateQuizModal';
 
 interface Course {
   id: number;
@@ -104,6 +105,7 @@ const CourseManagement: React.FC = () => {
   const [uploading, setUploading] = useState<'lesson' | 'resource' | null>(null);
   const [uploadError, setUploadError] = useState<string>('');
   const [showLiveClassModal, setShowLiveClassModal] = useState(false);
+  const [showQuizModal, setShowQuizModal] = useState(false);
   const [liveClassForm, setLiveClassForm] = useState({ title: '', date: '', time: '', duration: 60, meeting_url: '', precio: 0 });
   const [liveClassResult, setLiveClassResult] = useState<{ url: string; date: string } | null>(null);
   const [scheduling, setScheduling] = useState(false);
@@ -505,6 +507,12 @@ const CourseManagement: React.FC = () => {
                 className="bg-red-500 hover:bg-red-600 text-white px-5 py-2.5 rounded-lg font-semibold shadow-lg flex items-center gap-2"
               >
                 🔴 Programar clase en vivo
+              </button>
+              <button
+                onClick={() => setShowQuizModal(true)}
+                className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-lg font-semibold shadow-lg flex items-center gap-2"
+              >
+                📝 Cuestionario
               </button>
               <button
                 onClick={() => setShowModuleModal(true)}
@@ -1192,6 +1200,15 @@ const CourseManagement: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal: Crear cuestionario */}
+      {showQuizModal && id && (
+        <CreateQuizModal
+          courseId={Number(id)}
+          onClose={() => setShowQuizModal(false)}
+          onCreated={() => toast.success('Cuestionario creado')}
+        />
       )}
 
       {/* Modal: Programar clase en vivo */}
