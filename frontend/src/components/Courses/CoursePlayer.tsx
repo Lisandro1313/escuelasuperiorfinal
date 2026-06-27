@@ -83,6 +83,20 @@ const formatFecha = (iso: string | null) => {
 const parseObjetivos = (raw: string | null): string[] =>
   (raw || '').split('\n').map((s) => s.trim().replace(/^[-•*]\s*/, '')).filter(Boolean);
 
+// Ícono grande según el tipo de clase, para que las tarjetas no se vean vacías.
+const lessonIcon = (tipo?: string): string => {
+  switch ((tipo || '').toLowerCase()) {
+    case 'video': return '🎬';
+    case 'pdf': case 'documento': return '📄';
+    case 'texto': case 'text': return '📝';
+    case 'quiz': case 'cuestionario': return '❓';
+    case 'live': case 'vivo': case 'en_vivo': return '🔴';
+    case 'imagen': case 'image': return '🖼️';
+    case 'audio': return '🎧';
+    default: return '📘';
+  }
+};
+
 const materialMeta = (titulo: string, url?: string): { icon: string; kind: string } => {
   const t = (titulo || '').toLowerCase();
   if (isPdfUrl(url) || /pdf|apunte|material/.test(t)) return { icon: '📄', kind: 'PDF' };
@@ -281,7 +295,13 @@ const CoursePlayer: React.FC = () => {
                         : 'bg-gradient-to-br from-slate-800 to-blue-900 text-white hover:-translate-y-0.5'
                     }`}
                   >
-                    <div className="flex items-start justify-between">
+                    {/* Ícono grande de fondo según el tipo de clase (deja de verse vacía) */}
+                    {!l.locked && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <span className="text-5xl opacity-20">{lessonIcon(l.tipo)}</span>
+                      </div>
+                    )}
+                    <div className="relative flex items-start justify-between">
                       <span className={`text-[11px] font-medium ${l.locked ? 'text-gray-500' : 'text-blue-200'}`}>
                         Clase {num}
                       </span>
@@ -293,7 +313,7 @@ const CoursePlayer: React.FC = () => {
                         <span className="text-blue-200 text-lg leading-none">▶</span>
                       )}
                     </div>
-                    <div>
+                    <div className="relative">
                       <p className="font-semibold text-sm leading-tight line-clamp-3">{l.titulo}</p>
                       {l.locked && <p className="text-[10px] mt-1 leading-tight">{lockText(l)}</p>}
                     </div>
