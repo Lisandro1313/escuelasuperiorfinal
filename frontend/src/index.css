@@ -9,10 +9,21 @@
   box-sizing: border-box;
 }
 
+html {
+  /* Letra un poco más grande para que se lea cómodo (público mayor). Todo
+     escala proporcional porque Tailwind usa rem. */
+  font-size: 17px;
+}
+
 html, body {
   /* Evita el scroll horizontal en mobile (decoraciones absolutas, etc.) */
   overflow-x: hidden;
   max-width: 100%;
+}
+
+/* Botones y links cómodos de tocar en celular (mínimo recomendado). */
+button, a[role="button"], .btn {
+  touch-action: manipulation;
 }
 
 body {
