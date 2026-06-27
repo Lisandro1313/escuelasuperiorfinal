@@ -88,6 +88,12 @@ class Database {
         console.error('Error agregando columna unlock_mode:', err);
       }
     });
+    // Certificados: habilitar + firmas (imagen + nombre de los responsables)
+    ['certificado_habilitado BOOLEAN DEFAULT 0', 'firma_url TEXT', 'firmante TEXT', 'firma2_url TEXT', 'firmante2 TEXT'].forEach((col) => {
+      this.db.run(`ALTER TABLE courses ADD COLUMN ${col}`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error('Error col cert:', err.message);
+      });
+    });
     this.db.run(`ALTER TABLE modules ADD COLUMN precio DECIMAL(10,2) DEFAULT 0`, (err) => {
       if (err && !err.message.includes('duplicate column name')) {
         console.error('Error agregando columna modules.precio:', err);
@@ -341,10 +347,10 @@ class Database {
 
   async updateCourse(id, courseData) {
     return new Promise((resolve, reject) => {
-      const { nombre, descripcion, categoria, precio, duracion, imagen = null, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null, unlock_mode = 'abierto' } = courseData;
-      const sql = `UPDATE courses SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, duracion = ?, imagen = COALESCE(?, imagen), modalidad_precio = ?, drip_habilitado = ?, drip_intervalo_dias = ?, unlock_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+      const { nombre, descripcion, categoria, precio, duracion, imagen = null, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null, unlock_mode = 'abierto', certificado_habilitado, firma_url = null, firmante = null, firma2_url = null, firmante2 = null } = courseData;
+      const sql = `UPDATE courses SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, duracion = ?, imagen = COALESCE(?, imagen), modalidad_precio = ?, drip_habilitado = ?, drip_intervalo_dias = ?, unlock_mode = ?, certificado_habilitado = ?, firma_url = COALESCE(?, firma_url), firmante = COALESCE(?, firmante), firma2_url = COALESCE(?, firma2_url), firmante2 = COALESCE(?, firmante2), updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
 
-      this.db.run(sql, [nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, unlock_mode, id], function(err) {
+      this.db.run(sql, [nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, unlock_mode, certificado_habilitado ? 1 : 0, firma_url, firmante, firma2_url, firmante2, id], function(err) {
         if (err) {
           reject(err);
         } else {

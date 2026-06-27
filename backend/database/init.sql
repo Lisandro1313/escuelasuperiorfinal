@@ -26,6 +26,11 @@ CREATE TABLE IF NOT EXISTS courses (
     drip_habilitado BOOLEAN DEFAULT 0,
     drip_intervalo_dias INTEGER,
     unlock_mode VARCHAR(20) DEFAULT 'abierto', -- abierto | fecha | secuencial | goteo
+    certificado_habilitado BOOLEAN DEFAULT 0,
+    firma_url TEXT,
+    firmante TEXT,
+    firma2_url TEXT,
+    firmante2 TEXT,
     duracion VARCHAR(100),
     estudiantes INTEGER DEFAULT 0,
     rating DECIMAL(3,2) DEFAULT 0,

@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../Toast/ToastProvider';
 import { useAuth } from '../../context/AuthContext';
 import CourseChat from './CourseChat';
@@ -248,6 +248,15 @@ const CoursePlayer: React.FC = () => {
               <div className="h-full bg-emerald-400 transition-all" style={{ width: `${progress.percent}%` }} />
             </div>
           </div>
+
+          {progress.total > 0 && progress.percent >= 100 && (
+            <Link
+              to={`/course/${course.id}/certificado`}
+              className="mt-4 inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-bold px-5 py-2.5 rounded-xl shadow"
+            >
+              🏆 ¡Curso completado! Obtené tu certificado
+            </Link>
+          )}
         </div>
       </div>
 

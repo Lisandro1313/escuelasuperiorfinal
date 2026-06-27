@@ -128,6 +128,11 @@ class TursoDatabase {
       `ALTER TABLE courses ADD COLUMN drip_habilitado BOOLEAN DEFAULT 0`,
       `ALTER TABLE courses ADD COLUMN drip_intervalo_dias INTEGER`,
       `ALTER TABLE courses ADD COLUMN unlock_mode VARCHAR(20) DEFAULT 'abierto'`,
+      `ALTER TABLE courses ADD COLUMN certificado_habilitado BOOLEAN DEFAULT 0`,
+      `ALTER TABLE courses ADD COLUMN firma_url TEXT`,
+      `ALTER TABLE courses ADD COLUMN firmante TEXT`,
+      `ALTER TABLE courses ADD COLUMN firma2_url TEXT`,
+      `ALTER TABLE courses ADD COLUMN firmante2 TEXT`,
       `ALTER TABLE modules ADD COLUMN precio DECIMAL(10,2) DEFAULT 0`,
       `ALTER TABLE modules ADD COLUMN unlock_at DATETIME`,
       `ALTER TABLE modules ADD COLUMN unlock_days_offset INTEGER`,
@@ -269,10 +274,10 @@ class TursoDatabase {
     return r.rows;
   }
 
-  async updateCourse(id, { nombre, descripcion, categoria, precio, duracion, imagen = null, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null, unlock_mode = 'abierto' }) {
+  async updateCourse(id, { nombre, descripcion, categoria, precio, duracion, imagen = null, modalidad_precio = 'curso', drip_habilitado = false, drip_intervalo_dias = null, unlock_mode = 'abierto', certificado_habilitado, firma_url = null, firmante = null, firma2_url = null, firmante2 = null }) {
     await this._query(
-      'UPDATE courses SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, duracion = ?, imagen = COALESCE(?, imagen), modalidad_precio = ?, drip_habilitado = ?, drip_intervalo_dias = ?, unlock_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-      [nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, unlock_mode, id]
+      'UPDATE courses SET nombre = ?, descripcion = ?, categoria = ?, precio = ?, duracion = ?, imagen = COALESCE(?, imagen), modalidad_precio = ?, drip_habilitado = ?, drip_intervalo_dias = ?, unlock_mode = ?, certificado_habilitado = ?, firma_url = COALESCE(?, firma_url), firmante = COALESCE(?, firmante), firma2_url = COALESCE(?, firma2_url), firmante2 = COALESCE(?, firmante2), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado ? 1 : 0, drip_intervalo_dias, unlock_mode, certificado_habilitado ? 1 : 0, firma_url, firmante, firma2_url, firmante2, id]
     );
     return { id, nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado, drip_intervalo_dias, unlock_mode };
   }

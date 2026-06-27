@@ -93,6 +93,11 @@ const CourseManagement: React.FC = () => {
     drip_habilitado: false,
     drip_intervalo_dias: 7,
     imagen: '' as string,
+    certificado_habilitado: false,
+    firma_url: '' as string,
+    firmante: '' as string,
+    firma2_url: '' as string,
+    firmante2: '' as string,
   });
 
   const [newResource, setNewResource] = useState({
@@ -178,6 +183,11 @@ const CourseManagement: React.FC = () => {
         drip_habilitado: !!courseData.drip_habilitado,
         drip_intervalo_dias: Number(courseData.drip_intervalo_dias || 7),
         imagen: (courseData.imagen && courseData.imagen.startsWith('http')) ? courseData.imagen : '',
+        certificado_habilitado: !!courseData.certificado_habilitado,
+        firma_url: courseData.firma_url || '',
+        firmante: courseData.firmante || '',
+        firma2_url: courseData.firma2_url || '',
+        firmante2: courseData.firmante2 || '',
       });
 
       // Verificar permisos
@@ -653,6 +663,50 @@ const CourseManagement: React.FC = () => {
               </label>
             )}
             <p className="text-xs text-gray-400 mt-1">Es la imagen que se ve en el inicio y el catálogo.</p>
+          </div>
+
+          {/* Certificado */}
+          <div className="mt-6 pt-5 border-t border-gray-100">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={courseSettings.certificado_habilitado}
+                onChange={(e) => setCourseSettings((p) => ({ ...p, certificado_habilitado: e.target.checked }))}
+              />
+              <span className="text-sm font-semibold text-gray-900">🏆 Habilitar certificado al completar el curso</span>
+            </label>
+            <p className="text-xs text-gray-400 mt-1 ml-6">El alumno lo descarga cuando termina todas las clases.</p>
+
+            {courseSettings.certificado_habilitado && (
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {([['firma_url', 'firmante', 'Firma 1'], ['firma2_url', 'firmante2', 'Firma 2 (opcional)']] as const).map(([urlKey, nameKey, label]) => (
+                  <div key={urlKey} className="border border-gray-200 rounded-xl p-3">
+                    <p className="text-xs font-semibold text-gray-600 mb-2">{label}</p>
+                    {courseSettings[urlKey] ? (
+                      <div className="relative inline-block">
+                        <img src={courseSettings[urlKey]} alt="Firma" className="h-16 object-contain bg-white border rounded" />
+                        <button type="button" onClick={() => setCourseSettings((p) => ({ ...p, [urlKey]: '' }))}
+                          className="absolute -top-2 -right-2 bg-white border rounded-full w-6 h-6 text-gray-500 shadow">×</button>
+                      </div>
+                    ) : (
+                      <label className="flex items-center justify-center h-16 border-2 border-dashed border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 text-xs text-gray-500">
+                        🖊️ Subir firma (PNG)
+                        <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                          const f = e.target.files?.[0]; if (!f) return;
+                          const url = await uploadFile(f); if (url) setCourseSettings((p) => ({ ...p, [urlKey]: url }));
+                        }} />
+                      </label>
+                    )}
+                    <input
+                      value={courseSettings[nameKey]}
+                      onChange={(e) => setCourseSettings((p) => ({ ...p, [nameKey]: e.target.value }))}
+                      placeholder="Nombre y cargo (ej: Dir. Norma Pérez)"
+                      className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <button

@@ -608,7 +608,8 @@ app.post('/api/courses', authenticateToken, requireProfessor, async (req, res) =
 app.put('/api/courses/:id', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const courseId = req.params.id;
-    const { nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado, drip_intervalo_dias, unlock_mode } = req.body;
+    const { nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado, drip_intervalo_dias, unlock_mode,
+      certificado_habilitado, firma_url, firmante, firma2_url, firmante2 } = req.body;
 
     // Verificar que el curso pertenece al profesor
     const course = await db.getCourseById(courseId);
@@ -623,6 +624,11 @@ app.put('/api/courses/:id', authenticateToken, requireProfessor, async (req, res
       precio: parseFloat(precio),
       duracion,
       imagen: imagen || null,
+      certificado_habilitado: !!certificado_habilitado,
+      firma_url: firma_url || null,
+      firmante: firmante || null,
+      firma2_url: firma2_url || null,
+      firmante2: firmante2 || null,
       modalidad_precio: ['curso', 'modulo', 'clase'].includes(modalidad_precio) ? modalidad_precio : 'curso',
       drip_habilitado: !!drip_habilitado,
       drip_intervalo_dias: drip_intervalo_dias ? Number(drip_intervalo_dias) : null,
@@ -930,6 +936,46 @@ app.get('/api/courses/:id/live-classes', authenticateToken, requireCourseAccess(
     res.json(filtered);
   } catch (error) {
     console.error('Error listando clases en vivo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Certificado del curso: elegible si el profe lo habilitó y el alumno completó todo.
+app.get('/api/courses/:id/certificate', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    const courseId = Number(req.params.id);
+    const course = req.course;
+    const userId = req.user.userId;
+
+    if (!course.certificado_habilitado) {
+      return res.json({ eligible: false, reason: 'El profesor todavía no habilitó el certificado de este curso.' });
+    }
+
+    const modules = (await db.getCourseModules(courseId)).filter((m) => !!m.publicado);
+    let total = 0;
+    for (const m of modules) {
+      total += (await db.getModuleLessons(m.id)).filter((l) => !!l.publicado).length;
+    }
+    const completed = (await db.getCompletedLessonIds(userId, courseId)).length;
+
+    if (total === 0 || completed < total) {
+      return res.json({ eligible: false, reason: `Completá todas las clases (${completed}/${total}) para obtener tu certificado.`, completed, total });
+    }
+
+    const user = await db.getUserById(userId);
+    res.json({
+      eligible: true,
+      studentName: user?.nombre || 'Alumno',
+      courseName: course.nombre,
+      instructor: course.profesor || null,
+      date: new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' }),
+      firma_url: course.firma_url || null,
+      firmante: course.firmante || null,
+      firma2_url: course.firma2_url || null,
+      firmante2: course.firmante2 || null,
+    });
+  } catch (error) {
+    console.error('Error al obtener certificado:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
