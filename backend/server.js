@@ -2893,11 +2893,11 @@ app.get('/api/analytics', authenticateToken, async (req, res) => {
     );
 
     const revenueData = await sqlAll(
-      `SELECT substr(p.created_at,1,7) as month, SUM(p.amount) as revenue
+      `SELECT substr(COALESCE(p.date_created, p.date_approved),1,7) as month, SUM(p.amount) as revenue
        FROM payments p
        JOIN courses c ON c.id = p.course_id
        WHERE p.status = 'approved' ${isAdmin ? '' : 'AND c.profesor_id = ?'}
-       GROUP BY substr(p.created_at,1,7)
+       GROUP BY month
        ORDER BY month DESC
        LIMIT 12`,
       scopeParams
