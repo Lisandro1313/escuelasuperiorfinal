@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { fetchJSON } from '../../lib/fetchJSON';
 
 interface Question {
   id: number;
@@ -36,12 +37,14 @@ const TakeQuizModal: React.FC<TakeQuizModalProps> = ({ quizId, onClose }) => {
   const [attemptCount, setAttemptCount] = useState(0);
 
   const loadAttempts = () => {
-    fetch(`/api/quizzes/${quizId}/attempts`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
-      .then((r) => (r.ok ? r.json() : []))
+    fetchJSON<Array<{ score?: number; max_score?: number }>>(
+      `/api/quizzes/${quizId}/attempts`,
+      { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }
+    )
       .then((list) => {
         const arr = Array.isArray(list) ? list : [];
         setAttemptCount(arr.length);
-        const best = arr.reduce((m: number, a: { score?: number; max_score?: number }) => {
+        const best = arr.reduce((m: number, a) => {
           const pct = a.max_score ? Math.round(((a.score || 0) / a.max_score) * 100) : 0;
           return Math.max(m, pct);
         }, 0);
