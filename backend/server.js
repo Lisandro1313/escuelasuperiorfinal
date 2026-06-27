@@ -2382,8 +2382,12 @@ app.post('/api/upload', authenticateToken, upload.single('file'), async (req, re
 // RUTAS DE TAREAS/ASIGNACIONES
 // ================================
 
-const assignmentRoutes = require('./src/routes/assignments')(db, authenticateToken, requireProfessor, upload);
-app.use('/api', assignmentRoutes);
+// Rutas de tareas viejas: DESACTIVADAS. Usaban req.user.id (el token trae userId),
+// tenían un esquema distinto (professor_id/student_id/submission_text/file_url único)
+// y chocaban en el mismo path. Reemplazadas por el sistema de tareas nuevo
+// (assignments + assignment_submissions con varios archivos) más abajo.
+// const assignmentRoutes = require('./src/routes/assignments')(db, authenticateToken, requireProfessor, upload);
+// app.use('/api', assignmentRoutes);
 
 
 // ================================
