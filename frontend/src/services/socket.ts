@@ -4,6 +4,20 @@ import { API_BASE } from '../config';
 class SocketService {
   private socket: Socket | null = null;
   private isConnected = false;
+  private connCb: ((connected: boolean) => void) | null = null;
+
+  connected(): boolean {
+    return this.isConnected;
+  }
+
+  // Avisa cuando cambia el estado de conexión (para mostrar "conectando…").
+  onConnectionChange(cb: (connected: boolean) => void): void {
+    this.connCb = cb;
+    cb(this.isConnected);
+  }
+  offConnectionChange(): void {
+    this.connCb = null;
+  }
 
   connect(token?: string): void {
     if (this.socket) {
@@ -27,11 +41,13 @@ class SocketService {
     this.socket.on('connect', () => {
       console.log('✅ Conectado al servidor Socket.IO');
       this.isConnected = true;
+      this.connCb?.(true);
     });
 
     this.socket.on('disconnect', () => {
       console.log('❌ Desconectado del servidor Socket.IO');
       this.isConnected = false;
+      this.connCb?.(false);
     });
 
     this.socket.on('connect_error', (error) => {

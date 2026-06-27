@@ -42,6 +42,8 @@ const CourseForum: React.FC<Props> = ({ courseId, currentUserId, canModerate }) 
   const [form, setForm] = useState({ title: '', content: '' });
   const [replyText, setReplyText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [openingId, setOpeningId] = useState<number | null>(null);
+  const [sending, setSending] = useState(false);
 
   const loadThreads = async () => {
     setLoading(true);
@@ -53,27 +55,40 @@ const CourseForum: React.FC<Props> = ({ courseId, currentUserId, canModerate }) 
   };
   useEffect(() => { loadThreads(); /* eslint-disable-next-line */ }, [courseId]);
 
-  const openThread = async (t: Thread) => {
+  // Abre un tema. Si se pasa el tema de la lista, lo muestra al instante y luego
+  // actualiza con las respuestas (evita la pantalla en blanco mientras carga).
+  const openThread = async (id: number, optimistic?: Thread) => {
+    if (optimistic) setOpen({ thread: optimistic, replies: open?.thread.id === id ? open.replies : [] });
+    else setOpeningId(id);
     try {
-      const r = await fetch(`/api/courses/${courseId}/forum/${t.id}`, { headers: auth() });
+      const r = await fetch(`/api/courses/${courseId}/forum/${id}`, { headers: auth() });
       const d = await r.json();
-      setOpen({ thread: d.thread || t, replies: d.replies || [] });
-    } catch { toast.error('No se pudo abrir el tema'); }
+      if (!r.ok) throw new Error();
+      setOpen({ thread: d.thread, replies: d.replies || [] });
+    } catch { if (!optimistic) toast.error('No se pudo abrir el tema'); }
+    finally { setOpeningId(null); }
   };
 
   const createThread = async () => {
-    if (form.title.trim().length < 3) { toast.error('Poné un título.'); return; }
+    if (form.title.trim().length < 3) { toast.error('Poné un título un poco más largo.'); return; }
     if (!form.content.trim()) { toast.error('Escribí tu mensaje.'); return; }
-    const r = await fetch(`/api/courses/${courseId}/forum`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() }, body: JSON.stringify(form) });
-    if (r.ok) { toast.success('Tema publicado'); setForm({ title: '', content: '' }); setCreating(false); loadThreads(); }
-    else { const d = await r.json().catch(() => ({})); toast.error(d.error || 'No se pudo publicar'); }
+    setSending(true);
+    try {
+      const r = await fetch(`/api/courses/${courseId}/forum`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() }, body: JSON.stringify(form) });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok) { toast.success('Tema publicado'); setForm({ title: '', content: '' }); setCreating(false); loadThreads(); if (d.id) openThread(d.id); }
+      else toast.error(d.error || 'No se pudo publicar');
+    } finally { setSending(false); }
   };
 
   const sendReply = async () => {
-    if (!open || !replyText.trim()) return;
-    const r = await fetch(`/api/courses/${courseId}/forum/${open.thread.id}/reply`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() }, body: JSON.stringify({ content: replyText }) });
-    if (r.ok) { setReplyText(''); openThread(open.thread); loadThreads(); }
-    else { const d = await r.json().catch(() => ({})); toast.error(d.error || 'No se pudo responder'); }
+    if (!open || !replyText.trim() || sending) return;
+    setSending(true);
+    try {
+      const r = await fetch(`/api/courses/${courseId}/forum/${open.thread.id}/reply`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...auth() }, body: JSON.stringify({ content: replyText }) });
+      if (r.ok) { setReplyText(''); openThread(open.thread.id, open.thread); loadThreads(); }
+      else { const d = await r.json().catch(() => ({})); toast.error(d.error || 'No se pudo responder'); }
+    } finally { setSending(false); }
   };
 
   const deleteThread = async (t: Thread) => {
@@ -83,13 +98,13 @@ const CourseForum: React.FC<Props> = ({ courseId, currentUserId, canModerate }) 
     else toast.error('No se pudo eliminar');
   };
   const deleteReply = async (id: number) => {
-    if (!open) return;
+    if (!open || !confirm('¿Eliminar esta respuesta?')) return;
     const r = await fetch(`/api/courses/${courseId}/forum/reply/${id}`, { method: 'DELETE', headers: auth() });
-    if (r.ok) openThread(open.thread); else toast.error('No se pudo eliminar');
+    if (r.ok) openThread(open.thread.id, open.thread); else toast.error('No se pudo eliminar');
   };
   const togglePin = async (t: Thread) => {
     const r = await fetch(`/api/courses/${courseId}/forum/thread/${t.id}/pin`, { method: 'POST', headers: auth() });
-    if (r.ok) { loadThreads(); if (open) openThread(open.thread); }
+    if (r.ok) { loadThreads(); if (open) openThread(open.thread.id, open.thread); }
   };
 
   // ---- Vista: detalle del tema ----
@@ -140,8 +155,8 @@ const CourseForum: React.FC<Props> = ({ courseId, currentUserId, canModerate }) 
             className="w-full px-3 py-2 border border-gray-200 rounded-xl text-base outline-none focus:border-blue-400 resize-none"
           />
           <div className="flex justify-end mt-2">
-            <button onClick={sendReply} disabled={!replyText.trim()} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-semibold px-5 py-2.5 rounded-xl">
-              Responder
+            <button onClick={sendReply} disabled={!replyText.trim() || sending} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-semibold px-5 py-2.5 rounded-xl">
+              {sending ? 'Enviando…' : 'Responder'}
             </button>
           </div>
         </div>
@@ -181,7 +196,7 @@ const CourseForum: React.FC<Props> = ({ courseId, currentUserId, canModerate }) 
           />
           <div className="flex justify-end gap-2 mt-2">
             <button onClick={() => { setCreating(false); setForm({ title: '', content: '' }); }} className="px-4 py-2.5 text-gray-600">Cancelar</button>
-            <button onClick={createThread} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 rounded-xl">Publicar</button>
+            <button onClick={createThread} disabled={sending} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-xl">{sending ? 'Publicando…' : 'Publicar'}</button>
           </div>
         </div>
       )}
@@ -195,7 +210,7 @@ const CourseForum: React.FC<Props> = ({ courseId, currentUserId, canModerate }) 
       ) : (
         <div className="space-y-2">
           {threads.map((t) => (
-            <button key={t.id} onClick={() => openThread(t)} className="w-full text-left bg-white border border-gray-200 hover:border-blue-300 hover:shadow-sm rounded-2xl p-4 transition">
+            <button key={t.id} onClick={() => openThread(t.id, t)} disabled={openingId === t.id} className="w-full text-left bg-white border border-gray-200 hover:border-blue-300 hover:shadow-sm rounded-2xl p-4 transition disabled:opacity-60">
               <div className="flex items-center justify-between gap-3">
                 <p className="font-semibold text-gray-900 text-base">
                   {!!t.is_pinned && <span className="mr-1">📌</span>}{t.title}

@@ -30,6 +30,7 @@ const CourseChat: React.FC<CourseChatProps> = ({ courseId, userId, userName }) =
   const [text, setText] = useState('');
   const [unread, setUnread] = useState(0);
   const [online, setOnline] = useState<{ userId: number; userName: string }[]>([]);
+  const [connected, setConnected] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
   const openRef = useRef(open);
 
@@ -51,9 +52,11 @@ const CourseChat: React.FC<CourseChatProps> = ({ courseId, userId, userName }) =
     };
     socketService.onNewMessage(handler);
     socketService.onPresence((p) => setOnline(p.users || []));
+    socketService.onConnectionChange(setConnected);
     return () => {
       socketService.offNewMessage();
       socketService.offPresence();
+      socketService.offConnectionChange();
     };
   }, [courseId, userId, userName]);
 
@@ -92,15 +95,20 @@ const CourseChat: React.FC<CourseChatProps> = ({ courseId, userId, userName }) =
           <div className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-4 py-3">
             <div className="flex items-center justify-between">
               <p className="font-semibold text-sm">Chat del curso</p>
-              {online.length > 0 && (
+              {connected ? (
                 <span className="flex items-center gap-1 text-xs text-emerald-300">
                   <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
                   {online.length} en línea
                 </span>
+              ) : (
+                <span className="flex items-center gap-1 text-xs text-amber-300">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 inline-block animate-pulse" />
+                  Conectando…
+                </span>
               )}
             </div>
             <p className="text-blue-200 text-xs truncate">
-              {online.length > 0 ? online.map((u) => u.userName).join(', ') : 'Consultá y charlá con profe y compañeros'}
+              {connected && online.length > 0 ? online.map((u) => u.userName).join(', ') : 'Consultá y charlá con profe y compañeros'}
             </p>
           </div>
 
@@ -128,13 +136,14 @@ const CourseChat: React.FC<CourseChatProps> = ({ courseId, userId, userName }) =
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && send()}
-              placeholder="Escribí un mensaje..."
+              placeholder={connected ? 'Escribí un mensaje...' : 'Conectando con el chat…'}
               maxLength={1000}
-              className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400"
+              disabled={!connected}
+              className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400 disabled:bg-gray-50"
             />
             <button
               onClick={send}
-              disabled={!text.trim()}
+              disabled={!text.trim() || !connected}
               className="bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl px-3 font-medium"
             >
               ➤
