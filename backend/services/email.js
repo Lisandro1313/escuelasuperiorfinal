@@ -6,7 +6,9 @@
 // Uso: const { sendEmail } = require('./services/email');
 //      await sendEmail({ to, subject, html, text });
 
-const FROM = process.env.EMAIL_FROM || 'Campus Norma <noreply@campusnorma.com>';
+// Sin EMAIL_FROM, usamos onboarding@resend.dev: Resend lo acepta sin dominio
+// verificado (solo manda al email dueño de la cuenta — sirve para probar).
+const FROM = process.env.EMAIL_FROM || 'Escuela Superior de Formación <onboarding@resend.dev>';
 const REPLY_TO = process.env.EMAIL_REPLY_TO || null;
 
 let mode = 'console';
