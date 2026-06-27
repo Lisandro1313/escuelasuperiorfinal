@@ -254,6 +254,7 @@ const Dashboard: React.FC = () => {
         <div className={`grid gap-4 ${usuario?.tipo === 'admin' ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
           {[
             { to: '/students', icon: '👥', title: 'Mis estudiantes', desc: 'Quién se inscribió y quién pagó' },
+            { to: '/ayuda', icon: '❓', title: 'Ayuda', desc: 'Guía paso a paso para usar el campus' },
             { to: '/profile', icon: '👤', title: 'Mi perfil', desc: 'Nombre, foto y contraseña' },
             ...(usuario?.tipo === 'admin' ? [{ to: '/admin/users', icon: '🛡️', title: 'Gestión de usuarios', desc: 'Crear profesoras y gestionar cuentas' }] : []),
           ].map((item) => (

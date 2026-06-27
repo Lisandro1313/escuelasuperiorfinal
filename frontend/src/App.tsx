@@ -12,6 +12,7 @@ import CourseDetail from './components/Courses/CourseDetail';
 import CoursePlayer from './components/Courses/CoursePlayer';
 import LiveClass from './pages/LiveClass';
 import Certificate from './pages/Certificate';
+import Help from './pages/Help';
 import CourseManagement from './components/CourseManagement';
 import PaymentPage from './components/Payment/PaymentPage';
 import { PaymentSuccess, PaymentFailure, PaymentPending } from './components/Payment/PaymentResults';
@@ -62,6 +63,7 @@ function AppContent() {
           <Route path="/course/:id" element={<CourseDetail />} />
           <Route path="/live/:id" element={<LiveClass />} />
           <Route path="/course/:id/certificado" element={isAuthenticated ? <Certificate /> : <Navigate to="/login" />} />
+          <Route path="/ayuda" element={isAuthenticated ? <Help /> : <Navigate to="/login" />} />
           <Route path="/course/:id/aula" element={isAuthenticated ? <CoursePlayer /> : <Navigate to="/login" />} />
           <Route path="/course/:id/manage" element={isAuthenticated ? <CourseManagement /> : <Navigate to="/login" />} />
           <Route path="/course/:id/view" element={isAuthenticated ? <CoursePlayer /> : <Navigate to="/login" />} />
