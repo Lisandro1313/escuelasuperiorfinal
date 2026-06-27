@@ -2,15 +2,14 @@ import React, { useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import HTMLFlipBookRaw from 'react-pageflip';
 
-// Los tipos de react-pageflip marcan casi todas las props como requeridas;
-// lo usamos con una firma permisiva.
-const HTMLFlipBook = HTMLFlipBookRaw as unknown as React.FC<Record<string, unknown>>;
-
 // Worker de pdf.js servido por Vite.
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
   import.meta.url
 ).toString();
+
+// Los tipos de react-pageflip marcan casi todas las props como requeridas.
+const HTMLFlipBook = HTMLFlipBookRaw as unknown as React.FC<Record<string, unknown>>;
 
 // "Ruido de hoja": ráfaga corta de ruido filtrado (sin archivo de audio).
 function playPageSound() {
@@ -22,7 +21,7 @@ function playPageSound() {
     const buffer = ctx.createBuffer(1, size, ctx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < size; i++) {
-      const env = Math.pow(1 - i / size, 2); // decae rápido
+      const env = Math.pow(1 - i / size, 2);
       data[i] = (Math.random() * 2 - 1) * env;
     }
     const src = ctx.createBufferSource();
@@ -46,16 +45,29 @@ interface FlipbookProps {
   onClose: () => void;
 }
 
-const PAGE_W = 430;
-const PAGE_H = 600;
-
 const Flipbook: React.FC<FlipbookProps> = ({ fileUrl, title, onClose }) => {
   const [numPages, setNumPages] = useState(0);
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
   const [error, setError] = useState(false);
 
+  // Calcula el tamaño de página a partir del aspecto real del PDF y la pantalla.
+  const onFirstPage = (page: { width: number; height: number }) => {
+    const aspect = page.width && page.height ? page.width / page.height : 0.72;
+    const maxH = Math.min(window.innerHeight - 130, 860);
+    // En desktop se muestran 2 páginas: el ancho total no debe pasar la pantalla.
+    const maxPageW = (window.innerWidth - 48) / (window.innerWidth >= 768 ? 2 : 1);
+    let h = maxH;
+    let w = Math.round(h * aspect);
+    if (w > maxPageW) {
+      w = Math.floor(maxPageW);
+      h = Math.round(w / aspect);
+    }
+    setDims({ w, h });
+  };
+
   return (
-    <div className="fixed inset-0 z-[60] bg-slate-900/95 flex flex-col items-center justify-center p-4">
-      <div className="absolute top-4 left-4 right-4 flex items-center justify-between text-white">
+    <div className="fixed inset-0 z-[60] bg-slate-900/95 flex flex-col items-center justify-center p-2 sm:p-4">
+      <div className="absolute top-3 left-4 right-4 flex items-center justify-between text-white">
         <span className="font-semibold text-sm truncate">{title || 'Material de clase'}</span>
         <button
           onClick={onClose}
@@ -78,18 +90,21 @@ const Flipbook: React.FC<FlipbookProps> = ({ fileUrl, title, onClose }) => {
         }
         error={<div className="text-white/80">No se pudo abrir el PDF.</div>}
       >
-        {numPages > 0 && !error && (
+        {/* Página oculta para medir el aspecto real del PDF */}
+        {numPages > 0 && !dims && !error && (
+          <div style={{ position: 'absolute', visibility: 'hidden', pointerEvents: 'none' }}>
+            <Page pageNumber={1} width={300} onLoadSuccess={onFirstPage} renderTextLayer={false} renderAnnotationLayer={false} />
+          </div>
+        )}
+
+        {numPages > 0 && dims && !error && (
           <HTMLFlipBook
-            width={PAGE_W}
-            height={PAGE_H}
-            size="stretch"
-            minWidth={280}
-            maxWidth={520}
-            minHeight={400}
-            maxHeight={720}
+            width={dims.w}
+            height={dims.h}
+            size="fixed"
             showCover
             mobileScrollSupport
-            maxShadowOpacity={0.4}
+            maxShadowOpacity={0.5}
             onFlip={playPageSound}
             className="shadow-2xl"
           >
@@ -97,10 +112,10 @@ const Flipbook: React.FC<FlipbookProps> = ({ fileUrl, title, onClose }) => {
               <div key={i} className="bg-white overflow-hidden">
                 <Page
                   pageNumber={i + 1}
-                  width={PAGE_W}
+                  width={dims.w}
                   renderTextLayer={false}
                   renderAnnotationLayer={false}
-                  loading={<div style={{ width: PAGE_W, height: PAGE_H }} className="bg-gray-100" />}
+                  loading={<div style={{ width: dims.w, height: dims.h }} className="bg-gray-100" />}
                 />
               </div>
             ))}
@@ -109,7 +124,7 @@ const Flipbook: React.FC<FlipbookProps> = ({ fileUrl, title, onClose }) => {
       </Document>
 
       {numPages > 0 && (
-        <p className="absolute bottom-4 text-white/60 text-xs">
+        <p className="absolute bottom-3 text-white/60 text-xs">
           {numPages} páginas · arrastrá o clickeá el borde para pasar la hoja
         </p>
       )}
