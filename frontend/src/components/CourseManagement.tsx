@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from './Toast/ToastProvider';
 import CreateQuizModal from './Quiz/CreateQuizModal';
+import QuizResultsModal from './Quiz/QuizResultsModal';
 
 interface Course {
   id: number;
@@ -112,6 +113,7 @@ const CourseManagement: React.FC = () => {
   const [showLiveClassModal, setShowLiveClassModal] = useState(false);
   const [showQuizModal, setShowQuizModal] = useState(false);
   const [quizzes, setQuizzes] = useState<Array<{ id: number; title: string }>>([]);
+  const [resultsQuizId, setResultsQuizId] = useState<number | null>(null);
 
   const fetchQuizzes = async () => {
     try {
@@ -885,7 +887,10 @@ const CourseManagement: React.FC = () => {
                     <span className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl shrink-0">📝</span>
                     <span className="font-semibold text-gray-900 text-sm truncate">{q.title}</span>
                   </div>
-                  <button onClick={() => deleteQuiz(q.id)} className="text-red-500 hover:bg-red-50 rounded-lg px-2 py-1 text-sm shrink-0">🗑️</button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => setResultsQuizId(q.id)} className="text-blue-600 hover:bg-blue-50 rounded-lg px-2 py-1 text-sm" title="Ver resultados">📊</button>
+                    <button onClick={() => deleteQuiz(q.id)} className="text-red-500 hover:bg-red-50 rounded-lg px-2 py-1 text-sm" title="Eliminar">🗑️</button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1316,6 +1321,10 @@ const CourseManagement: React.FC = () => {
           onClose={() => setShowQuizModal(false)}
           onCreated={() => { toast.success('Cuestionario creado'); fetchQuizzes(); }}
         />
+      )}
+
+      {resultsQuizId && (
+        <QuizResultsModal quizId={resultsQuizId} onClose={() => setResultsQuizId(null)} />
       )}
 
       {/* Modal: Programar clase en vivo */}

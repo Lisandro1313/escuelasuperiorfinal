@@ -2701,6 +2701,36 @@ app.delete('/api/quizzes/:id', authenticateToken, requireProfessor, async (req, 
   }
 });
 
+// Resultados de un cuestionario para el profe: preguntas + cómo respondió cada alumno.
+app.get('/api/quizzes/:id/results', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const quiz = await db.getQuizById(Number(req.params.id));
+    if (!quiz) return res.status(404).json({ error: 'Cuestionario no encontrado' });
+    if (req.user.tipo !== 'admin' && quiz.instructor_id !== req.user.userId) {
+      return res.status(403).json({ error: 'No tenés permisos' });
+    }
+    const questions = await db.getQuizQuestionsWithAnswers(quiz.id);
+    const rawAttempts = await db.getQuizAttempts(quiz.id);
+    const attempts = rawAttempts.map((a) => {
+      let answers = {};
+      try { answers = JSON.parse(a.answers || '{}'); } catch { answers = {}; }
+      return {
+        user_name: a.user_name,
+        user_email: a.user_email,
+        score: a.score,
+        max_score: a.max_score,
+        percentage: a.max_score ? Math.round((a.score / a.max_score) * 100) : 0,
+        completed_at: a.completed_at,
+        answers,
+      };
+    });
+    res.json({ title: quiz.title, passing_score: quiz.passing_score, questions, attempts });
+  } catch (error) {
+    console.error('Error al obtener resultados del quiz:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ================================
 // RUTAS DE FORO
 // ================================

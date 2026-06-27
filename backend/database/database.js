@@ -1163,6 +1163,20 @@ class Database {
     });
   }
 
+  // Preguntas con la respuesta correcta (para que el profe vea resultados).
+  getQuizQuestionsWithAnswers(quizId) {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        'SELECT id, question_text, options, correct_answer, points FROM quiz_questions WHERE quiz_id = ? ORDER BY order_num ASC',
+        [quizId],
+        (err, rows) => {
+          if (err) return reject(err);
+          resolve((rows || []).map((qq) => ({ ...qq, options: JSON.parse(qq.options || '[]') })));
+        }
+      );
+    });
+  }
+
   // ===== Foro por curso =====
   getForumThreads(courseId) {
     return new Promise((resolve, reject) => {

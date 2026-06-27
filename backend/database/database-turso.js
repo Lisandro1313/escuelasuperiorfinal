@@ -740,6 +740,15 @@ class TursoDatabase {
     return { deleted: true };
   }
 
+  // Preguntas con la respuesta correcta (para que el profe vea resultados).
+  async getQuizQuestionsWithAnswers(quizId) {
+    const r = await this._query(
+      'SELECT id, question_text, options, correct_answer, points FROM quiz_questions WHERE quiz_id = ? ORDER BY order_num ASC',
+      [quizId]
+    );
+    return r.rows.map((qq) => ({ ...qq, options: JSON.parse(qq.options || '[]') }));
+  }
+
   // ===== Foro por curso =====
   async getForumThreads(courseId) {
     const r = await this._query(
