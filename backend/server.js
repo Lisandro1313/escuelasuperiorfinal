@@ -3106,7 +3106,7 @@ app.get('/api/admin/stats', authenticateToken, async (req, res) => {
       sqlGet(`SELECT COUNT(*) as n FROM enrollments`),
       sqlGet(`SELECT COUNT(*) as n FROM payments WHERE status = 'approved'`),
       sqlGet(`SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE status = 'approved'`),
-      sqlGet(`SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE status = 'approved' AND created_at >= date('now','start of month')`),
+      sqlGet(`SELECT COALESCE(SUM(amount),0) as total FROM payments WHERE status = 'approved' AND COALESCE(date_created, date_approved) >= date('now','start of month')`),
       sqlGet(`SELECT COUNT(*) as n FROM certificates`),
       sqlGet(`SELECT COUNT(*) as n FROM forum_threads`),
       sqlAll(`SELECT id, nombre, email, tipo, created_at FROM users ORDER BY created_at DESC LIMIT 10`),
