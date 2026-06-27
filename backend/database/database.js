@@ -1138,6 +1138,15 @@ class Database {
     });
   }
 
+  async deleteQuiz(quizId) {
+    const tryRun = (sql) => new Promise((res) => this.db.run(sql, [quizId], () => res()));
+    await tryRun('DELETE FROM quiz_attempts WHERE quiz_id = ?');
+    await tryRun('DELETE FROM quiz_questions WHERE quiz_id = ?');
+    return new Promise((resolve, reject) => {
+      this.db.run('DELETE FROM quizzes WHERE id = ?', [quizId], (err) => (err ? reject(err) : resolve({ deleted: true })));
+    });
+  }
+
   getQuizWithQuestions(quizId, userId) {
     return new Promise((resolve, reject) => {
       // Primero obtener el quiz

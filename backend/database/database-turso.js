@@ -727,6 +727,14 @@ class TursoDatabase {
     return r.rows[0] || null;
   }
 
+  async deleteQuiz(quizId) {
+    const tryRun = async (sql) => { try { await this._query(sql, [quizId]); } catch (_) { /* ignore */ } };
+    await tryRun('DELETE FROM quiz_attempts WHERE quiz_id = ?');
+    await tryRun('DELETE FROM quiz_questions WHERE quiz_id = ?');
+    await this._query('DELETE FROM quizzes WHERE id = ?', [quizId]);
+    return { deleted: true };
+  }
+
   async getQuizWithQuestions(quizId, _userId) {
     const q = await this._query(
       'SELECT q.*, c.nombre as course_name FROM quizzes q JOIN courses c ON q.course_id = c.id WHERE q.id = ?',

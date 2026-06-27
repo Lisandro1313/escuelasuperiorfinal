@@ -2527,6 +2527,22 @@ app.get('/api/quizzes/:id/attempts', authenticateToken, async (req, res) => {
   }
 });
 
+// Eliminar un cuestionario (solo el profe dueño o admin).
+app.delete('/api/quizzes/:id', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const quiz = await db.getQuizById(Number(req.params.id));
+    if (!quiz) return res.status(404).json({ error: 'Cuestionario no encontrado' });
+    if (req.user.tipo !== 'admin' && quiz.instructor_id !== req.user.userId) {
+      return res.status(403).json({ error: 'No tenés permisos para borrar este cuestionario' });
+    }
+    await db.deleteQuiz(Number(req.params.id));
+    res.json({ message: 'Cuestionario eliminado' });
+  } catch (error) {
+    console.error('Error al eliminar cuestionario:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // ================================
 // RUTAS DE FORO
 // ================================

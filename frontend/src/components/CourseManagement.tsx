@@ -106,6 +106,26 @@ const CourseManagement: React.FC = () => {
   const [uploadError, setUploadError] = useState<string>('');
   const [showLiveClassModal, setShowLiveClassModal] = useState(false);
   const [showQuizModal, setShowQuizModal] = useState(false);
+  const [quizzes, setQuizzes] = useState<Array<{ id: number; title: string }>>([]);
+
+  const fetchQuizzes = async () => {
+    try {
+      const res = await fetch(`/api/quizzes?courseId=${id}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      const d = await res.json();
+      setQuizzes(Array.isArray(d) ? d : (d.quizzes || []));
+    } catch { /* ignore */ }
+  };
+
+  const deleteQuiz = async (quizId: number) => {
+    if (!confirm('¿Eliminar este cuestionario?')) return;
+    try {
+      const res = await fetch(`/api/quizzes/${quizId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      if (res.ok) { toast.success('Cuestionario eliminado'); fetchQuizzes(); }
+      else toast.error('No se pudo eliminar');
+    } catch { toast.error('Error de conexión'); }
+  };
+
+  useEffect(() => { if (id) fetchQuizzes(); }, [id]);
   const [liveClassForm, setLiveClassForm] = useState({ title: '', date: '', time: '', duration: 60, meeting_url: '', precio: 0 });
   const [liveClassResult, setLiveClassResult] = useState<{ url: string; date: string } | null>(null);
   const [scheduling, setScheduling] = useState(false);
@@ -784,6 +804,39 @@ const CourseManagement: React.FC = () => {
             ))}
           </div>
         )}
+
+        {/* Cuestionarios del curso */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">📝 Cuestionarios</h3>
+              <p className="text-sm text-gray-500">Tests de opción múltiple con nota automática.</p>
+            </div>
+            <button
+              onClick={() => setShowQuizModal(true)}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap"
+            >
+              ➕ Nuevo cuestionario
+            </button>
+          </div>
+          {quizzes.length === 0 ? (
+            <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-8 text-center text-gray-400 text-sm">
+              Todavía no creaste cuestionarios para este curso.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {quizzes.map((q) => (
+                <div key={q.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-xl shrink-0">📝</span>
+                    <span className="font-semibold text-gray-900 text-sm truncate">{q.title}</span>
+                  </div>
+                  <button onClick={() => deleteQuiz(q.id)} className="text-red-500 hover:bg-red-50 rounded-lg px-2 py-1 text-sm shrink-0">🗑️</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Modal para crear/editar módulo */}
@@ -1207,7 +1260,7 @@ const CourseManagement: React.FC = () => {
         <CreateQuizModal
           courseId={Number(id)}
           onClose={() => setShowQuizModal(false)}
-          onCreated={() => toast.success('Cuestionario creado')}
+          onCreated={() => { toast.success('Cuestionario creado'); fetchQuizzes(); }}
         />
       )}
 
