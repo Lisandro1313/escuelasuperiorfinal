@@ -48,9 +48,21 @@ class SocketService {
   }
 
   // Métodos para chat de cursos
-  joinCourse(courseId: number): void {
+  joinCourse(courseId: number, user?: { userId: number; userName: string }): void {
     if (this.socket) {
-      this.socket.emit('join-course', courseId);
+      this.socket.emit('join-course', courseId, user);
+    }
+  }
+
+  onPresence(callback: (data: { count: number; users: { userId: number; userName: string }[] }) => void): void {
+    if (this.socket) {
+      this.socket.on('course-presence', callback);
+    }
+  }
+
+  offPresence(): void {
+    if (this.socket) {
+      this.socket.off('course-presence');
     }
   }
 

@@ -29,6 +29,7 @@ const CourseChat: React.FC<CourseChatProps> = ({ courseId, userId, userName }) =
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState('');
   const [unread, setUnread] = useState(0);
+  const [online, setOnline] = useState<{ userId: number; userName: string }[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
   const openRef = useRef(open);
 
@@ -39,7 +40,7 @@ const CourseChat: React.FC<CourseChatProps> = ({ courseId, userId, userName }) =
   useEffect(() => {
     const token = localStorage.getItem('token') || undefined;
     socketService.connect(token);
-    socketService.joinCourse(courseId);
+    socketService.joinCourse(courseId, { userId, userName });
     fetchJSON<ChatMessage[]>(`/api/courses/${courseId}/messages`)
       .then((m) => setMessages(Array.isArray(m) ? m : []))
       .catch(() => {});
@@ -49,10 +50,12 @@ const CourseChat: React.FC<CourseChatProps> = ({ courseId, userId, userName }) =
       if (!openRef.current) setUnread((u) => u + 1);
     };
     socketService.onNewMessage(handler);
+    socketService.onPresence((p) => setOnline(p.users || []));
     return () => {
       socketService.offNewMessage();
+      socketService.offPresence();
     };
-  }, [courseId]);
+  }, [courseId, userId, userName]);
 
   useEffect(() => {
     if (open) {
@@ -87,8 +90,18 @@ const CourseChat: React.FC<CourseChatProps> = ({ courseId, userId, userName }) =
       {open && (
         <div className="fixed bottom-24 right-5 z-50 w-80 max-w-[90vw] h-[28rem] bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden">
           <div className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-4 py-3">
-            <p className="font-semibold text-sm">Chat del curso</p>
-            <p className="text-blue-200 text-xs">Consultá y charlá con profe y compañeros</p>
+            <div className="flex items-center justify-between">
+              <p className="font-semibold text-sm">Chat del curso</p>
+              {online.length > 0 && (
+                <span className="flex items-center gap-1 text-xs text-emerald-300">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block" />
+                  {online.length} en línea
+                </span>
+              )}
+            </div>
+            <p className="text-blue-200 text-xs truncate">
+              {online.length > 0 ? online.map((u) => u.userName).join(', ') : 'Consultá y charlá con profe y compañeros'}
+            </p>
           </div>
 
           <div ref={listRef} className="flex-1 overflow-y-auto p-3 space-y-2 bg-gray-50">

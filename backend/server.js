@@ -3256,10 +3256,30 @@ io.on('connection', (socket) => {
     }
   }
 
+  // Lista de conectados en un curso (presencia para el chat).
+  async function emitPresence(courseId) {
+    try {
+      const sockets = await io.in(`course-${courseId}`).fetchSockets();
+      const byId = new Map();
+      for (const s of sockets) {
+        const u = s.data?.user;
+        if (u?.userId) byId.set(u.userId, u.userName);
+      }
+      const users = [...byId.entries()].map(([userId, userName]) => ({ userId, userName }));
+      io.to(`course-${courseId}`).emit('course-presence', { count: users.length, users });
+    } catch (_) { /* ignore */ }
+  }
+
   // Unirse a la sala de un curso específico
-  socket.on('join-course', (courseId) => {
+  socket.on('join-course', (courseId, clientUser) => {
     socket.join(`course-${courseId}`);
-    console.log(`Usuario ${socket.id} se unió al curso ${courseId}`);
+    socket.data.courseId = courseId;
+    if (!socket.data.user && clientUser?.userId) {
+      socket.data.user = { userId: clientUser.userId, userName: clientUser.userName || 'Usuario' };
+    }
+    emitPresence(courseId);
+    // Reintento corto por si el usuario autenticado terminó de cargar después.
+    setTimeout(() => emitPresence(courseId), 800);
   });
 
   // Enviar mensaje al curso (persiste y usa el usuario autenticado del socket).
@@ -3293,6 +3313,7 @@ io.on('connection', (socket) => {
   // Desconexión
   socket.on('disconnect', () => {
     console.log('❌ Usuario desconectado:', socket.id);
+    if (socket.data?.courseId) emitPresence(socket.data.courseId);
   });
 });
 

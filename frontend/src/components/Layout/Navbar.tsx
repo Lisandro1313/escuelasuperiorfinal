@@ -3,6 +3,14 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import NotificationCenter from '../Notifications/NotificationCenter';
 import InstallPWA from '../Common/InstallPWA';
+import { API_BASE } from '../../config';
+
+export const avatarUrl = (avatar?: string | null): string | null => {
+  if (!avatar) return null;
+  if (avatar.startsWith('http')) return avatar;
+  if (avatar.startsWith('/uploads')) return `${API_BASE}${avatar}`;
+  return null;
+};
 
 const Navbar: React.FC = () => {
   const { usuario, logout } = useAuth();
@@ -72,9 +80,13 @@ const Navbar: React.FC = () => {
                     onClick={() => setShowUserMenu((v) => !v)}
                     className="flex items-center gap-2 hover:bg-gray-100 rounded-lg px-2 py-1.5 transition"
                   >
-                    <div className="w-9 h-9 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-semibold">
-                      {usuario.nombre?.[0]?.toUpperCase() || '👤'}
-                    </div>
+                    {avatarUrl(usuario.avatar) ? (
+                      <img src={avatarUrl(usuario.avatar)!} alt={usuario.nombre} className="w-9 h-9 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-9 h-9 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-semibold">
+                        {usuario.nombre?.[0]?.toUpperCase() || '👤'}
+                      </div>
+                    )}
                     <div className="hidden md:block text-left">
                       <div className="text-sm font-medium text-gray-900 leading-tight">{usuario.nombre}</div>
                       <div className="text-xs text-gray-500 capitalize leading-tight">{usuario.tipo}</div>

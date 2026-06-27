@@ -21,6 +21,7 @@ import Profile from './components/Profile/Profile';
 import Navbar from './components/Layout/Navbar';
 import { ToastProvider } from './components/Toast/ToastProvider';
 import RotatingQuote from './components/Common/RotatingQuote';
+import InstallBanner from './components/Common/InstallBanner';
 
 const loadingQuotes = [
   'Armando aula, materiales y rutas de aprendizaje...',
@@ -48,6 +49,7 @@ function AppContent() {
     <Router>
       <div className="min-h-screen">
         {isAuthenticated && <Navbar />}
+        <InstallBanner />
 
         <Routes>
           <Route path="/" element={!isAuthenticated ? <LandingPage /> : <Navigate to="/dashboard" />} />
