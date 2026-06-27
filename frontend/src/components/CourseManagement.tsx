@@ -783,7 +783,7 @@ const CourseManagement: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-purple-700 text-white p-6 rounded-t-2xl">
+            <div className="bg-gradient-to-r from-slate-900 to-blue-900 text-white p-6 rounded-t-2xl">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-2xl font-bold">
@@ -868,7 +868,7 @@ const CourseManagement: React.FC = () => {
               <button 
                 onClick={editingModule ? handleUpdateModule : handleCreateModule}
                 disabled={!moduleForm.titulo}
-                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-700 text-white rounded-xl font-semibold hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition duration-200"
+                className="px-6 py-3 bg-gradient-to-r from-slate-900 to-blue-900 text-white rounded-xl font-semibold hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition duration-200"
               >
                 {editingModule ? '💾 Actualizar' : '✨ Crear'} Módulo
               </button>

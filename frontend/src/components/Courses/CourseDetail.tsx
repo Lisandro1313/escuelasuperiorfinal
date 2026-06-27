@@ -188,9 +188,9 @@ const CourseDetail: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero del curso */}
-      <div className="bg-gradient-to-br from-blue-600 to-purple-700 text-white">
+      <div className="bg-gradient-to-br from-slate-900 to-blue-900 text-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <Link to="/courses" className="text-blue-100 hover:text-white text-sm">← Volver al catálogo</Link>
+          <Link to="/courses" className="text-blue-200 hover:text-white text-sm">← Volver al catálogo</Link>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-4 items-start">
             <div className="lg:col-span-2">
               <span className="inline-block bg-white/20 text-white text-xs font-medium px-3 py-1 rounded-full mb-3">
