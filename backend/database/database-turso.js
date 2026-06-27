@@ -881,6 +881,15 @@ class TursoDatabase {
     return !!r.rows[0];
   }
 
+  // Grant a NIVEL CURSO (compró el curso entero): module/lesson/event en NULL.
+  async hasCourseLevelGrant(userId, courseId) {
+    const r = await this._query(
+      'SELECT id FROM access_grants WHERE user_id = ? AND course_id = ? AND module_id IS NULL AND lesson_id IS NULL AND event_id IS NULL LIMIT 1',
+      [userId, courseId]
+    );
+    return !!r.rows[0];
+  }
+
   async createAccessGrant({ user_id, course_id, module_id = null, lesson_id = null, event_id = null, source_payment_id = null }) {
     const exists = await this.hasAccessGrant({ userId: user_id, courseId: course_id, moduleId: module_id, lessonId: lesson_id, eventId: event_id });
     if (exists) return { reused: true };

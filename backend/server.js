@@ -250,29 +250,43 @@ function sqlAll(query, params = []) {
   });
 }
 
+// Acceso a un MÓDULO. Reglas:
+//  - curso gratis o modalidad 'curso': alcanza con inscripción o grant de curso.
+//  - modalidad 'modulo'/'clase': la inscripción NO da acceso total (podés estar
+//    inscripto por haber comprado solo una parte). Hace falta grant de curso
+//    completo o grant de ESE módulo. (Módulo sin precio = libre para inscriptos.)
 async function hasModuleAccess(userId, course, moduleId) {
   const modality = (course.modalidad_precio || 'curso').toLowerCase();
+  const isFreeCourse = Number(course.precio || 0) === 0;
   const enrollment = await db.getUserEnrollmentForCourse(userId, course.id);
-  if (modality === 'curso') return !!enrollment || await db.hasAccessGrant({ userId, courseId: course.id });
-  if (modality === 'modulo') {
-    const hasCourseGrant = await db.hasAccessGrant({ userId, courseId: course.id });
-    const hasModuleGrant = await db.hasAccessGrant({ userId, courseId: course.id, moduleId });
-    return !!enrollment || hasCourseGrant || hasModuleGrant;
-  }
-  const hasCourseGrant = await db.hasAccessGrant({ userId, courseId: course.id });
+  const hasCourseLevel = await db.hasCourseLevelGrant(userId, course.id);
+
+  if (modality === 'curso' || isFreeCourse) return !!enrollment || hasCourseLevel;
+
+  const moduleData = await db.getModuleById(moduleId);
+  if (moduleData && Number(moduleData.precio || 0) === 0) return !!enrollment || hasCourseLevel;
+
   const hasModuleGrant = await db.hasAccessGrant({ userId, courseId: course.id, moduleId });
-  return !!enrollment || hasCourseGrant || hasModuleGrant;
+  return hasCourseLevel || hasModuleGrant;
 }
 
+// Acceso a una CLASE. Misma lógica; en modalidad 'clase' además vale el grant de la clase puntual.
 async function hasLessonAccess(userId, course, moduleId, lessonId) {
   const modality = (course.modalidad_precio || 'curso').toLowerCase();
+  const isFreeCourse = Number(course.precio || 0) === 0;
   const enrollment = await db.getUserEnrollmentForCourse(userId, course.id);
-  if (modality === 'curso') return !!enrollment || await db.hasAccessGrant({ userId, courseId: course.id });
-  const hasCourseGrant = await db.hasAccessGrant({ userId, courseId: course.id });
+  const hasCourseLevel = await db.hasCourseLevelGrant(userId, course.id);
+
+  if (modality === 'curso' || isFreeCourse) return !!enrollment || hasCourseLevel;
+
+  const lessonData = await db.getLessonById(lessonId);
+  if (lessonData && Number(lessonData.precio || 0) === 0) return !!enrollment || hasCourseLevel;
+
   const hasModuleGrant = await db.hasAccessGrant({ userId, courseId: course.id, moduleId });
+  if (modality === 'modulo') return hasCourseLevel || hasModuleGrant;
+
   const hasLessonGrant = await db.hasAccessGrant({ userId, courseId: course.id, lessonId });
-  if (modality === 'modulo') return !!enrollment || hasCourseGrant || hasModuleGrant;
-  return !!enrollment || hasCourseGrant || hasModuleGrant || hasLessonGrant;
+  return hasCourseLevel || hasModuleGrant || hasLessonGrant;
 }
 
 const VideoConference = require('./src/models/VideoConference');
@@ -1914,17 +1928,17 @@ app.post('/api/payments/create-preference', authenticateToken, async (req, res) 
 
     if (normalizedType === 'module') {
       const moduleData = await db.getModuleById(Number(moduleId));
-      if (!moduleData || Number(moduleData.course_id) !== Number(courseId)) return res.status(400).json({ error: 'M?dulo inv?lido' });
+      if (!moduleData || Number(moduleData.course_id) !== Number(courseId)) return res.status(400).json({ error: 'Módulo inválido' });
       refModuleId = moduleData.id;
       amount = Number(moduleData.precio || 0);
     }
 
     if (normalizedType === 'lesson') {
       const lessonData = await db.getLessonById(Number(lessonId));
-      if (!lessonData) return res.status(400).json({ error: 'Lecci?n inv?lida' });
+      if (!lessonData) return res.status(400).json({ error: 'Lección inválida' });
       const moduleData = await db.getModuleById(Number(lessonData.module_id));
       if (!moduleData || Number(moduleData.course_id) !== Number(courseId)) {
-        return res.status(400).json({ error: 'Lecci?n inv?lida para este curso' });
+        return res.status(400).json({ error: 'Lección inválida para este curso' });
       }
       refModuleId = moduleData.id;
       refLessonId = lessonData.id;
@@ -2155,12 +2169,16 @@ app.post('/api/payments/webhook', async (req, res) => {
         // Clase en vivo: solo acceso al evento, no inscribe al curso entero.
         await db.createAccessGrant({ user_id: userId, course_id: courseId, event_id: eventId });
       } else {
+        // Inscribimos para que el curso aparezca en su panel. OJO: en modalidad
+        // 'modulo'/'clase' la inscripción NO da acceso total (ver hasModuleAccess).
         const already = await db.isUserEnrolled(userId, courseId);
         if (!already) await db.enrollUser(userId, courseId);
         await db.createAccessGrant({
           user_id: userId,
           course_id: courseId,
-          module_id: targetType === 'module' || targetType === 'lesson' ? moduleId : null,
+          // Compra de módulo → grant de módulo. Compra de clase → grant SOLO de clase
+          // (module_id en NULL, sino desbloquearía el módulo entero).
+          module_id: targetType === 'module' ? moduleId : null,
           lesson_id: targetType === 'lesson' ? lessonId : null,
         });
       }

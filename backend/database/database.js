@@ -524,6 +524,16 @@ class Database {
     });
   }
 
+  // Grant a NIVEL CURSO (compró el curso entero): module/lesson/event en NULL.
+  // No confundir con hasAccessGrant({courseId}) que matchea cualquier grant del curso.
+  async hasCourseLevelGrant(userId, courseId) {
+    return new Promise((resolve, reject) => {
+      this.db.get(
+        `SELECT id FROM access_grants WHERE user_id = ? AND course_id = ? AND module_id IS NULL AND lesson_id IS NULL AND event_id IS NULL LIMIT 1`,
+        [userId, courseId], (err, row) => (err ? reject(err) : resolve(!!row)));
+    });
+  }
+
   async createAccessGrant({ user_id, course_id, module_id = null, lesson_id = null, event_id = null, source_payment_id = null }) {
     const exists = await this.hasAccessGrant({
       userId: user_id,
