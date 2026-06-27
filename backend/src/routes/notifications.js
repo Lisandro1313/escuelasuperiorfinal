@@ -12,7 +12,7 @@ module.exports = (db, authenticateToken, io) => {
     // Obtener todas las notificaciones del usuario
     router.get('/notifications', authenticateToken, async (req, res) => {
         try {
-            const userId = req.user.id;
+            const userId = req.user.userId;
             const { limit, unreadOnly } = req.query;
 
             const notifications = await notificationModel.getUserNotifications(
@@ -37,7 +37,7 @@ module.exports = (db, authenticateToken, io) => {
     // Obtener contador de notificaciones no leídas
     router.get('/notifications/unread-count', authenticateToken, async (req, res) => {
         try {
-            const userId = req.user.id;
+            const userId = req.user.userId;
             const count = await notificationModel.getUnreadCount(userId);
 
             res.json({
@@ -69,7 +69,7 @@ module.exports = (db, authenticateToken, io) => {
     // Marcar todas las notificaciones como leídas
     router.put('/notifications/mark-all-read', authenticateToken, async (req, res) => {
         try {
-            const userId = req.user.id;
+            const userId = req.user.userId;
             await notificationModel.markAllAsRead(userId);
 
             res.json({
@@ -101,7 +101,7 @@ module.exports = (db, authenticateToken, io) => {
     // Obtener preferencias de notificaciones
     router.get('/notifications/preferences', authenticateToken, async (req, res) => {
         try {
-            const userId = req.user.id;
+            const userId = req.user.userId;
             const preferences = await notificationModel.getPreferences(userId);
 
             res.json({
@@ -117,7 +117,7 @@ module.exports = (db, authenticateToken, io) => {
     // Actualizar preferencias de notificaciones
     router.put('/notifications/preferences', authenticateToken, async (req, res) => {
         try {
-            const userId = req.user.id;
+            const userId = req.user.userId;
             const preferences = req.body;
 
             const updated = await notificationModel.updatePreferences(userId, preferences);
@@ -136,7 +136,7 @@ module.exports = (db, authenticateToken, io) => {
     // Enviar notificación de prueba (solo para desarrollo)
     router.post('/notifications/test', authenticateToken, async (req, res) => {
         try {
-            const userId = req.user.id;
+            const userId = req.user.userId;
             const { title, message, type } = req.body;
 
             const notification = await notificationModel.create({

@@ -2418,26 +2418,29 @@ app.use('/api', notificationRoutes);
 // RUTAS DE CERTIFICADOS
 // ================================
 
-const certificateRoutes = require('./src/routes/certificates')(db, authenticateToken);
-app.use('/api', certificateRoutes);
-
-// Servir archivos de certificados
-app.use('/certificates', express.static(path.join(__dirname, '../certificates')));
+// Rutas de certificados viejas: DESACTIVADAS (usaban req.user.id; el certificado
+// real es /api/courses/:id/certificate inline en server.js). El front no las usa.
+// const certificateRoutes = require('./src/routes/certificates')(db, authenticateToken);
+// app.use('/api', certificateRoutes);
 
 // ================================
 // RUTAS DE VIDEOCONFERENCIAS
 // ================================
 
-const videoConferenceRoutes = require('./src/routes/videoConferences')(db, authenticateToken, requireProfessor);
-app.use('/api', videoConferenceRoutes);
+// Rutas de videoconferencias viejas: DESACTIVADAS (usaban req.user.id, sin uso en el front).
+// Las clases en vivo reales son /api/live/* inline en server.js.
+// const videoConferenceRoutes = require('./src/routes/videoConferences')(db, authenticateToken, requireProfessor);
+// app.use('/api', videoConferenceRoutes);
 
 // ================================
 // RUTAS DE CHAT EN VIVO
 // ================================
 
-const Chat = require('./src/models/Chat');
-const chatRoutes = require('./src/routes/chat')(db, authenticateToken, io);
-app.use('/api', chatRoutes);
+// Rutas de chat (mensajería privada) viejas: DESACTIVADAS (usaban req.user.id y el
+// modelo accedía a db.run mal). El chat real del curso es por sockets en server.js.
+// const Chat = require('./src/models/Chat');
+// const chatRoutes = require('./src/routes/chat')(db, authenticateToken, io);
+// app.use('/api', chatRoutes);
 
 // ================================
 // RUTAS DE FOROS
@@ -2453,9 +2456,11 @@ app.use('/api', chatRoutes);
 // RUTAS DE GAMIFICACIÓN
 // ================================
 
-const Gamification = require('./src/models/Gamification');
-const gamificationRoutes = require('./src/routes/gamification')(db, authenticateToken);
-app.use('/api', gamificationRoutes);
+// Rutas de gamificación viejas: DESACTIVADAS (usaban req.user.id y db.run mal).
+// El panel del alumno usa XP/nivel/logros derivados del progreso real (frontend).
+// const Gamification = require('./src/models/Gamification');
+// const gamificationRoutes = require('./src/routes/gamification')(db, authenticateToken);
+// app.use('/api', gamificationRoutes);
 
 // ================================
 // RUTAS DE INSCRIPCIONES (Cursos Gratuitos)
@@ -2473,8 +2478,11 @@ logger.success('NotificationHelper inicializado correctamente');
 // RUTAS DE ADMINISTRADOR
 // ================================
 
-const adminRoutes = require('./src/routes/admin')(db, authenticateToken, requireProfessor);
-app.use('/api', adminRoutes);
+// Rutas de admin viejas: DESACTIVADAS (usaban req.user.role/req.user.id; interceptaban
+// el DELETE de usuario y lo rompían). Los endpoints de admin reales están inline en
+// server.js (GET /api/users, POST/DELETE/PATCH /api/admin/users..., /api/admin/stats).
+// const adminRoutes = require('./src/routes/admin')(db, authenticateToken, requireProfessor);
+// app.use('/api', adminRoutes);
 
 // ================================
 // RUTAS DE SALUD
