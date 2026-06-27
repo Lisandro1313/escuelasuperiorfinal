@@ -40,13 +40,12 @@ const NotificationCenter: React.FC = () => {
         if (response.ok) {
           const data = await response.json();
           if (data.success) {
-            // Normalizamos: el backend usa leida/created_at, el front read/created_at.
-            const list = (data.notifications || []).map((n: Notification) => ({
-              ...n,
-              read: n.read ?? !!n.leida,
-            }));
+            // Normalizamos + descartamos notificaciones vacías (sin titulo ni mensaje).
+            const list = (data.notifications || [])
+              .map((n: Notification) => ({ ...n, read: n.read ?? !!n.leida }))
+              .filter((n: Notification) => (n.title || n.titulo || n.message || n.mensaje));
             setNotifications(list);
-            setUnreadCount(data.unreadCount ?? list.filter((n: Notification) => !n.read).length);
+            setUnreadCount(list.filter((n: Notification) => !n.read).length);
           }
         }
       } catch (error) {

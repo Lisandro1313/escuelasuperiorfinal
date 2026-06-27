@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import NotificationCenter from '../Notifications/NotificationCenter';
+import InstallPWA from '../Common/InstallPWA';
 
 const Navbar: React.FC = () => {
   const { usuario, logout } = useAuth();
@@ -49,6 +50,7 @@ const Navbar: React.FC = () => {
 
           {/* Right side */}
           <div className="flex items-center gap-3">
+            <InstallPWA />
             {!usuario ? (
               <>
                 <Link to="/login" className="text-gray-700 hover:text-gray-900 font-medium px-4 py-2">

@@ -28,8 +28,24 @@ interface CatalogCourse {
   imagen?: string;
 }
 
+interface LiveItem {
+  id: number;
+  title: string;
+  start_date: string;
+  precio: number;
+  course_nombre?: string | null;
+}
+
 const formatARS = (n: number) =>
   new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n || 0);
+
+const formatLiveFecha = (iso: string) => {
+  try {
+    return new Date(iso).toLocaleString('es-AR', { weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return iso;
+  }
+};
 
 const PLACEHOLDERS = [
   'https://images.unsplash.com/photo-1513258496099-48168024aec0?w=400&h=220&fit=crop',
@@ -39,8 +55,10 @@ const PLACEHOLDERS = [
   'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=400&h=220&fit=crop',
 ];
 
-const imgFor = (imagen: string | undefined, idx: number) =>
-  imagen && imagen.startsWith('http') ? imagen : PLACEHOLDERS[idx % PLACEHOLDERS.length];
+// Imagen estable por curso: si no tiene foto, el placeholder depende del id
+// (siempre el mismo para ese curso, no cambia entre renders).
+const imgFor = (imagen: string | undefined, seed: number) =>
+  imagen && imagen.startsWith('http') ? imagen : PLACEHOLDERS[Math.abs(seed || 0) % PLACEHOLDERS.length];
 
 const motivQuotes = [
   { text: 'El éxito es la suma de pequeños esfuerzos repetidos día tras día.', author: 'Robert Collier' },
@@ -53,6 +71,7 @@ export const StudentDashboard: React.FC = () => {
   const { usuario } = useAuth();
   const [myCourses, setMyCourses] = useState<MyCourse[]>([]);
   const [catalog, setCatalog] = useState<CatalogCourse[]>([]);
+  const [lives, setLives] = useState<LiveItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -66,6 +85,7 @@ export const StudentDashboard: React.FC = () => {
         setCatalog(Array.isArray(all) ? all : []);
       })
       .finally(() => setLoading(false));
+    fetchJSON<LiveItem[]>('/api/live/upcoming').then((d) => setLives(Array.isArray(d) ? d : [])).catch(() => {});
   }, []);
 
   const enrolledIds = useMemo(() => new Set(myCourses.map((c) => c.id ?? c.course_id)), [myCourses]);
@@ -150,14 +170,14 @@ export const StudentDashboard: React.FC = () => {
 
       {/* Continuá donde dejaste (Coursera-style) */}
       {resume && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
           <Link
             to={`/course/${resume.id ?? resume.course_id}/aula`}
             className="block bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden hover:shadow-xl transition group"
           >
             <div className="flex flex-col sm:flex-row">
               <div className="sm:w-56 h-36 sm:h-auto overflow-hidden shrink-0">
-                <img src={imgFor(resume.imagen, 0)} alt={resume.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                <img src={imgFor(resume.imagen, resume.id ?? resume.course_id)} alt={resume.nombre} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
               </div>
               <div className="p-5 flex-1 flex flex-col justify-center">
                 <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-1">Continuá donde dejaste</p>
@@ -177,10 +197,39 @@ export const StudentDashboard: React.FC = () => {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-12">
-        {/* Frase motivacional */}
-        <div className="bg-gradient-to-r from-slate-800 to-blue-900 text-white rounded-2xl px-6 py-6 text-center">
-          <EducatorQuote quotes={motivQuotes} intervalMs={8000} />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-10">
+        {/* Próximas clases en vivo (para enterarse) */}
+        {lives.length > 0 && (
+          <section>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="inline-flex items-center gap-2 bg-red-50 text-red-600 text-xs font-bold px-3 py-1 rounded-full">
+                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" /> EN VIVO
+              </span>
+              <h2 className="text-lg font-bold text-gray-900">Próximas clases en vivo</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {lives.slice(0, 4).map((lc) => (
+                <Link
+                  key={lc.id}
+                  to={`/live/${lc.id}`}
+                  className="group bg-white border border-gray-100 hover:border-red-200 hover:shadow-md rounded-2xl p-4 flex items-center justify-between gap-3 transition"
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 leading-tight line-clamp-1">{lc.title}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 capitalize">📅 {formatLiveFecha(lc.start_date)} hs</p>
+                  </div>
+                  <span className={`text-xs font-bold whitespace-nowrap ${Number(lc.precio) === 0 ? 'text-emerald-600' : 'text-gray-900'}`}>
+                    {Number(lc.precio) === 0 ? 'Reservar' : formatARS(lc.precio)} →
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Frase motivacional (compacta) */}
+        <div className="bg-gradient-to-r from-slate-800 to-blue-900 text-white rounded-2xl px-6 py-5 text-center">
+          <EducatorQuote quotes={motivQuotes} intervalMs={8000} compact />
         </div>
 
         {/* Mis cursos */}
@@ -200,7 +249,7 @@ export const StudentDashboard: React.FC = () => {
                   >
                     <div className="relative h-36 overflow-hidden shrink-0">
                       <img
-                        src={imgFor(c.imagen, idx)}
+                        src={imgFor(c.imagen, c.id ?? (c as any).course_id)}
                         alt={c.nombre}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDERS[idx % PLACEHOLDERS.length]; }}
@@ -257,7 +306,7 @@ export const StudentDashboard: React.FC = () => {
                 >
                   <div className="relative h-36 overflow-hidden shrink-0">
                     <img
-                      src={imgFor(c.imagen, idx)}
+                      src={imgFor(c.imagen, c.id ?? (c as any).course_id)}
                       alt={c.nombre}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDERS[idx % PLACEHOLDERS.length]; }}

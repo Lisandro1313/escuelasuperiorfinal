@@ -22,9 +22,10 @@ const DEFAULT_QUOTES: Quote[] = [
 interface EducatorQuoteProps {
   quotes?: Quote[];
   intervalMs?: number;
+  compact?: boolean;
 }
 
-const EducatorQuote: React.FC<EducatorQuoteProps> = ({ quotes, intervalMs = 6500 }) => {
+const EducatorQuote: React.FC<EducatorQuoteProps> = ({ quotes, intervalMs = 6500, compact = false }) => {
   const list = useMemo(() => (quotes && quotes.length ? quotes : DEFAULT_QUOTES), [quotes]);
   const [index, setIndex] = useState(() => Math.floor(Math.random() * DEFAULT_QUOTES.length));
   const [visible, setVisible] = useState(true);
@@ -43,9 +44,9 @@ const EducatorQuote: React.FC<EducatorQuoteProps> = ({ quotes, intervalMs = 6500
   const q = list[index % list.length];
 
   return (
-    <div className="min-h-[150px]" aria-live="polite">
+    <div className={compact ? 'min-h-[64px]' : 'min-h-[150px]'} aria-live="polite">
       <div className={`transition-opacity duration-500 ${visible ? 'opacity-100' : 'opacity-0'}`}>
-        <blockquote className="text-2xl md:text-3xl font-semibold leading-snug mb-3">
+        <blockquote className={`font-semibold leading-snug ${compact ? 'text-lg md:text-xl mb-1' : 'text-2xl md:text-3xl mb-3'}`}>
           “{q.text}”
         </blockquote>
         <p className="text-blue-200 text-sm font-medium">— {q.author}</p>
