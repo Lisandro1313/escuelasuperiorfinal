@@ -203,9 +203,13 @@ const Dashboard: React.FC = () => {
             <div className="divide-y divide-gray-50">
               {data.courses.map((c) => (
                 <div key={c.id} className="px-6 py-4 flex flex-col md:flex-row md:items-center gap-4 hover:bg-gray-50/50 transition">
-                  {/* Color block en vez de emoji */}
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-2xl shrink-0">
-                    {c.imagen || '📚'}
+                  {/* Foto del curso (o emoji de fallback) */}
+                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-2xl shrink-0">
+                    {c.imagen && c.imagen.startsWith('http') ? (
+                      <img src={c.imagen} alt={c.nombre} className="w-full h-full object-cover" />
+                    ) : (
+                      c.imagen || '📚'
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">

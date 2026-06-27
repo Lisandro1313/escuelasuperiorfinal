@@ -208,7 +208,11 @@ const CourseDetail: React.FC = () => {
 
             {/* Card de compra/acceso */}
             <div className="bg-white text-gray-900 rounded-xl shadow-xl p-6 lg:sticky lg:top-20">
-              <div className="text-5xl mb-3 text-center">{course.imagen || '📚'}</div>
+              {course.imagen && course.imagen.startsWith('http') ? (
+                <img src={course.imagen} alt={course.nombre} className="w-full h-40 object-cover rounded-xl mb-4" />
+              ) : (
+                <div className="text-5xl mb-3 text-center">{course.imagen || '📚'}</div>
+              )}
               <div className="text-center mb-4">
                 {isFree ? (
                   <div className="text-3xl font-bold text-green-600">GRATIS</div>
