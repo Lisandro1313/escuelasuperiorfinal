@@ -301,6 +301,15 @@ async function hasLessonAccess(userId, course, moduleId, lessonId) {
   return hasCourseLevel || hasModuleGrant || hasLessonGrant;
 }
 
+// Progreso REAL de un alumno en un curso (desde lesson_progress, no el campo stale).
+async function computeCourseProgress(userId, courseId) {
+  const t = await sqlGet('SELECT COUNT(*) as n FROM lessons l JOIN modules m ON m.id = l.module_id WHERE m.course_id = ? AND l.publicado = 1', [courseId]);
+  const d = await sqlGet('SELECT COUNT(*) as n FROM lesson_progress lp JOIN lessons l ON l.id = lp.lesson_id JOIN modules m ON m.id = l.module_id WHERE m.course_id = ? AND l.publicado = 1 AND lp.completed = 1 AND lp.user_id = ?', [courseId, userId]);
+  const total = Number(t?.n || 0);
+  const done = Number(d?.n || 0);
+  return { total, done, percent: total > 0 ? Math.round((done / total) * 100) : 0 };
+}
+
 const VideoConference = require('./src/models/VideoConference');
 
 // ================================
@@ -837,6 +846,7 @@ app.get('/api/professor/my-students', authenticateToken, requireProfessor, async
     for (const course of courses) {
       const students = await db.getCourseEnrollments(course.id);
       for (const s of students) {
+        const prog = await computeCourseProgress(s.id, course.id);
         flat.push({
           enrollment_id: s.enrollment_id || s.id,
           student_id: s.id,
@@ -846,8 +856,8 @@ app.get('/api/professor/my-students', authenticateToken, requireProfessor, async
           course_name: course.nombre,
           course_price: course.precio,
           enrolled_at: s.enrolled_at,
-          progress: s.progress,
-          completed: s.completed,
+          progress: prog.percent,
+          completed: prog.total > 0 && prog.done >= prog.total ? 1 : 0,
         });
       }
     }
@@ -855,6 +865,48 @@ app.get('/api/professor/my-students', authenticateToken, requireProfessor, async
     res.json(flat);
   } catch (error) {
     console.error('Error en /api/professor/my-students:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Ficha de un alumno (para el docente/admin): cursos con progreso real, actividad y último ingreso.
+app.get('/api/professor/students/:studentId', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const studentId = Number(req.params.studentId);
+    const isAdmin = req.user.tipo === 'admin';
+    const student = await db.getUserById(studentId);
+    if (!student) return res.status(404).json({ error: 'Alumno no encontrado' });
+
+    const courseRows = await sqlAll(
+      `SELECT c.id, c.nombre, c.imagen, e.enrolled_at
+       FROM enrollments e JOIN courses c ON c.id = e.course_id
+       WHERE e.user_id = ? ${isAdmin ? '' : 'AND c.profesor_id = ?'}
+       ORDER BY e.enrolled_at DESC`,
+      isAdmin ? [studentId] : [studentId, req.user.userId]
+    );
+    const courses = [];
+    for (const c of courseRows) {
+      const prog = await computeCourseProgress(studentId, c.id);
+      courses.push({ id: c.id, nombre: c.nombre, imagen: c.imagen, enrolled_at: c.enrolled_at, progress: prog.percent, done: prog.done, total: prog.total });
+    }
+
+    const activity = await sqlAll(
+      `SELECT action_type, action_description, created_at FROM activity_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 15`,
+      [studentId]
+    );
+    const lastLoginRow = await sqlGet(
+      `SELECT created_at FROM activity_logs WHERE user_id = ? AND action_type = 'auth' ORDER BY created_at DESC LIMIT 1`,
+      [studentId]
+    );
+
+    res.json({
+      student: { id: student.id, nombre: student.nombre, email: student.email, avatar: student.avatar || null, created_at: student.created_at },
+      courses,
+      activity: activity || [],
+      lastLogin: lastLoginRow?.created_at || null,
+    });
+  } catch (error) {
+    console.error('Error en ficha de alumno:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
