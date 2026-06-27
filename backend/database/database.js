@@ -1153,6 +1153,64 @@ class Database {
     });
   }
 
+  // ===== Foro por curso =====
+  getForumThreads(courseId) {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        `SELECT t.*, u.nombre AS author_name,
+          (SELECT COUNT(*) FROM forum_replies r WHERE r.thread_id = t.id) AS reply_count
+         FROM forum_threads t LEFT JOIN users u ON u.id = t.user_id
+         WHERE t.course_id = ? ORDER BY t.is_pinned DESC, t.created_at DESC`,
+        [courseId], (err, rows) => (err ? reject(err) : resolve(rows || [])));
+    });
+  }
+  getForumThreadById(id) {
+    return new Promise((resolve, reject) => {
+      this.db.get('SELECT * FROM forum_threads WHERE id = ?', [id], (err, row) => (err ? reject(err) : resolve(row || null)));
+    });
+  }
+  createForumThread({ course_id, user_id, title, content }) {
+    return new Promise((resolve, reject) => {
+      this.db.run('INSERT INTO forum_threads (course_id, user_id, title, content) VALUES (?,?,?,?)',
+        [course_id, user_id, title, content], function (err) { return err ? reject(err) : resolve({ id: this.lastID }); });
+    });
+  }
+  setForumThreadPinned(id, pinned) {
+    return new Promise((resolve, reject) => {
+      this.db.run('UPDATE forum_threads SET is_pinned = ? WHERE id = ?', [pinned ? 1 : 0, id], (err) => (err ? reject(err) : resolve({ ok: true })));
+    });
+  }
+  deleteForumThread(id) {
+    const tryRun = (sql) => new Promise((res) => this.db.run(sql, [id], () => res()));
+    return tryRun('DELETE FROM forum_replies WHERE thread_id = ?')
+      .then(() => new Promise((resolve, reject) => this.db.run('DELETE FROM forum_threads WHERE id = ?', [id], (err) => (err ? reject(err) : resolve({ deleted: true })))));
+  }
+  getForumReplies(threadId) {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        `SELECT r.*, u.nombre AS author_name, u.tipo AS author_tipo
+         FROM forum_replies r LEFT JOIN users u ON u.id = r.user_id
+         WHERE r.thread_id = ? ORDER BY r.created_at ASC`,
+        [threadId], (err, rows) => (err ? reject(err) : resolve(rows || [])));
+    });
+  }
+  getForumReplyById(id) {
+    return new Promise((resolve, reject) => {
+      this.db.get('SELECT * FROM forum_replies WHERE id = ?', [id], (err, row) => (err ? reject(err) : resolve(row || null)));
+    });
+  }
+  createForumReply({ thread_id, user_id, content }) {
+    return new Promise((resolve, reject) => {
+      this.db.run('INSERT INTO forum_replies (thread_id, user_id, content) VALUES (?,?,?)',
+        [thread_id, user_id, content], function (err) { return err ? reject(err) : resolve({ id: this.lastID }); });
+    });
+  }
+  deleteForumReply(id) {
+    return new Promise((resolve, reject) => {
+      this.db.run('DELETE FROM forum_replies WHERE id = ?', [id], (err) => (err ? reject(err) : resolve({ deleted: true })));
+    });
+  }
+
   getQuizWithQuestions(quizId, userId) {
     return new Promise((resolve, reject) => {
       // Primero obtener el quiz

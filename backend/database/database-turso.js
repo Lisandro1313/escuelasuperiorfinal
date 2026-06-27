@@ -740,6 +740,56 @@ class TursoDatabase {
     return { deleted: true };
   }
 
+  // ===== Foro por curso =====
+  async getForumThreads(courseId) {
+    const r = await this._query(
+      `SELECT t.*, u.nombre AS author_name,
+        (SELECT COUNT(*) FROM forum_replies r WHERE r.thread_id = t.id) AS reply_count
+       FROM forum_threads t LEFT JOIN users u ON u.id = t.user_id
+       WHERE t.course_id = ? ORDER BY t.is_pinned DESC, t.created_at DESC`,
+      [courseId]
+    );
+    return r.rows;
+  }
+  async getForumThreadById(id) {
+    const r = await this._query('SELECT * FROM forum_threads WHERE id = ?', [id]);
+    return r.rows[0] || null;
+  }
+  async createForumThread({ course_id, user_id, title, content }) {
+    const r = await this._query('INSERT INTO forum_threads (course_id, user_id, title, content) VALUES (?,?,?,?)', [course_id, user_id, title, content]);
+    return { id: Number(r.lastInsertRowid) };
+  }
+  async setForumThreadPinned(id, pinned) {
+    await this._query('UPDATE forum_threads SET is_pinned = ? WHERE id = ?', [pinned ? 1 : 0, id]);
+    return { ok: true };
+  }
+  async deleteForumThread(id) {
+    try { await this._query('DELETE FROM forum_replies WHERE thread_id = ?', [id]); } catch (_) { /* ignore */ }
+    await this._query('DELETE FROM forum_threads WHERE id = ?', [id]);
+    return { deleted: true };
+  }
+  async getForumReplies(threadId) {
+    const r = await this._query(
+      `SELECT r.*, u.nombre AS author_name, u.tipo AS author_tipo
+       FROM forum_replies r LEFT JOIN users u ON u.id = r.user_id
+       WHERE r.thread_id = ? ORDER BY r.created_at ASC`,
+      [threadId]
+    );
+    return r.rows;
+  }
+  async getForumReplyById(id) {
+    const r = await this._query('SELECT * FROM forum_replies WHERE id = ?', [id]);
+    return r.rows[0] || null;
+  }
+  async createForumReply({ thread_id, user_id, content }) {
+    const r = await this._query('INSERT INTO forum_replies (thread_id, user_id, content) VALUES (?,?,?)', [thread_id, user_id, content]);
+    return { id: Number(r.lastInsertRowid) };
+  }
+  async deleteForumReply(id) {
+    await this._query('DELETE FROM forum_replies WHERE id = ?', [id]);
+    return { deleted: true };
+  }
+
   async getQuizWithQuestions(quizId, _userId) {
     const q = await this._query(
       'SELECT q.*, c.nombre as course_name FROM quizzes q JOIN courses c ON q.course_id = c.id WHERE q.id = ?',

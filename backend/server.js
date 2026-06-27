@@ -940,6 +940,86 @@ app.get('/api/courses/:id/live-classes', authenticateToken, requireCourseAccess(
   }
 });
 
+// ===== Foro por curso (simple, moderado por el docente) =====
+const puedeModerarForo = (req) => req.user.tipo === 'admin' || (req.course && req.course.profesor_id === req.user.userId);
+
+// Listar temas del curso.
+app.get('/api/courses/:id/forum', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    const threads = await db.getForumThreads(Number(req.params.id));
+    res.json(Array.isArray(threads) ? threads : []);
+  } catch (e) { console.error('foro listar:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
+});
+
+// Crear tema.
+app.post('/api/courses/:id/forum', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    const title = (req.body?.title || '').trim();
+    const content = (req.body?.content || '').trim();
+    if (title.length < 3) return res.status(400).json({ error: 'Poné un título un poco más largo.' });
+    if (!content) return res.status(400).json({ error: 'Escribí tu consulta o mensaje.' });
+    const t = await db.createForumThread({ course_id: Number(req.params.id), user_id: req.user.userId, title, content });
+    res.status(201).json({ id: t.id });
+  } catch (e) { console.error('foro crear tema:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
+});
+
+// Ver un tema con sus respuestas.
+app.get('/api/courses/:id/forum/:threadId', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    const thread = await db.getForumThreadById(Number(req.params.threadId));
+    if (!thread || Number(thread.course_id) !== Number(req.params.id)) return res.status(404).json({ error: 'Tema no encontrado' });
+    const author = await db.getUserById(thread.user_id);
+    const replies = await db.getForumReplies(thread.id);
+    res.json({ thread: { ...thread, author_name: author?.nombre || 'Usuario', author_tipo: author?.tipo }, replies });
+  } catch (e) { console.error('foro ver tema:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
+});
+
+// Responder a un tema.
+app.post('/api/courses/:id/forum/:threadId/reply', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    const content = (req.body?.content || '').trim();
+    if (!content) return res.status(400).json({ error: 'Escribí tu respuesta.' });
+    const thread = await db.getForumThreadById(Number(req.params.threadId));
+    if (!thread || Number(thread.course_id) !== Number(req.params.id)) return res.status(404).json({ error: 'Tema no encontrado' });
+    if (thread.is_locked && !puedeModerarForo(req)) return res.status(403).json({ error: 'Este tema está cerrado.' });
+    const r = await db.createForumReply({ thread_id: thread.id, user_id: req.user.userId, content });
+    res.status(201).json({ id: r.id });
+  } catch (e) { console.error('foro responder:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
+});
+
+// Borrar un tema (autor o docente/admin).
+app.delete('/api/courses/:id/forum/thread/:threadId', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    const thread = await db.getForumThreadById(Number(req.params.threadId));
+    if (!thread || Number(thread.course_id) !== Number(req.params.id)) return res.status(404).json({ error: 'Tema no encontrado' });
+    if (thread.user_id !== req.user.userId && !puedeModerarForo(req)) return res.status(403).json({ error: 'No tenés permiso' });
+    await db.deleteForumThread(thread.id);
+    res.json({ message: 'Tema eliminado' });
+  } catch (e) { console.error('foro borrar tema:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
+});
+
+// Borrar una respuesta (autor o docente/admin).
+app.delete('/api/courses/:id/forum/reply/:replyId', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    const reply = await db.getForumReplyById(Number(req.params.replyId));
+    if (!reply) return res.status(404).json({ error: 'Respuesta no encontrada' });
+    if (reply.user_id !== req.user.userId && !puedeModerarForo(req)) return res.status(403).json({ error: 'No tenés permiso' });
+    await db.deleteForumReply(reply.id);
+    res.json({ message: 'Respuesta eliminada' });
+  } catch (e) { console.error('foro borrar respuesta:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
+});
+
+// Fijar / desfijar un tema (solo docente/admin).
+app.post('/api/courses/:id/forum/thread/:threadId/pin', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
+  try {
+    if (!puedeModerarForo(req)) return res.status(403).json({ error: 'Solo el docente puede fijar temas' });
+    const thread = await db.getForumThreadById(Number(req.params.threadId));
+    if (!thread || Number(thread.course_id) !== Number(req.params.id)) return res.status(404).json({ error: 'Tema no encontrado' });
+    await db.setForumThreadPinned(thread.id, !thread.is_pinned);
+    res.json({ pinned: !thread.is_pinned });
+  } catch (e) { console.error('foro fijar:', e); res.status(500).json({ error: 'Error interno del servidor' }); }
+});
+
 // Certificado del curso: elegible si el profe lo habilitó y el alumno completó todo.
 app.get('/api/courses/:id/certificate', authenticateToken, requireCourseAccess({ courseParam: 'id' }), async (req, res) => {
   try {
@@ -2232,9 +2312,11 @@ app.use('/api', chatRoutes);
 // RUTAS DE FOROS
 // ================================
 
-const Forum = require('./src/models/Forum');
-const forumRoutes = require('./src/routes/forum')(db, authenticateToken, requireProfessor);
-app.use('/api', forumRoutes);
+// Rutas de foro viejas: desactivadas (usaban req.user.id/role inexistentes y
+// votos/anidados innecesarios). Reemplazadas por el foro simple más abajo.
+// const Forum = require('./src/models/Forum');
+// const forumRoutes = require('./src/routes/forum')(db, authenticateToken, requireProfessor);
+// app.use('/api', forumRoutes);
 
 // ================================
 // RUTAS DE GAMIFICACIÓN

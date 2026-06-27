@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../Toast/ToastProvider';
 import { useAuth } from '../../context/AuthContext';
 import CourseChat from './CourseChat';
+import CourseForum from './CourseForum';
 import TakeQuizModal from '../Quiz/TakeQuizModal';
 
 interface QuizItem { id: number; title: string; }
@@ -325,6 +326,17 @@ const CoursePlayer: React.FC = () => {
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Foro del curso */}
+        {usuario && (
+          <div className="mt-12">
+            <CourseForum
+              courseId={course.id}
+              currentUserId={(usuario as { id: number }).id}
+              canModerate={!!data.isOwner || (usuario as { tipo?: string }).tipo === 'admin'}
+            />
           </div>
         )}
       </div>
