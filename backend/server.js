@@ -273,7 +273,12 @@ async function hasModuleAccess(userId, course, moduleId) {
   return hasCourseLevel || hasModuleGrant;
 }
 
-// Acceso a una CLASE. Misma lógica; en modalidad 'clase' además vale el grant de la clase puntual.
+// Acceso a una CLASE.
+//  - 'curso': inscripción o grant de curso.
+//  - 'modulo': el precio lo pone el MÓDULO → depende del acceso a ese módulo
+//    (módulo sin precio = libre para inscriptos).
+//  - 'clase': el precio lo pone la CLASE → grant de curso, del módulo o de la clase
+//    (clase sin precio = libre para inscriptos).
 async function hasLessonAccess(userId, course, moduleId, lessonId) {
   const modality = (course.modalidad_precio || 'curso').toLowerCase();
   const enrollment = await db.getUserEnrollmentForCourse(userId, course.id);
@@ -281,12 +286,17 @@ async function hasLessonAccess(userId, course, moduleId, lessonId) {
 
   if (modality === 'curso') return !!enrollment || hasCourseLevel;
 
+  if (modality === 'modulo') {
+    const moduleData = await db.getModuleById(moduleId);
+    if (moduleData && Number(moduleData.precio || 0) === 0) return !!enrollment || hasCourseLevel;
+    const hasModuleGrant = await db.hasAccessGrant({ userId, courseId: course.id, moduleId });
+    return hasCourseLevel || hasModuleGrant;
+  }
+
+  // modalidad 'clase'
   const lessonData = await db.getLessonById(lessonId);
   if (lessonData && Number(lessonData.precio || 0) === 0) return !!enrollment || hasCourseLevel;
-
   const hasModuleGrant = await db.hasAccessGrant({ userId, courseId: course.id, moduleId });
-  if (modality === 'modulo') return hasCourseLevel || hasModuleGrant;
-
   const hasLessonGrant = await db.hasAccessGrant({ userId, courseId: course.id, lessonId });
   return hasCourseLevel || hasModuleGrant || hasLessonGrant;
 }
