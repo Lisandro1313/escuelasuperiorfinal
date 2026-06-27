@@ -97,6 +97,16 @@ export const StudentDashboard: React.FC = () => {
   const xpIntoLevel = xp % 100;
   const completedCount = myCourses.filter((c) => Number(c.progress) >= 100).length;
   const inProgressCount = myCourses.filter((c) => Number(c.progress) > 0 && Number(c.progress) < 100).length;
+  const startedCount = myCourses.filter((c) => Number(c.progress || 0) > 0).length;
+
+  // Logros: lo que se "gana" — hitos reales que dan sentido al nivel.
+  const achievements = [
+    { icon: '🌱', label: 'Primeros pasos', desc: 'Empezaste tu primer curso', earned: startedCount >= 1 },
+    { icon: '🎓', label: 'Graduado', desc: 'Completaste un curso y ganaste tu certificado', earned: completedCount >= 1 },
+    { icon: '🔥', label: 'Constante', desc: 'Tenés 3 o más cursos', earned: myCourses.length >= 3 },
+    { icon: '🏆', label: 'Experto', desc: 'Completaste 3 cursos', earned: completedCount >= 3 },
+  ];
+  const earnedCount = achievements.filter((a) => a.earned).length;
 
   // "Continuá donde dejaste": el curso en progreso con más avance.
   const resume = useMemo(() => {
@@ -162,11 +172,38 @@ export const StudentDashboard: React.FC = () => {
               <div className="h-2 rounded-full bg-white/15 overflow-hidden">
                 <div className="h-full bg-emerald-400 transition-all" style={{ width: `${xpIntoLevel}%` }} />
               </div>
-              <p className="text-[11px] text-blue-200 mt-1">{100 - xpIntoLevel} XP para el nivel {level + 1}</p>
+              <p className="text-[11px] text-blue-200 mt-1">Te faltan {100 - xpIntoLevel} para el nivel {level + 1}</p>
+              <p className="text-[11px] text-blue-300/80 mt-2 leading-snug">
+                Ganás puntos cada vez que completás una clase. Al terminar un curso, obtenés tu certificado. 🎓
+              </p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Logros: lo que vas ganando (le da sentido al nivel) */}
+      {myCourses.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-gray-900">🏅 Tus logros</h2>
+            <span className="text-sm text-gray-500">{earnedCount} de {achievements.length}</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {achievements.map((a) => (
+              <div
+                key={a.label}
+                className={`rounded-2xl p-4 border text-center ${a.earned ? 'bg-white border-emerald-200 shadow-sm' : 'bg-gray-50 border-gray-100'}`}
+                title={a.desc}
+              >
+                <div className={`text-3xl mb-1 ${a.earned ? '' : 'grayscale opacity-40'}`}>{a.icon}</div>
+                <p className={`text-sm font-bold ${a.earned ? 'text-gray-900' : 'text-gray-400'}`}>{a.label}</p>
+                <p className={`text-xs mt-0.5 ${a.earned ? 'text-gray-500' : 'text-gray-400'}`}>{a.desc}</p>
+                {a.earned && <p className="text-[11px] font-semibold text-emerald-600 mt-1">✓ Conseguido</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Continuá donde dejaste (Coursera-style) */}
       {resume && (
