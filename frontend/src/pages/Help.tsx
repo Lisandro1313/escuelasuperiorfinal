@@ -70,8 +70,29 @@ const Help: React.FC = () => {
           <p>Cuando el alumno termina todas las clases, le aparece el botón para obtener su certificado.</p>
         </Section>
 
-        <Section n="7" title="Clase en vivo">
-          <p>Tocá <strong>"Programar clase en vivo"</strong>, poné título, fecha, el link de la transmisión y el precio (0 si es gratis). Aparece en el panel de los alumnos.</p>
+        <Section n="7" title="Clases en vivo y charlas (¡lo que más usás!)">
+          <p>Hay <strong>dos formas</strong>, y las dos funcionan igual de fácil:</p>
+          <p>🅰️ <strong>Charla suelta (abierta):</strong> en tu panel, arriba a la derecha, tocá el botón rojo <strong>"🔴 Charla en vivo"</strong>. Sirve para charlas que NO son de un curso. Les avisa a <strong>todos los alumnos</strong>.</p>
+          <p>🅱️ <strong>Clase de un curso:</strong> entrá al curso → "Gestionar contenido" → <strong>"Programar clase en vivo"</strong>. Les avisa a los inscriptos de ese curso.</p>
+
+          <p className="font-semibold text-gray-900 mt-3">En las dos completás lo mismo:</p>
+          <ul className="space-y-1">
+            <li>📌 <strong>Título</strong> (ej: "Charla: cómo mejorar tus fotos").</li>
+            <li>📅 <strong>Fecha y hora.</strong></li>
+            <li>🔗 <strong>El link de Zoom</strong> (o YouTube en vivo). Lo pegás ahí. Solo lo ve quien reserva o paga.</li>
+            <li>💲 <strong>Precio</strong> (0 = gratis; o ponés un valor y cobran por la plataforma).</li>
+          </ul>
+
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mt-3 text-[16px]">
+            <p className="font-semibold text-blue-900">📲 ¿De dónde saco el link de Zoom?</p>
+            <p className="text-blue-900 mt-1">Abrís Zoom → "Programar una reunión" → ponés fecha y hora → te da un link (https://zoom.us/j/...). Ese link lo copiás y lo pegás acá. ¡Listo!</p>
+          </div>
+
+          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 mt-3 text-[16px]">
+            <p className="font-semibold text-emerald-900">✨ La diferencia con hacerlo "a mano"</p>
+            <p className="text-emerald-900 mt-1">Antes: ponías un flyer, te escribían, te transferían y vos mandabas el link uno por uno. <strong>Ahora la plataforma hace eso sola:</strong> el alumno ve la charla, paga (o reserva si es gratis) y le aparece el link automáticamente. Vos no tenés que mandar nada.</p>
+            <p className="text-emerald-900 mt-1">Si preferís seguir cobrando por transferencia, ponés la charla <strong>gratis</strong> y avisás por WhatsApp como siempre — igual les llega el aviso y el link por la plataforma.</p>
+          </div>
         </Section>
 
         <Section n="8" title="El foro y las estadísticas">

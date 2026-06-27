@@ -102,16 +102,41 @@ Cuando un alumno **completa todas las clases**, le aparece el botón **"🏆 Obt
 
 ---
 
-## 8) Programar una clase EN VIVO
+## 8) Clases en vivo y charlas (¡lo que más usás!)
 
-1. En el curso, apretá **"Programar clase en vivo"**.
-2. Completá:
-   - **Título** y **fecha/hora**.
-   - El **link de la transmisión** (por ejemplo, un video de YouTube en vivo).
-   - **Precio** (0 si es gratis).
-3. Guardá.
+Hay **dos formas**, y las dos son igual de fáciles:
 
-La clase aparece en el panel de los alumnos. Si es paga, **pagan para entrar**; si es gratis, **reservan**. Cuando entran, vos podés ver **cuántos asistieron** en las estadísticas.
+**🅰️ Charla suelta (abierta):** en tu panel, arriba a la derecha, tocá el botón rojo **"🔴 Charla en vivo"**. Es para charlas que **NO** son de un curso. Les avisa a **todos los alumnos**.
+
+**🅱️ Clase de un curso:** entrá al curso → **"Gestionar contenido"** → **"Programar clase en vivo"**. Les avisa a los **inscriptos de ese curso**.
+
+En las dos completás lo mismo:
+- **Título** (ej: "Charla: cómo mejorar tus fotos").
+- **Fecha y hora.**
+- **El link de Zoom** (o YouTube en vivo). Lo pegás ahí. Solo lo ve quien reserva o paga.
+- **Precio** (0 = gratis; o ponés un valor y cobran por la plataforma).
+
+### 📲 ¿De dónde saco el link de Zoom?
+Abrís Zoom → **"Programar una reunión"** → ponés fecha y hora → te da un link (https://zoom.us/j/...). Ese link lo **copiás y lo pegás** en la plataforma. ¡Listo!
+
+### ✨ La diferencia con hacerlo "a mano"
+- **Antes:** ponías un flyer, te escribían, te transferían y vos mandabas el link uno por uno.
+- **Ahora:** la plataforma hace eso sola. El alumno ve la charla, **paga (o reserva si es gratis) y le aparece el link automáticamente**. Vos no tenés que mandar nada.
+- Si preferís seguir cobrando **por transferencia**, ponés la charla **gratis** y avisás por WhatsApp como siempre — igual les llega el aviso y el link por la plataforma.
+
+Cuando entran, vos ves **cuántos asistieron** en las estadísticas.
+
+---
+
+## 8.5) Tareas / Entregas (ejercicios con corrección)
+
+Sirve para que los alumnos **entreguen** algo (fotos, archivos) y vos les pongas **nota y devolución**.
+
+1. En el curso → **"Gestionar contenido"** → sección **"📥 Tareas / Entregas"** → **"Nueva tarea"**.
+2. Poné el **título** y la **consigna** (qué tienen que hacer). Opcional: **adjuntá un PDF** con los ejercicios.
+3. El alumno, desde el aula, **sube sus fotos/archivos** + un comentario.
+4. Para corregir: en la tarea, tocá **📊** → ves quién entregó, **mirás las fotos** y escribís la **nota + devolución**.
+5. El alumno ve su nota y tu comentario. Puede **volver a entregar** si querés que rehaga.
 
 ---
 
