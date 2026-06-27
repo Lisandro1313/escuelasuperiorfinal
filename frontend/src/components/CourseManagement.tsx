@@ -40,6 +40,7 @@ interface Lesson {
   unlock_days_offset?: number | null;
   unlock_at?: string | null;
   objetivos?: string | null;
+  portada?: string | null;
   duracion: number;
   recursos: Resource[];
   publicado: boolean;
@@ -85,6 +86,7 @@ const CourseManagement: React.FC = () => {
     unlock_days_offset: null as number | null,
     unlock_at: '' as string,
     objetivos: '' as string,
+    portada: '' as string,
     duracion: 0,
     recursos: [] as Resource[]
   });
@@ -314,6 +316,7 @@ const CourseManagement: React.FC = () => {
           unlock_days_offset: null,
           unlock_at: '',
           objetivos: '',
+          portada: '',
           duracion: 0,
           recursos: []
         });
@@ -350,6 +353,7 @@ const CourseManagement: React.FC = () => {
           unlock_days_offset: null,
           unlock_at: '',
           objetivos: '',
+          portada: '',
           duracion: 0,
           recursos: []
         });
@@ -453,6 +457,7 @@ const CourseManagement: React.FC = () => {
       unlock_days_offset: lesson.unlock_days_offset ?? null,
       unlock_at: lesson.unlock_at ? String(lesson.unlock_at).slice(0, 10) : '',
       objetivos: lesson.objetivos || '',
+      portada: lesson.portada || '',
       duracion: lesson.duracion,
       recursos: lesson.recursos || []
     });
@@ -471,6 +476,7 @@ const CourseManagement: React.FC = () => {
       unlock_days_offset: null,
       unlock_at: '',
       objetivos: '',
+      portada: '',
       duracion: 0,
       recursos: []
     });
@@ -1056,6 +1062,29 @@ const CourseManagement: React.FC = () => {
                   className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:border-green-500 focus:ring focus:ring-green-200 transition duration-200 text-sm"
                 />
                 <p className="text-xs text-gray-400 mt-1">Se muestran como lista con tildes arriba de la clase (uno por línea).</p>
+              </div>
+
+              {/* Portada de la clase (imagen para la tarjeta) */}
+              <div>
+                <label className="block text-gray-700 font-semibold mb-2 text-sm">
+                  🖼️ Portada de la clase (opcional)
+                </label>
+                {lessonForm.portada ? (
+                  <div className="relative inline-block">
+                    <img src={lessonForm.portada} alt="Portada" className="h-28 rounded-xl object-cover border" />
+                    <button type="button" onClick={() => setLessonForm(prev => ({ ...prev, portada: '' }))}
+                      className="absolute -top-2 -right-2 bg-white border rounded-full w-7 h-7 text-gray-500 shadow">×</button>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center h-28 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:bg-gray-50 text-sm text-gray-500">
+                    {uploading ? 'Subiendo…' : '📷 Subir imagen para la tarjeta'}
+                    <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+                      const f = e.target.files?.[0]; if (!f) return;
+                      const url = await uploadFile(f); if (url) setLessonForm(prev => ({ ...prev, portada: url }));
+                    }} />
+                  </label>
+                )}
+                <p className="text-xs text-gray-400 mt-1">Se ve en el centro de la tarjeta de la clase. Si no ponés, va un ícono según el tipo.</p>
               </div>
 
               {/* Fila con Tipo, Orden y Duración */}

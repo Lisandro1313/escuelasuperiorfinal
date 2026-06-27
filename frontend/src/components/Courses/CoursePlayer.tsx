@@ -41,6 +41,7 @@ interface PlayerLesson {
   contenido: string | null;
   recursos: string | null;
   objetivos: string | null;
+  portada: string | null;
 }
 
 interface PlayerModule {
@@ -295,12 +296,17 @@ const CoursePlayer: React.FC = () => {
                         : 'bg-gradient-to-br from-slate-800 to-blue-900 text-white hover:-translate-y-0.5'
                     }`}
                   >
-                    {/* Ícono grande de fondo según el tipo de clase (deja de verse vacía) */}
-                    {!l.locked && (
+                    {/* Portada de la clase (imagen que sube el profe) o ícono según el tipo. */}
+                    {!l.locked && l.portada ? (
+                      <>
+                        <img src={l.portada} alt="" className="absolute inset-0 w-full h-full object-cover rounded-xl" />
+                        <div className="absolute inset-0 rounded-xl bg-gradient-to-t from-slate-900/85 via-slate-900/30 to-slate-900/10" />
+                      </>
+                    ) : !l.locked ? (
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <span className="text-5xl opacity-20">{lessonIcon(l.tipo)}</span>
                       </div>
-                    )}
+                    ) : null}
                     <div className="relative flex items-start justify-between">
                       <span className={`text-[11px] font-medium ${l.locked ? 'text-gray-500' : 'text-blue-200'}`}>
                         Clase {num}

@@ -1784,7 +1784,7 @@ app.get('/api/modules/:id/lessons', authenticateToken, requireCourseAccess({ mod
 app.post('/api/modules/:id/lessons', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const moduleId = req.params.id;
-    const { titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, objetivos } = req.body;
+    const { titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, objetivos, portada } = req.body;
 
     const lesson = await db.createLesson({
       module_id: moduleId,
@@ -1798,6 +1798,7 @@ app.post('/api/modules/:id/lessons', authenticateToken, requireProfessor, async 
       duracion: duracion || 0,
       recursos: recursos ? JSON.stringify(recursos) : null,
       objetivos: objetivos || null,
+      portada: portada || null,
       publicado: true
     });
 
@@ -1837,7 +1838,7 @@ app.post('/api/modules/:id/lessons', authenticateToken, requireProfessor, async 
 app.put('/api/lessons/:id', authenticateToken, requireProfessor, async (req, res) => {
   try {
     const lessonId = req.params.id;
-    const { titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, objetivos, publicado } = req.body;
+    const { titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, objetivos, portada, publicado } = req.body;
 
     const updatedLesson = await db.updateLesson(lessonId, {
       titulo,
@@ -1850,6 +1851,7 @@ app.put('/api/lessons/:id', authenticateToken, requireProfessor, async (req, res
       duracion,
       recursos: recursos ? JSON.stringify(recursos) : null,
       objetivos: objetivos || null,
+      portada: portada || null,
       publicado
     });
 
@@ -2092,6 +2094,7 @@ app.get('/api/courses/:id/player', authenticateToken, async (req, res) => {
           orden: l.orden,
           duracion: l.duracion,
           precio: Number(l.precio || 0),
+          portada: l.portada || null,
           completed,
           locked,
           lock_reason: lockReason,

@@ -425,24 +425,24 @@ class TursoDatabase {
     return r.rows.map((l) => ({ ...l, recursos: l.recursos ? JSON.parse(l.recursos) : [] }));
   }
 
-  async createLesson({ module_id, titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, objetivos = null, publicado }) {
+  async createLesson({ module_id, titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, objetivos = null, portada = null, publicado }) {
     const recursosStr = typeof recursos === 'string' ? recursos : (recursos ? JSON.stringify(recursos) : null);
     const r = await this._query(
-      'INSERT INTO lessons (module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, objetivos, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursosStr, objetivos, publicado ? 1 : 0]
+      'INSERT INTO lessons (module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursos, objetivos, portada, publicado) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursosStr, objetivos, portada, publicado ? 1 : 0]
     );
-    const out = { id: Number(r.lastInsertRowid), module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, objetivos, publicado };
+    const out = { id: Number(r.lastInsertRowid), module_id, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, objetivos, portada, publicado };
     out.recursos = recursosStr ? JSON.parse(recursosStr) : [];
     return out;
   }
 
-  async updateLesson(lessonId, { titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, objetivos = null, publicado }) {
+  async updateLesson(lessonId, { titulo, contenido, tipo, orden, precio = 0, unlock_at = null, unlock_days_offset = null, duracion, recursos, objetivos = null, portada = null, publicado }) {
     const recursosStr = typeof recursos === 'string' ? recursos : (recursos ? JSON.stringify(recursos) : null);
     await this._query(
-      'UPDATE lessons SET titulo = ?, contenido = ?, tipo = ?, orden = ?, precio = ?, unlock_at = ?, unlock_days_offset = ?, duracion = ?, recursos = ?, objetivos = ?, publicado = ? WHERE id = ?',
-      [titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursosStr, objetivos, publicado ? 1 : 0, lessonId]
+      'UPDATE lessons SET titulo = ?, contenido = ?, tipo = ?, orden = ?, precio = ?, unlock_at = ?, unlock_days_offset = ?, duracion = ?, recursos = ?, objetivos = ?, portada = COALESCE(?, portada), publicado = ? WHERE id = ?',
+      [titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, recursosStr, objetivos, portada, publicado ? 1 : 0, lessonId]
     );
-    return { id: lessonId, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, objetivos, publicado, recursos: recursosStr ? JSON.parse(recursosStr) : [] };
+    return { id: lessonId, titulo, contenido, tipo, orden, precio, unlock_at, unlock_days_offset, duracion, objetivos, portada, publicado, recursos: recursosStr ? JSON.parse(recursosStr) : [] };
   }
 
   async deleteLesson(lessonId) {
