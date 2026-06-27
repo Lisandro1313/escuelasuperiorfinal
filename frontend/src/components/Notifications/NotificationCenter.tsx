@@ -188,18 +188,16 @@ const NotificationCenter: React.FC = () => {
 
       {/* Dropdown de notificaciones */}
       {showDropdown && (
-        <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border z-50">
+        <div className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[92vw] bg-white rounded-2xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b">
-            <h3 className="text-lg font-medium text-gray-900">
-              🔔 Notificaciones
-            </h3>
+          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-slate-900 to-blue-900 text-white">
+            <h3 className="text-base font-bold">Notificaciones</h3>
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="text-sm text-blue-600 hover:text-blue-800"
+                className="text-xs text-blue-200 hover:text-white font-medium"
               >
-                Marcar todas como leídas
+                Marcar todas leídas
               </button>
             )}
           </div>

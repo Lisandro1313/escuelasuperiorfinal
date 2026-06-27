@@ -72,10 +72,11 @@ const CourseChat: React.FC<CourseChatProps> = ({ courseId, userId, userName }) =
     <>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="fixed bottom-5 right-5 z-40 bg-blue-600 hover:bg-blue-700 text-white rounded-full h-14 w-14 shadow-xl flex items-center justify-center text-2xl"
+        className="fixed bottom-5 right-5 z-50 bg-blue-600 hover:bg-blue-700 text-white rounded-full h-14 px-5 shadow-xl flex items-center gap-2 font-semibold"
         aria-label="Chat del curso"
       >
-        {open ? '✕' : '💬'}
+        <span className="text-2xl leading-none">{open ? '✕' : '💬'}</span>
+        {!open && <span className="hidden sm:inline">Chat</span>}
         {!open && unread > 0 && (
           <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 px-1 flex items-center justify-center">
             {unread > 9 ? '9+' : unread}
@@ -84,7 +85,7 @@ const CourseChat: React.FC<CourseChatProps> = ({ courseId, userId, userName }) =
       </button>
 
       {open && (
-        <div className="fixed bottom-24 right-5 z-40 w-80 max-w-[90vw] h-[28rem] bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden">
+        <div className="fixed bottom-24 right-5 z-50 w-80 max-w-[90vw] h-[28rem] bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden">
           <div className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-4 py-3">
             <p className="font-semibold text-sm">Chat del curso</p>
             <p className="text-blue-200 text-xs">Consultá y charlá con profe y compañeros</p>
