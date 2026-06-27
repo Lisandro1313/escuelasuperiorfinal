@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from './Toast/ToastProvider';
 import CreateQuizModal from './Quiz/CreateQuizModal';
 import QuizResultsModal from './Quiz/QuizResultsModal';
+import CreateAssignmentModal from './Assignments/CreateAssignmentModal';
+import AssignmentSubmissionsModal from './Assignments/AssignmentSubmissionsModal';
 
 interface Course {
   id: number;
@@ -135,6 +137,28 @@ const CourseManagement: React.FC = () => {
   };
 
   useEffect(() => { if (id) fetchQuizzes(); }, [id]);
+
+  const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+  const [assignments, setAssignments] = useState<Array<{ id: number; title: string; entregas?: number }>>([]);
+  const [submissionsFor, setSubmissionsFor] = useState<number | null>(null);
+
+  const fetchAssignments = async () => {
+    try {
+      const res = await fetch(`/api/courses/${id}/assignments`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      const d = await res.json();
+      setAssignments(Array.isArray(d) ? d : []);
+    } catch { /* ignore */ }
+  };
+  const deleteAssignment = async (aid: number) => {
+    if (!confirm('¿Eliminar esta tarea y todas sus entregas?')) return;
+    try {
+      const res = await fetch(`/api/courses/${id}/assignments/${aid}`, { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      if (res.ok) { toast.success('Tarea eliminada'); fetchAssignments(); }
+      else toast.error('No se pudo eliminar');
+    } catch { toast.error('Error de conexión'); }
+  };
+  useEffect(() => { if (id) fetchAssignments(); }, [id]);
+
   const [liveClassForm, setLiveClassForm] = useState({ title: '', date: '', time: '', duration: 60, meeting_url: '', precio: 0 });
   const [liveClassResult, setLiveClassResult] = useState<{ url: string; date: string } | null>(null);
   const [scheduling, setScheduling] = useState(false);
@@ -902,7 +926,57 @@ const CourseManagement: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Tareas / entregas del curso */}
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">📥 Tareas / Entregas</h3>
+              <p className="text-sm text-gray-500">Pedí ejercicios y corregí con nota y devolución.</p>
+            </div>
+            <button
+              onClick={() => setShowAssignmentModal(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap"
+            >
+              ➕ Nueva tarea
+            </button>
+          </div>
+          {assignments.length === 0 ? (
+            <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-8 text-center text-gray-400 text-sm">
+              Todavía no creaste tareas para este curso.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {assignments.map((a) => (
+                <div key={a.id} className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center text-xl shrink-0">📥</span>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm truncate">{a.title}</p>
+                      <p className="text-xs text-gray-400">{a.entregas || 0} entrega{(a.entregas || 0) === 1 ? '' : 's'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => setSubmissionsFor(a.id)} className="text-blue-600 hover:bg-blue-50 rounded-lg px-2 py-1 text-sm" title="Ver entregas y corregir">📊</button>
+                    <button onClick={() => deleteAssignment(a.id)} className="text-red-500 hover:bg-red-50 rounded-lg px-2 py-1 text-sm" title="Eliminar">🗑️</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+
+      {showAssignmentModal && id && (
+        <CreateAssignmentModal
+          courseId={Number(id)}
+          onClose={() => setShowAssignmentModal(false)}
+          onCreated={() => { toast.success('Tarea creada'); fetchAssignments(); }}
+        />
+      )}
+      {submissionsFor && id && (
+        <AssignmentSubmissionsModal courseId={Number(id)} assignmentId={submissionsFor} onClose={() => { setSubmissionsFor(null); fetchAssignments(); }} />
+      )}
 
       {/* Modal para crear/editar módulo */}
       {showModuleModal && (

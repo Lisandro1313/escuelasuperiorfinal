@@ -4,6 +4,7 @@ import { useToast } from '../Toast/ToastProvider';
 import { useAuth } from '../../context/AuthContext';
 import CourseChat from './CourseChat';
 import CourseForum from './CourseForum';
+import CourseAssignments from './CourseAssignments';
 import TakeQuizModal from '../Quiz/TakeQuizModal';
 
 interface QuizItem { id: number; title: string; }
@@ -354,6 +355,11 @@ const CoursePlayer: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* Tareas / entregas */}
+        <div className="mt-12">
+          <CourseAssignments courseId={course.id} />
+        </div>
 
         {/* Foro del curso */}
         {usuario && (
