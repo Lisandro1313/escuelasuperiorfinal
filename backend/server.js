@@ -2925,6 +2925,27 @@ app.get('/api/analytics', authenticateToken, async (req, res) => {
       scopeParams
     );
 
+    // Clases en vivo: anotados (reservaron, incluye gratis) vs pagaron + recaudado.
+    const liveClasses = await sqlAll(
+      `SELECT ev.id, ev.title, ev.start_date, ev.precio,
+         (SELECT COUNT(*) FROM access_grants ag WHERE ag.event_id = ev.id) as anotados,
+         (SELECT COUNT(*) FROM payments p WHERE p.event_id = ev.id AND p.status = 'approved') as pagaron,
+         (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.event_id = ev.id AND p.status = 'approved') as recaudado
+       FROM events ev
+       JOIN courses c ON c.id = ev.course_id
+       WHERE ev.type = 'live_class' ${isAdmin ? '' : 'AND c.profesor_id = ?'}
+       ORDER BY ev.start_date DESC
+       LIMIT 30`,
+      scopeParams
+    );
+
+    const revenueTotalRow = await sqlGet(
+      `SELECT COALESCE(SUM(p.amount),0) as total, COUNT(*) as count
+       FROM payments p JOIN courses c ON c.id = p.course_id
+       WHERE p.status = 'approved' ${isAdmin ? '' : 'AND c.profesor_id = ?'}`,
+      scopeParams
+    );
+
     const totalEnrollments = Number(completionRow?.totalEnrollments || 0);
     const completedEnrollments = Number(completionRow?.completedEnrollments || 0);
     const completionRate = totalEnrollments > 0 ? (completedEnrollments * 100) / totalEnrollments : 0;
@@ -2937,11 +2958,15 @@ app.get('/api/analytics', authenticateToken, async (req, res) => {
         averageScore: Number(avgScoreRow?.averageScore || 0),
         completionRate: Number(completionRate.toFixed(2)),
         activeUsers: Number(activeUsersRow?.activeUsers || 0),
+        totalRevenue: Number(revenueTotalRow?.total || 0),
+        totalPayments: Number(revenueTotalRow?.count || 0),
+        totalEnrollments,
       },
       studentEngagement: [],
       coursePerformance,
       userActivity,
       quizAnalytics,
+      liveClasses,
       revenueData,
     });
   } catch (error) {

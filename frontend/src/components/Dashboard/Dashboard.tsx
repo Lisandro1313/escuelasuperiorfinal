@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { StudentDashboard } from '../Student/StudentDashboard';
+import TeacherAnalytics from './TeacherAnalytics';
 
 interface CourseStat {
   id: number;
@@ -245,6 +246,9 @@ const Dashboard: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Estadísticas (recaudación, inscripciones, clases en vivo) */}
+        <TeacherAnalytics />
 
         {/* Accesos rápidos */}
         <div className={`grid gap-4 ${usuario?.tipo === 'admin' ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
