@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { fetchJSON } from '../../lib/fetchJSON';
 import EducatorQuote from '../Common/EducatorQuote';
+import ParticlesBackground from '../Common/ParticlesBackground';
 
 interface Course {
   id: number;
@@ -108,8 +109,11 @@ const LandingPage: React.FC = () => {
       {/* ── Hero ── */}
       <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950 text-white">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-40 -right-32 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl" />
-          <div className="absolute -bottom-24 -left-24 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl" />
+          {/* Partículas suaves en movimiento */}
+          <ParticlesBackground className="absolute inset-0 w-full h-full" />
+          {/* Orbes de luz con deriva muy lenta */}
+          <div className="hero-orb-a absolute -top-40 -right-32 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl" />
+          <div className="hero-orb-b absolute -bottom-24 -left-24 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl" />
         </div>
 
         <div className="relative max-w-4xl mx-auto px-6 pt-16 pb-20 text-center">

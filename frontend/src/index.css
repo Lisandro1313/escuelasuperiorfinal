@@ -37,3 +37,19 @@ body {
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
+
+/* Deriva muy lenta de los "orbes" de luz del hero (movimiento ambiental sutil) */
+@keyframes heroFloatA {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-26px, 20px) scale(1.06); }
+}
+@keyframes heroFloatB {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(22px, -18px) scale(1.05); }
+}
+.hero-orb-a { animation: heroFloatA 16s ease-in-out infinite; }
+.hero-orb-b { animation: heroFloatB 20s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-orb-a, .hero-orb-b { animation: none; }
+}
