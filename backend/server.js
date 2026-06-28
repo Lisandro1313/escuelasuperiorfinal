@@ -2530,17 +2530,23 @@ app.post('/api/payments/create-preference', authenticateToken, async (req, res) 
       return res.status(502).json({ error: 'No se pudo crear la preferencia de pago', detail: result.error });
     }
 
-    await db.createPayment({
-      user_id: user.id,
-      course_id: course.id,
-      module_id: refModuleId,
-      lesson_id: refLessonId,
-      event_id: refEventId,
-      target_type: normalizedType,
-      amount,
-      preference_id: result.preferenceId,
-      status: 'pending',
-    });
+    // El registro del pago es para estadística/estado: si falla (ej: constraint
+    // en Turso) NO bloqueamos la compra — el acceso se otorga igual en el webhook.
+    try {
+      await db.createPayment({
+        user_id: user.id,
+        course_id: course.id,
+        module_id: refModuleId,
+        lesson_id: refLessonId,
+        event_id: refEventId,
+        target_type: normalizedType,
+        amount,
+        preference_id: result.preferenceId,
+        status: 'pending',
+      });
+    } catch (e) {
+      console.error('No se pudo registrar el pago (se continúa igual):', e.message);
+    }
 
     res.json({
       preferenceId: result.preferenceId,

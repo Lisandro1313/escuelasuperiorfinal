@@ -80,6 +80,16 @@ class TursoDatabase {
 
   async init() {
     try {
+      // La app fue construida sobre SQLite con foreign_keys DESACTIVADAS (default
+      // de SQLite). Turso/libSQL las ACTIVA por defecto, lo que rompe casos como
+      // pagos de charlas sueltas (course_id = 0, curso "virtual"). Las apagamos
+      // para que Turso se comporte igual que el SQLite local.
+      try {
+        await this.client.execute('PRAGMA foreign_keys = OFF');
+      } catch (e) {
+        console.warn('No se pudo desactivar foreign_keys en Turso:', e.message);
+      }
+
       const initSQL = fs.readFileSync(path.join(__dirname, 'init.sql'), 'utf8');
       // executeMultiple: API nativa de libSQL que ejecuta varios statements
       // separados por ; en una sola llamada (preserva CREATE TABLE + INDEX).
