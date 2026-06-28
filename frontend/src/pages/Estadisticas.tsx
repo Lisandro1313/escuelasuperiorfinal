@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 
 interface Win { views: number; visitors: number; }
 interface Analytics {
+  days: number;
+  excludeStaff: boolean;
   totals: Win;
   today: Win;
   last7: Win;
@@ -12,6 +14,7 @@ interface Analytics {
   split: { logueados: number; anonimos: number };
   series: { dia: string; views: number; visitors: number }[];
   top_pages: { path: string; views: number; visitors: number }[];
+  course_visits: { course_id: number; nombre: string; views: number; visitors: number }[];
 }
 
 // Etiqueta amigable para las rutas más comunes.
@@ -36,41 +39,51 @@ const labelPath = (p: string): string => {
   return p;
 };
 
-// Últimos 30 días en formato YYYY-MM-DD (UTC, igual que el backend).
-const last30Days = (): string[] => {
+// Últimos N días en formato YYYY-MM-DD (UTC, igual que el backend).
+const lastNDays = (n: number): string[] => {
   const out: string[] = [];
-  for (let i = 29; i >= 0; i--) {
+  for (let i = n - 1; i >= 0; i--) {
     const d = new Date(Date.now() - i * 86400000);
     out.push(d.toISOString().slice(0, 10));
   }
   return out;
 };
 
+const RANGES: { value: number; label: string }[] = [
+  { value: 7, label: '7 días' },
+  { value: 30, label: '30 días' },
+  { value: 90, label: '90 días' },
+];
+
 const Estadisticas: React.FC = () => {
   const [data, setData] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [days, setDays] = useState(30);
+  const [excludeStaff, setExcludeStaff] = useState(true);
 
   const load = () => {
     setLoading(true);
-    fetch('/api/admin/analytics', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
+    setError('');
+    const qs = `days=${days}&excludeStaff=${excludeStaff ? 1 : 0}`;
+    fetch(`/api/admin/analytics?${qs}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then((r) => { if (!r.ok) throw new Error('No se pudo cargar'); return r.json(); })
       .then((d) => setData(d))
       .catch(() => setError('No se pudieron cargar las estadísticas.'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [days, excludeStaff]);
 
   const chart = useMemo(() => {
     if (!data) return [];
     const map = new Map(data.series.map((s) => [s.dia, s]));
-    return last30Days().map((dia) => ({
+    return lastNDays(data.days || days).map((dia) => ({
       dia,
       views: map.get(dia)?.views || 0,
       visitors: map.get(dia)?.visitors || 0,
     }));
-  }, [data]);
+  }, [data, days]);
 
   const maxViews = Math.max(1, ...chart.map((c) => c.views));
 
@@ -88,14 +101,33 @@ const Estadisticas: React.FC = () => {
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           <Link to="/dashboard" className="text-sm text-blue-600 hover:underline">← Volver al panel</Link>
-          <div className="flex items-center justify-between gap-4 mt-2">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mt-2">
             <div>
               <h1 className="text-3xl font-extrabold text-gray-900 mb-1">Estadísticas de la web</h1>
               <p className="text-gray-500">Visitas, visitantes y crecimiento del sitio</p>
             </div>
-            <button onClick={load} className="text-sm font-medium text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg transition shrink-0">
-              ↻ Actualizar
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Rango de fechas */}
+              <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+                {RANGES.map((r) => (
+                  <button
+                    key={r.value}
+                    onClick={() => setDays(r.value)}
+                    className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${days === r.value ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              {/* Excluir staff */}
+              <label className="flex items-center gap-2 text-sm text-gray-600 bg-gray-100 rounded-xl px-3 py-2 cursor-pointer select-none">
+                <input type="checkbox" checked={excludeStaff} onChange={(e) => setExcludeStaff(e.target.checked)} className="w-4 h-4" />
+                Excluir mis visitas (staff)
+              </label>
+              <button onClick={load} className="text-sm font-medium text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg transition">
+                ↻ Actualizar
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -128,7 +160,7 @@ const Estadisticas: React.FC = () => {
             {/* Gráfico de visitas por día */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-bold text-gray-900">Visitas por día (últimos 30)</h2>
+                <h2 className="text-lg font-bold text-gray-900">Visitas por día (últimos {data.days})</h2>
                 <span className="text-xs text-gray-400">Pico: {maxViews.toLocaleString('es-AR')}</span>
               </div>
               <div className="flex items-end gap-1 h-44">
@@ -151,9 +183,35 @@ const Estadisticas: React.FC = () => {
               </div>
             </div>
 
+            {/* Cursos más visitados */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">Cursos más visitados ({data.days} días)</h2>
+              <p className="text-xs text-gray-400 mb-4">Cuánta gente entró a la ficha o el aula de cada curso</p>
+              {data.course_visits.length === 0 ? (
+                <p className="text-gray-400 text-sm">Todavía no hubo visitas a cursos en este período.</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {data.course_visits.map((c) => {
+                    const max = Math.max(1, ...data.course_visits.map((x) => x.views));
+                    return (
+                      <div key={c.course_id} className="flex items-center gap-3">
+                        <div className="w-48 shrink-0 truncate text-sm text-gray-700" title={c.nombre}>
+                          <Link to={`/course/${c.course_id}`} className="hover:text-blue-600 hover:underline">{c.nombre || `Curso #${c.course_id}`}</Link>
+                        </div>
+                        <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
+                          <div className="bg-emerald-500 h-full rounded-full" style={{ width: `${(c.views / max) * 100}%` }} />
+                        </div>
+                        <div className="w-28 text-right text-sm text-gray-500 shrink-0">{c.views} visitas · {c.visitors}👤</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* Páginas más vistas */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Páginas más visitadas (30 días)</h2>
+              <h2 className="text-lg font-bold text-gray-900 mb-4">Páginas más visitadas ({data.days} días)</h2>
               {data.top_pages.length === 0 ? (
                 <p className="text-gray-400 text-sm">Todavía no hay visitas registradas.</p>
               ) : (
@@ -173,7 +231,7 @@ const Estadisticas: React.FC = () => {
                 </div>
               )}
               <p className="text-xs text-gray-400 mt-4">
-                Logueados: {data.split.logueados.toLocaleString('es-AR')} · Anónimos: {data.split.anonimos.toLocaleString('es-AR')} (visitas de los últimos 30 días)
+                Logueados: {data.split.logueados.toLocaleString('es-AR')} · Anónimos: {data.split.anonimos.toLocaleString('es-AR')} (visitas de los últimos {data.days} días{data.excludeStaff ? ', sin staff' : ''})
               </p>
             </div>
           </>

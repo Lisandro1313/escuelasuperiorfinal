@@ -931,7 +931,10 @@ app.post('/api/track', async (req, res) => {
 // Panel de estadísticas de la web (solo admin).
 app.get('/api/admin/analytics', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const data = await db.getWebAnalytics();
+    const days = req.query.days ? Number(req.query.days) : 30;
+    // excludeStaff por defecto true; solo se incluye al staff si llega "0"/"false".
+    const excludeStaff = !['0', 'false', 'no'].includes(String(req.query.excludeStaff || '').toLowerCase());
+    const data = await db.getWebAnalytics({ days, excludeStaff });
     res.json(data);
   } catch (error) {
     console.error('Error al obtener analytics:', error);
