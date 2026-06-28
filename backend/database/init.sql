@@ -623,6 +623,8 @@ CREATE TABLE IF NOT EXISTS page_views (
     user_id INTEGER,           -- si está logueado
     referrer VARCHAR(255),
     user_agent VARCHAR(255),
+    country VARCHAR(80),       -- país (geolocalización por IP)
+    region VARCHAR(80),        -- provincia/región
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_page_views_created ON page_views(created_at);

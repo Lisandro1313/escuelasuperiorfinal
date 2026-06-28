@@ -897,6 +897,40 @@ app.get('/api/orders/:id/download', authenticateToken, async (req, res) => {
 // ESTADÍSTICAS WEB (visitas)
 // ================================
 
+// Geolocalización por IP (servicio gratuito ipwho.is, cacheado en memoria).
+// Guardamos solo país/provincia, NUNCA la IP. Tope ~2s; nunca rompe el tracking.
+const geoCache = new Map(); // ip -> { country, region }
+const isPrivateIp = (ip) => {
+  if (!ip) return true;
+  const x = ip.replace(/^::ffff:/, '');
+  return x === '::1' || /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(x) || x === 'localhost';
+};
+async function geoLookup(ip) {
+  if (isPrivateIp(ip)) return { country: null, region: null };
+  if (geoCache.has(ip)) return geoCache.get(ip);
+  let result = { country: null, region: null };
+  try {
+    if (typeof fetch === 'function') {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 2000);
+      const r = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}`, { signal: ctrl.signal });
+      clearTimeout(t);
+      if (r.ok) {
+        const j = await r.json();
+        if (j && j.success) {
+          result = {
+            country: (j.country || '').toString().slice(0, 80) || null,
+            region: (j.region || '').toString().slice(0, 80) || null,
+          };
+        }
+      }
+    }
+  } catch { /* sin geo: queda null */ }
+  if (geoCache.size > 5000) geoCache.clear();
+  geoCache.set(ip, result);
+  return result;
+}
+
 // Registrar una visita de página. Público (sin token), con auth OPCIONAL: si
 // viene un token válido, se atribuye la visita al usuario. Nunca falla al cliente.
 app.post('/api/track', async (req, res) => {
@@ -920,7 +954,11 @@ app.post('/api/track', async (req, res) => {
     const referrer = (req.headers['referer'] || '').toString().slice(0, 255) || null;
     const userAgent = (req.headers['user-agent'] || '').toString().slice(0, 255) || null;
 
-    await db.trackPageView({ path, visitor_id: visitorId, user_id: userId, referrer, user_agent: userAgent });
+    // País/provincia desde la IP (req.ip ya es la real por trust proxy).
+    const ip = (req.ip || '').replace(/^::ffff:/, '');
+    const geo = await geoLookup(ip);
+
+    await db.trackPageView({ path, visitor_id: visitorId, user_id: userId, referrer, user_agent: userAgent, country: geo.country, region: geo.region });
     res.status(204).end();
   } catch (error) {
     // No molestamos al cliente por un fallo de tracking.
@@ -934,7 +972,11 @@ app.get('/api/admin/analytics', authenticateToken, requireAdmin, async (req, res
     const days = req.query.days ? Number(req.query.days) : 30;
     // excludeStaff por defecto true; solo se incluye al staff si llega "0"/"false".
     const excludeStaff = !['0', 'false', 'no'].includes(String(req.query.excludeStaff || '').toLowerCase());
-    const data = await db.getWebAnalytics({ days, excludeStaff });
+    // Rango personalizado opcional (YYYY-MM-DD). Si es inválido se ignora.
+    const valid = (s) => /^\d{4}-\d{2}-\d{2}$/.test(String(s || ''));
+    const from = valid(req.query.from) ? req.query.from : null;
+    const to = valid(req.query.to) ? req.query.to : null;
+    const data = await db.getWebAnalytics({ days, from, to, excludeStaff });
     res.json(data);
   } catch (error) {
     console.error('Error al obtener analytics:', error);

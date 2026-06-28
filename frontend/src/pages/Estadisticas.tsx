@@ -4,6 +4,9 @@ import { Link } from 'react-router-dom';
 interface Win { views: number; visitors: number; }
 interface Analytics {
   days: number;
+  from: string;
+  to: string;
+  custom: boolean;
   excludeStaff: boolean;
   totals: Win;
   today: Win;
@@ -15,6 +18,8 @@ interface Analytics {
   series: { dia: string; views: number; visitors: number }[];
   top_pages: { path: string; views: number; visitors: number }[];
   course_visits: { course_id: number; nombre: string; views: number; visitors: number }[];
+  top_countries: { country: string; views: number; visitors: number }[];
+  top_regions: { country: string; region: string; views: number; visitors: number }[];
 }
 
 // Etiqueta amigable para las rutas más comunes.
@@ -39,15 +44,19 @@ const labelPath = (p: string): string => {
   return p;
 };
 
-// Últimos N días en formato YYYY-MM-DD (UTC, igual que el backend).
-const lastNDays = (n: number): string[] => {
+// Lista de días YYYY-MM-DD entre dos fechas inclusive (UTC, igual que el backend).
+const daysBetween = (from: string, to: string): string[] => {
   const out: string[] = [];
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 86400000);
-    out.push(d.toISOString().slice(0, 10));
+  const start = new Date(from + 'T00:00:00Z').getTime();
+  const end = new Date(to + 'T00:00:00Z').getTime();
+  if (isNaN(start) || isNaN(end) || end < start) return out;
+  for (let t = start; t <= end && out.length < 200; t += 86400000) {
+    out.push(new Date(t).toISOString().slice(0, 10));
   }
   return out;
 };
+
+const todayYMD = () => new Date().toISOString().slice(0, 10);
 
 const RANGES: { value: number; label: string }[] = [
   { value: 7, label: '7 días' },
@@ -60,12 +69,18 @@ const Estadisticas: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [days, setDays] = useState(30);
+  const [mode, setMode] = useState<'preset' | 'custom'>('preset');
+  const [customFrom, setCustomFrom] = useState(() => new Date(Date.now() - 29 * 86400000).toISOString().slice(0, 10));
+  const [customTo, setCustomTo] = useState(() => todayYMD());
   const [excludeStaff, setExcludeStaff] = useState(true);
 
   const load = () => {
     setLoading(true);
     setError('');
-    const qs = `days=${days}&excludeStaff=${excludeStaff ? 1 : 0}`;
+    const params = mode === 'custom'
+      ? `from=${customFrom}&to=${customTo}`
+      : `days=${days}`;
+    const qs = `${params}&excludeStaff=${excludeStaff ? 1 : 0}`;
     fetch(`/api/admin/analytics?${qs}`, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } })
       .then((r) => { if (!r.ok) throw new Error('No se pudo cargar'); return r.json(); })
       .then((d) => setData(d))
@@ -73,17 +88,19 @@ const Estadisticas: React.FC = () => {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [days, excludeStaff]);
+  // Recarga al cambiar preset, staff o modo. En custom, las fechas se aplican
+  // con el botón "Aplicar" (no en cada tecla).
+  useEffect(() => { load(); }, [days, excludeStaff, mode]);
 
   const chart = useMemo(() => {
     if (!data) return [];
     const map = new Map(data.series.map((s) => [s.dia, s]));
-    return lastNDays(data.days || days).map((dia) => ({
+    return daysBetween(data.from, data.to).map((dia) => ({
       dia,
       views: map.get(dia)?.views || 0,
       visitors: map.get(dia)?.visitors || 0,
     }));
-  }, [data, days]);
+  }, [data]);
 
   const maxViews = Math.max(1, ...chart.map((c) => c.views));
 
@@ -107,17 +124,23 @@ const Estadisticas: React.FC = () => {
               <p className="text-gray-500">Visitas, visitantes y crecimiento del sitio</p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              {/* Rango de fechas */}
+              {/* Rango de fechas: presets + personalizado */}
               <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
                 {RANGES.map((r) => (
                   <button
                     key={r.value}
-                    onClick={() => setDays(r.value)}
-                    className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${days === r.value ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                    onClick={() => { setMode('preset'); setDays(r.value); }}
+                    className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${mode === 'preset' && days === r.value ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
                   >
                     {r.label}
                   </button>
                 ))}
+                <button
+                  onClick={() => setMode('custom')}
+                  className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${mode === 'custom' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                >
+                  Personalizado
+                </button>
               </div>
               {/* Excluir staff */}
               <label className="flex items-center gap-2 text-sm text-gray-600 bg-gray-100 rounded-xl px-3 py-2 cursor-pointer select-none">
@@ -129,6 +152,25 @@ const Estadisticas: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Selector de fechas personalizado */}
+          {mode === 'custom' && (
+            <div className="mt-4 flex flex-wrap items-end gap-3 bg-gray-50 border border-gray-100 rounded-xl p-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Desde</label>
+                <input type="date" value={customFrom} max={customTo} onChange={(e) => setCustomFrom(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none focus:border-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Hasta</label>
+                <input type="date" value={customTo} min={customFrom} max={todayYMD()} onChange={(e) => setCustomTo(e.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm outline-none focus:border-blue-500" />
+              </div>
+              <button onClick={load} className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-5 py-2 rounded-lg transition">
+                Aplicar
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -160,7 +202,9 @@ const Estadisticas: React.FC = () => {
             {/* Gráfico de visitas por día */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-bold text-gray-900">Visitas por día (últimos {data.days})</h2>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Visitas por día {data.custom ? '(rango elegido)' : `(últimos ${data.days})`}
+                </h2>
                 <span className="text-xs text-gray-400">Pico: {maxViews.toLocaleString('es-AR')}</span>
               </div>
               <div className="flex items-end gap-1 h-44">
@@ -178,8 +222,59 @@ const Estadisticas: React.FC = () => {
                 ))}
               </div>
               <div className="flex justify-between mt-2 text-[11px] text-gray-400">
-                <span>{new Date(chart[0]?.dia + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })}</span>
-                <span>hoy</span>
+                <span>{chart[0] ? new Date(chart[0].dia + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }) : ''}</span>
+                <span>{data.custom ? new Date(data.to + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' }) : 'hoy'}</span>
+              </div>
+            </div>
+
+            {/* Ubicación: países y provincias/regiones */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <h2 className="text-lg font-bold text-gray-900 mb-1">🌎 Países</h2>
+                <p className="text-xs text-gray-400 mb-4">De dónde son las visitas</p>
+                {data.top_countries.length === 0 ? (
+                  <p className="text-gray-400 text-sm">Todavía no hay datos de ubicación en este período.</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {data.top_countries.map((c) => {
+                      const max = Math.max(1, ...data.top_countries.map((x) => x.views));
+                      return (
+                        <div key={c.country} className="flex items-center gap-3">
+                          <div className="w-36 shrink-0 truncate text-sm text-gray-700" title={c.country}>{c.country}</div>
+                          <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
+                            <div className="bg-sky-500 h-full rounded-full" style={{ width: `${(c.views / max) * 100}%` }} />
+                          </div>
+                          <div className="w-24 text-right text-sm text-gray-500 shrink-0">{c.views} ({c.visitors}👤)</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+                <h2 className="text-lg font-bold text-gray-900 mb-1">📍 Provincias / Regiones</h2>
+                <p className="text-xs text-gray-400 mb-4">Aproximado según la conexión (puede no ser exacto)</p>
+                {data.top_regions.length === 0 ? (
+                  <p className="text-gray-400 text-sm">Todavía no hay datos de ubicación en este período.</p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {data.top_regions.map((r) => {
+                      const max = Math.max(1, ...data.top_regions.map((x) => x.views));
+                      return (
+                        <div key={`${r.country}-${r.region}`} className="flex items-center gap-3">
+                          <div className="w-40 shrink-0 truncate text-sm text-gray-700" title={`${r.region} · ${r.country}`}>
+                            {r.region} <span className="text-gray-400">· {r.country}</span>
+                          </div>
+                          <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
+                            <div className="bg-violet-500 h-full rounded-full" style={{ width: `${(r.views / max) * 100}%` }} />
+                          </div>
+                          <div className="w-20 text-right text-sm text-gray-500 shrink-0">{r.views} ({r.visitors}👤)</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
