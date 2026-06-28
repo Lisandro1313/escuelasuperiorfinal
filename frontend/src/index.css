@@ -47,19 +47,9 @@ code {
   0%, 100% { transform: translate(0, 0) scale(1); }
   50% { transform: translate(22px, -18px) scale(1.05); }
 }
-@keyframes heroFloatC {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(18px, 24px) scale(1.08); }
-}
-@keyframes heroFloatD {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50% { transform: translate(-20px, -22px) scale(1.04); }
-}
 .hero-orb-a { animation: heroFloatA 16s ease-in-out infinite; }
 .hero-orb-b { animation: heroFloatB 20s ease-in-out infinite; }
-.hero-orb-c { animation: heroFloatC 24s ease-in-out infinite; }
-.hero-orb-d { animation: heroFloatD 19s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .hero-orb-a, .hero-orb-b, .hero-orb-c, .hero-orb-d { animation: none; }
+  .hero-orb-a, .hero-orb-b { animation: none; }
 }

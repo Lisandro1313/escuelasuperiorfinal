@@ -37,7 +37,7 @@ const ParticlesBackground: React.FC<{ className?: string }> = ({ className }) =>
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const count = Math.min(70, Math.max(22, Math.round(width / 22)));
+      const count = Math.min(140, Math.max(45, Math.round(width / 12)));
       particles = Array.from({ length: count }, () => ({
         x: Math.random() * width,
         y: Math.random() * height,

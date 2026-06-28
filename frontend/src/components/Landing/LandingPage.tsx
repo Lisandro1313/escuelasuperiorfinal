@@ -114,9 +114,6 @@ const LandingPage: React.FC = () => {
           {/* Orbes de luz con deriva muy lenta */}
           <div className="hero-orb-a absolute -top-40 -right-32 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl" />
           <div className="hero-orb-b absolute -bottom-24 -left-24 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl" />
-          <div className="hero-orb-c absolute top-1/4 left-1/4 w-72 h-72 bg-teal-400/15 rounded-full blur-3xl" />
-          <div className="hero-orb-d absolute bottom-1/4 right-1/4 w-72 h-72 bg-indigo-500/15 rounded-full blur-3xl" />
-          <div className="hero-orb-b absolute top-8 left-1/2 w-64 h-64 bg-emerald-400/10 rounded-full blur-3xl" style={{ animationDelay: '-8s' }} />
         </div>
 
         <div className="relative max-w-4xl mx-auto px-6 pt-16 pb-20 text-center">
