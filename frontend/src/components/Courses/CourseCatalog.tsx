@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { fetchJSON } from '../../lib/fetchJSON';
+import StoreView from '../Store/StoreView';
 
 interface Course {
   id: number;
@@ -38,11 +39,18 @@ const catColor = (c: string) => CAT_COLORS[c] || CAT_COLORS.General;
 
 const CourseCatalog: React.FC = () => {
   const { usuario } = useAuth();
+  const location = useLocation();
+  const [tab, setTab] = useState<'cursos' | 'tienda'>(location.hash === '#tienda' ? 'tienda' : 'cursos');
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'todos' | 'gratis' | 'pago'>('todos');
   const [selectedCategory, setSelectedCategory] = useState('Todas');
+
+  useEffect(() => {
+    if (location.hash === '#tienda') setTab('tienda');
+    else if (location.hash === '#cursos') setTab('cursos');
+  }, [location.hash]);
 
   useEffect(() => {
     fetchJSON<Course[]>('/api/courses')
@@ -82,13 +90,43 @@ const CourseCatalog: React.FC = () => {
       {/* Hero del catálogo */}
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <h1 className="text-4xl font-extrabold text-gray-900 mb-2">Catálogo de cursos</h1>
-          <p className="text-gray-500">Elegí el que más te interese y empezá a aprender hoy</p>
+          <h1 className="text-4xl font-extrabold text-gray-900 mb-2">
+            {tab === 'tienda' ? 'Tienda' : 'Catálogo de cursos'}
+          </h1>
+          <p className="text-gray-500">
+            {tab === 'tienda'
+              ? 'Libros, apuntes y materiales de la escuela'
+              : 'Elegí el que más te interese y empezá a aprender hoy'}
+          </p>
+
+          {/* Pestañas Cursos / Tienda */}
+          <div className="inline-flex mt-6 bg-gray-100 rounded-xl p-1 gap-1">
+            <button
+              onClick={() => setTab('cursos')}
+              className={`px-5 py-2 rounded-lg text-sm font-semibold transition ${
+                tab === 'cursos' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              📚 Cursos
+            </button>
+            <button
+              onClick={() => setTab('tienda')}
+              className={`px-5 py-2 rounded-lg text-sm font-semibold transition ${
+                tab === 'tienda' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              🛍️ Tienda
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
+        {tab === 'tienda' && <StoreView />}
+
+        {tab === 'cursos' && (
+        <>
         {/* Barra de filtros */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 mb-8 flex flex-col lg:flex-row gap-3 items-center">
           {/* Búsqueda */}
@@ -226,6 +264,8 @@ const CourseCatalog: React.FC = () => {
               })}
             </div>
           </>
+        )}
+        </>
         )}
       </div>
     </div>

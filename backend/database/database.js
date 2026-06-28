@@ -29,14 +29,17 @@ class Database {
     
     this.db.exec(initSQL, (err) => {
       if (err) {
-        console.error('Error al crear tablas:', err);
+        // En bases viejas el exec puede cortarse (ej: índice sobre una columna
+        // que todavía no existe). NO abortamos: las migraciones idempotentes de
+        // abajo agregan columnas/tablas faltantes y dejan la base consistente.
+        console.error('Aviso al crear tablas (se continúa con migraciones):', err.message);
       } else {
         console.log('✅ Tablas de base de datos creadas/verificadas');
-        // Agregar columnas nuevas si no existen
-        this.addMissingColumns();
-        // Crear usuario administrador por defecto
-        this.createDefaultAdmin();
       }
+      // Corren SIEMPRE (idempotentes): agregan columnas nuevas, crean tablas que
+      // falten (tienda, access_grants) y el admin por defecto.
+      this.addMissingColumns();
+      this.createDefaultAdmin();
     });
   }
 
@@ -174,6 +177,49 @@ class Database {
       (err) => {
         if (err) console.error('Error creando access_grants:', err);
       }
+    );
+
+    // Tienda: productos + pedidos (se crean acá también por si el exec de
+    // init.sql se cortó antes de llegar a estas tablas en una base vieja).
+    this.db.run(
+      `CREATE TABLE IF NOT EXISTS products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre VARCHAR(255) NOT NULL,
+        descripcion TEXT,
+        precio DECIMAL(10,2) DEFAULT 0,
+        imagen VARCHAR(500),
+        tipo VARCHAR(20) DEFAULT 'fisico',
+        archivo_url TEXT,
+        stock INTEGER,
+        whatsapp VARCHAR(30),
+        permite_pago_online BOOLEAN DEFAULT 1,
+        permite_whatsapp BOOLEAN DEFAULT 1,
+        profesor_id INTEGER,
+        profesor VARCHAR(255),
+        activo BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      (err) => { if (err) console.error('Error creando products:', err.message); }
+    );
+    this.db.run(
+      `CREATE TABLE IF NOT EXISTS product_orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        product_id INTEGER NOT NULL,
+        cantidad INTEGER DEFAULT 1,
+        amount DECIMAL(10,2) NOT NULL,
+        tipo VARCHAR(20) DEFAULT 'fisico',
+        status VARCHAR(20) DEFAULT 'pending',
+        payment_id VARCHAR(255),
+        preference_id VARCHAR(255),
+        comprador_nombre VARCHAR(255),
+        comprador_email VARCHAR(255),
+        comprador_telefono VARCHAR(30),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      (err) => { if (err) console.error('Error creando product_orders:', err.message); }
     );
   }
 
@@ -718,6 +764,132 @@ class Database {
         } else {
           resolve(row);
         }
+      });
+    });
+  }
+
+  // ================================
+  // MÉTODOS PARA TIENDA (productos + pedidos)
+  // ================================
+
+  async createProduct(data) {
+    return new Promise((resolve, reject) => {
+      const {
+        nombre, descripcion = null, precio = 0, imagen = null, tipo = 'fisico',
+        archivo_url = null, stock = null, whatsapp = null,
+        permite_pago_online = true, permite_whatsapp = true,
+        profesor_id = null, profesor = null,
+      } = data;
+      const sql = `INSERT INTO products (nombre, descripcion, precio, imagen, tipo, archivo_url, stock, whatsapp, permite_pago_online, permite_whatsapp, profesor_id, profesor, activo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`;
+      this.db.run(sql, [nombre, descripcion, precio, imagen, tipo, archivo_url, stock, whatsapp, permite_pago_online ? 1 : 0, permite_whatsapp ? 1 : 0, profesor_id, profesor], function (err) {
+        if (err) reject(err);
+        else resolve({ id: this.lastID, ...data, activo: true });
+      });
+    });
+  }
+
+  async getActiveProducts() {
+    return new Promise((resolve, reject) => {
+      this.db.all(`SELECT * FROM products WHERE activo = 1 ORDER BY created_at DESC`, [], (err, rows) => {
+        if (err) reject(err); else resolve(rows);
+      });
+    });
+  }
+
+  async getAllProductsByProfesor(profesorId) {
+    return new Promise((resolve, reject) => {
+      this.db.all(`SELECT * FROM products WHERE profesor_id = ? ORDER BY created_at DESC`, [profesorId], (err, rows) => {
+        if (err) reject(err); else resolve(rows);
+      });
+    });
+  }
+
+  async getProductById(id) {
+    return new Promise((resolve, reject) => {
+      this.db.get(`SELECT * FROM products WHERE id = ?`, [id], (err, row) => {
+        if (err) reject(err); else resolve(row);
+      });
+    });
+  }
+
+  async updateProduct(id, data) {
+    return new Promise((resolve, reject) => {
+      const {
+        nombre, descripcion = null, precio = 0, imagen = null, tipo = 'fisico',
+        archivo_url = null, stock = null, whatsapp = null,
+        permite_pago_online = true, permite_whatsapp = true, activo = true,
+      } = data;
+      const sql = `UPDATE products SET nombre = ?, descripcion = ?, precio = ?, imagen = COALESCE(?, imagen), tipo = ?, archivo_url = COALESCE(?, archivo_url), stock = ?, whatsapp = ?, permite_pago_online = ?, permite_whatsapp = ?, activo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+      this.db.run(sql, [nombre, descripcion, precio, imagen, tipo, archivo_url, stock, whatsapp, permite_pago_online ? 1 : 0, permite_whatsapp ? 1 : 0, activo ? 1 : 0, id], function (err) {
+        if (err) reject(err); else resolve({ id, ...data });
+      });
+    });
+  }
+
+  async deleteProduct(id) {
+    return new Promise((resolve, reject) => {
+      this.db.run(`DELETE FROM products WHERE id = ?`, [id], function (err) {
+        if (err) reject(err); else resolve({ deleted: this.changes > 0 });
+      });
+    });
+  }
+
+  async createOrder(data) {
+    return new Promise((resolve, reject) => {
+      const {
+        user_id, product_id, cantidad = 1, amount, tipo = 'fisico', status = 'pending',
+        payment_id = null, preference_id = null,
+        comprador_nombre = null, comprador_email = null, comprador_telefono = null,
+      } = data;
+      const sql = `INSERT INTO product_orders (user_id, product_id, cantidad, amount, tipo, status, payment_id, preference_id, comprador_nombre, comprador_email, comprador_telefono) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      this.db.run(sql, [user_id, product_id, cantidad, amount, tipo, status, payment_id, preference_id, comprador_nombre, comprador_email, comprador_telefono], function (err) {
+        if (err) reject(err); else resolve({ id: this.lastID, ...data });
+      });
+    });
+  }
+
+  async getOrderById(id) {
+    return new Promise((resolve, reject) => {
+      this.db.get(
+        `SELECT o.*, p.nombre AS product_nombre, p.imagen AS product_imagen, p.archivo_url, p.tipo AS product_tipo
+         FROM product_orders o JOIN products p ON p.id = o.product_id WHERE o.id = ?`,
+        [id], (err, row) => { if (err) reject(err); else resolve(row); }
+      );
+    });
+  }
+
+  async getOrdersByUser(userId) {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        `SELECT o.*, p.nombre AS product_nombre, p.imagen AS product_imagen, p.tipo AS product_tipo
+         FROM product_orders o JOIN products p ON p.id = o.product_id
+         WHERE o.user_id = ? ORDER BY o.created_at DESC`,
+        [userId], (err, rows) => { if (err) reject(err); else resolve(rows); }
+      );
+    });
+  }
+
+  async getOrdersForSeller() {
+    return new Promise((resolve, reject) => {
+      this.db.all(
+        `SELECT o.*, p.nombre AS product_nombre, u.nombre AS user_nombre, u.email AS user_email, u.telefono AS user_telefono
+         FROM product_orders o JOIN products p ON p.id = o.product_id JOIN users u ON u.id = o.user_id
+         ORDER BY o.created_at DESC`,
+        [], (err, rows) => { if (err) reject(err); else resolve(rows); }
+      );
+    });
+  }
+
+  async updateOrderByPreferenceId(preferenceId, { payment_id, status }) {
+    return new Promise((resolve, reject) => {
+      const sets = [];
+      const params = [];
+      if (payment_id !== undefined) { sets.push('payment_id = ?'); params.push(payment_id); }
+      if (status !== undefined) { sets.push('status = ?'); params.push(status); }
+      sets.push('updated_at = CURRENT_TIMESTAMP');
+      params.push(preferenceId);
+      this.db.run(`UPDATE product_orders SET ${sets.join(', ')} WHERE preference_id = ?`, params, function (err) {
+        if (err) reject(err); else resolve({ updated: this.changes > 0 });
       });
     });
   }

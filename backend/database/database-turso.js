@@ -159,6 +159,53 @@ class TursoDatabase {
         }
       }
     }
+
+    // Tienda: productos + pedidos (idempotente).
+    const tiendaTables = [
+      `CREATE TABLE IF NOT EXISTS products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre VARCHAR(255) NOT NULL,
+        descripcion TEXT,
+        precio DECIMAL(10,2) DEFAULT 0,
+        imagen VARCHAR(500),
+        tipo VARCHAR(20) DEFAULT 'fisico',
+        archivo_url TEXT,
+        stock INTEGER,
+        whatsapp VARCHAR(30),
+        permite_pago_online BOOLEAN DEFAULT 1,
+        permite_whatsapp BOOLEAN DEFAULT 1,
+        profesor_id INTEGER,
+        profesor VARCHAR(255),
+        activo BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS product_orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        product_id INTEGER NOT NULL,
+        cantidad INTEGER DEFAULT 1,
+        amount DECIMAL(10,2) NOT NULL,
+        tipo VARCHAR(20) DEFAULT 'fisico',
+        status VARCHAR(20) DEFAULT 'pending',
+        payment_id VARCHAR(255),
+        preference_id VARCHAR(255),
+        comprador_nombre VARCHAR(255),
+        comprador_email VARCHAR(255),
+        comprador_telefono VARCHAR(30),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+    ];
+    for (const sql of tiendaTables) {
+      try {
+        await this.client.execute(sql);
+      } catch (err) {
+        if (!/already exists/i.test(err.message)) {
+          console.error('Migracion Turso (tienda) fallo:', err.message);
+        }
+      }
+    }
   }
 
   async createDefaultAdmin() {
@@ -389,6 +436,92 @@ class TursoDatabase {
   async getPaymentByPaymentId(paymentId) {
     const r = await this._query('SELECT * FROM payments WHERE payment_id = ?', [paymentId]);
     return r.rows[0];
+  }
+
+  // Tienda (productos + pedidos)
+  async createProduct({ nombre, descripcion = null, precio = 0, imagen = null, tipo = 'fisico', archivo_url = null, stock = null, whatsapp = null, permite_pago_online = true, permite_whatsapp = true, profesor_id = null, profesor = null }) {
+    const r = await this._query(
+      'INSERT INTO products (nombre, descripcion, precio, imagen, tipo, archivo_url, stock, whatsapp, permite_pago_online, permite_whatsapp, profesor_id, profesor, activo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)',
+      [nombre, descripcion, precio, imagen, tipo, archivo_url, stock, whatsapp, permite_pago_online ? 1 : 0, permite_whatsapp ? 1 : 0, profesor_id, profesor]
+    );
+    return { id: Number(r.lastInsertRowid), nombre, descripcion, precio, imagen, tipo, archivo_url, stock, whatsapp, permite_pago_online, permite_whatsapp, profesor_id, profesor, activo: true };
+  }
+
+  async getActiveProducts() {
+    const r = await this._query('SELECT * FROM products WHERE activo = 1 ORDER BY created_at DESC');
+    return r.rows;
+  }
+
+  async getAllProductsByProfesor(profesorId) {
+    const r = await this._query('SELECT * FROM products WHERE profesor_id = ? ORDER BY created_at DESC', [profesorId]);
+    return r.rows;
+  }
+
+  async getProductById(id) {
+    const r = await this._query('SELECT * FROM products WHERE id = ?', [id]);
+    return r.rows[0];
+  }
+
+  async updateProduct(id, { nombre, descripcion = null, precio = 0, imagen = null, tipo = 'fisico', archivo_url = null, stock = null, whatsapp = null, permite_pago_online = true, permite_whatsapp = true, activo = true }) {
+    await this._query(
+      'UPDATE products SET nombre = ?, descripcion = ?, precio = ?, imagen = COALESCE(?, imagen), tipo = ?, archivo_url = COALESCE(?, archivo_url), stock = ?, whatsapp = ?, permite_pago_online = ?, permite_whatsapp = ?, activo = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [nombre, descripcion, precio, imagen, tipo, archivo_url, stock, whatsapp, permite_pago_online ? 1 : 0, permite_whatsapp ? 1 : 0, activo ? 1 : 0, id]
+    );
+    return { id, nombre, descripcion, precio, imagen, tipo, archivo_url, stock, whatsapp, permite_pago_online, permite_whatsapp, activo };
+  }
+
+  async deleteProduct(id) {
+    const tryRun = async (sql) => { try { await this._query(sql, [id]); } catch (_) { /* sin filas */ } };
+    await tryRun('DELETE FROM product_orders WHERE product_id = ?');
+    await this._query('DELETE FROM products WHERE id = ?', [id]);
+    return { deleted: true };
+  }
+
+  async createOrder({ user_id, product_id, cantidad = 1, amount, tipo = 'fisico', status = 'pending', payment_id = null, preference_id = null, comprador_nombre = null, comprador_email = null, comprador_telefono = null }) {
+    const r = await this._query(
+      'INSERT INTO product_orders (user_id, product_id, cantidad, amount, tipo, status, payment_id, preference_id, comprador_nombre, comprador_email, comprador_telefono) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [user_id, product_id, cantidad, amount, tipo, status, payment_id, preference_id, comprador_nombre, comprador_email, comprador_telefono]
+    );
+    return { id: Number(r.lastInsertRowid), user_id, product_id, cantidad, amount, tipo, status, payment_id, preference_id };
+  }
+
+  async getOrderById(id) {
+    const r = await this._query(
+      `SELECT o.*, p.nombre AS product_nombre, p.imagen AS product_imagen, p.archivo_url, p.tipo AS product_tipo
+       FROM product_orders o JOIN products p ON p.id = o.product_id WHERE o.id = ?`,
+      [id]
+    );
+    return r.rows[0];
+  }
+
+  async getOrdersByUser(userId) {
+    const r = await this._query(
+      `SELECT o.*, p.nombre AS product_nombre, p.imagen AS product_imagen, p.tipo AS product_tipo
+       FROM product_orders o JOIN products p ON p.id = o.product_id
+       WHERE o.user_id = ? ORDER BY o.created_at DESC`,
+      [userId]
+    );
+    return r.rows;
+  }
+
+  async getOrdersForSeller() {
+    const r = await this._query(
+      `SELECT o.*, p.nombre AS product_nombre, u.nombre AS user_nombre, u.email AS user_email, u.telefono AS user_telefono
+       FROM product_orders o JOIN products p ON p.id = o.product_id JOIN users u ON u.id = o.user_id
+       ORDER BY o.created_at DESC`
+    );
+    return r.rows;
+  }
+
+  async updateOrderByPreferenceId(preferenceId, { payment_id, status }) {
+    const sets = [];
+    const args = [];
+    if (payment_id !== undefined) { sets.push('payment_id = ?'); args.push(payment_id); }
+    if (status !== undefined) { sets.push('status = ?'); args.push(status); }
+    sets.push('updated_at = CURRENT_TIMESTAMP');
+    args.push(preferenceId);
+    const r = await this._query(`UPDATE product_orders SET ${sets.join(', ')} WHERE preference_id = ?`, args);
+    return { updated: r.rowsAffected > 0 };
   }
 
   // Módulos

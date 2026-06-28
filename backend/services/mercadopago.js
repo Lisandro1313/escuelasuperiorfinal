@@ -132,6 +132,55 @@ class MercadoPagoService {
     }
   }
 
+  // Crear preferencia de pago para un producto de la tienda (libro, apunte, etc.)
+  async createProductPreference(product, userData, quantity = 1) {
+    try {
+      const qty = Math.max(1, parseInt(quantity, 10) || 1);
+      const preferenceData = {
+        items: [
+          {
+            id: (product.id || 1).toString(),
+            title: product.nombre || 'Producto',
+            description: (product.descripcion || 'Producto de la tienda Campus Norma').slice(0, 250),
+            picture_url: product.imagen || '',
+            category_id: 'others',
+            quantity: qty,
+            unit_price: parseFloat(product.precio || 0),
+            currency_id: 'ARS'
+          }
+        ],
+        payer: {
+          name: userData.nombre,
+          email: userData.email,
+        },
+        back_urls: {
+          success: `${process.env.FRONTEND_URL}/payment/success`,
+          failure: `${process.env.FRONTEND_URL}/payment/failure`,
+          pending: `${process.env.FRONTEND_URL}/payment/pending`
+        },
+        auto_return: 'approved',
+        notification_url: `${process.env.BACKEND_URL}/api/payments/webhook`,
+        statement_descriptor: 'Campus Norma',
+        external_reference: `product_${product.id}_user_${userData.id}_qty_${qty}_${Date.now()}`,
+        expires: true,
+        expiration_date_from: new Date().toISOString(),
+        expiration_date_to: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      };
+
+      const preference = await this.preference.create({ body: preferenceData });
+
+      return {
+        success: true,
+        preferenceId: preference.id,
+        initPoint: preference.init_point,
+        sandboxInitPoint: preference.sandbox_init_point
+      };
+    } catch (error) {
+      console.error('Error creating product preference:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
   // Obtener información de un pago
   async getPayment(paymentId) {
     try {

@@ -1,9 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import NotificationCenter from '../Notifications/NotificationCenter';
 import InstallPWA from '../Common/InstallPWA';
 import { API_BASE } from '../../config';
+
+const ThemeToggle: React.FC = () => {
+  const { theme, toggleTheme } = useTheme();
+  const aClasico = theme === 'moderno';
+  return (
+    <button
+      onClick={toggleTheme}
+      title={aClasico ? 'Cambiar a estilo clásico (pizarrón)' : 'Cambiar a estilo moderno'}
+      aria-label="Cambiar estilo"
+      className="flex items-center gap-1.5 hover:bg-gray-100 rounded-lg px-2.5 py-1.5 transition text-gray-600"
+    >
+      <span className="text-lg leading-none">{aClasico ? '🏫' : '✨'}</span>
+      <span className="hidden lg:inline text-sm font-medium">{aClasico ? 'Clásico' : 'Moderno'}</span>
+    </button>
+  );
+};
 
 export const avatarUrl = (avatar?: string | null): string | null => {
   if (!avatar) return null;
@@ -73,6 +90,7 @@ const Navbar: React.FC = () => {
               </>
             ) : (
               <>
+                <ThemeToggle />
                 <NotificationCenter />
 
                 <div className="relative" ref={menuRef}>
@@ -133,6 +151,14 @@ const Navbar: React.FC = () => {
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                       >
                         Mi perfil
+                      </Link>
+
+                      <Link
+                        to="/mis-compras"
+                        onClick={() => setShowUserMenu(false)}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        Mis compras
                       </Link>
 
                       {usuario.tipo === 'admin' && (

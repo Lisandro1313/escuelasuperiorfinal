@@ -17,6 +17,20 @@ interface CourseStat {
   total_sold: number;
 }
 
+interface ProductItem {
+  id: number;
+  nombre: string;
+  descripcion?: string;
+  precio: number;
+  imagen?: string | null;
+  tipo: 'fisico' | 'digital';
+  archivo_url?: string | null;
+  stock?: number | null;
+  whatsapp?: string | null;
+  permite_pago_online?: boolean | number;
+  permite_whatsapp?: boolean | number;
+}
+
 interface DashboardData {
   stats: { courses: number; published: number; students: number; revenue_month: number };
   courses: CourseStat[];
@@ -43,6 +57,9 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState('');
   const [showNewCourse, setShowNewCourse] = useState(false);
   const [showLiveTalk, setShowLiveTalk] = useState(false);
+  const [showNewProduct, setShowNewProduct] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
+  const [products, setProducts] = useState<ProductItem[]>([]);
 
   const fetchDashboard = async () => {
     try {
@@ -58,7 +75,27 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchDashboard(); }, []);
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch('/api/products');
+      setProducts(res.ok ? await res.json() : []);
+    } catch {
+      setProducts([]);
+    }
+  };
+
+  const deleteProduct = async (id: number) => {
+    if (!window.confirm('¿Eliminar este producto de la tienda?')) return;
+    try {
+      const res = await fetch(`/api/products/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (res.ok) fetchProducts();
+    } catch { /* noop */ }
+  };
+
+  useEffect(() => { fetchDashboard(); fetchProducts(); }, []);
 
   if (loading) {
     return (
@@ -136,6 +173,12 @@ const Dashboard: React.FC = () => {
                 className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2.5 rounded-xl transition shadow-sm"
               >
                 🔴 Charla en vivo
+              </button>
+              <button
+                onClick={() => { setEditingProduct(null); setShowNewProduct(true); }}
+                className="inline-flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-semibold px-4 py-2.5 rounded-xl transition shadow-sm"
+              >
+                🛍️ Nuevo producto
               </button>
               <button
                 onClick={() => setShowNewCourse(true)}
@@ -257,6 +300,78 @@ const Dashboard: React.FC = () => {
           )}
         </div>
 
+        {/* Tienda: productos */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-gray-900">🛍️ Tienda</h2>
+            <div className="flex items-center gap-4">
+              <Link to="/tienda/pedidos" className="text-sm text-blue-600 hover:underline font-medium">
+                Ver pedidos →
+              </Link>
+              <button
+                onClick={() => { setEditingProduct(null); setShowNewProduct(true); }}
+                className="text-sm text-amber-600 hover:underline font-medium"
+              >
+                + Producto
+              </button>
+            </div>
+          </div>
+
+          {products.length === 0 ? (
+            <div className="text-center py-12 px-6">
+              <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🛍️</div>
+              <h3 className="text-base font-bold text-gray-900 mb-1">Todavía no hay productos</h3>
+              <p className="text-gray-500 text-sm mb-5 max-w-sm mx-auto">
+                Vendé libros, fotocopias o apuntes digitales. Los alumnos los ven en el Catálogo, pestaña Tienda.
+              </p>
+              <button
+                onClick={() => { setEditingProduct(null); setShowNewProduct(true); }}
+                className="bg-amber-500 hover:bg-amber-600 text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition"
+              >
+                🛍️ Subir mi primer producto
+              </button>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {products.map((p) => (
+                <div key={p.id} className="px-6 py-4 flex items-center gap-4 hover:bg-gray-50/50 transition">
+                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-2xl shrink-0">
+                    {p.imagen && p.imagen.startsWith('http') ? (
+                      <img src={p.imagen} alt={p.nombre} className="w-full h-full object-cover" />
+                    ) : (p.tipo === 'digital' ? '⬇' : '📦')}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-gray-900 truncate">{p.nombre}</span>
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${p.tipo === 'digital' ? 'bg-indigo-100 text-indigo-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {p.tipo === 'digital' ? 'Digital' : 'Físico'}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-500">
+                      {Number(p.precio) > 0 ? formatARS(Number(p.precio)) : 'A consultar'}
+                      {p.stock != null && ` · stock: ${p.stock}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => { setEditingProduct(p); setShowNewProduct(true); }}
+                      className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => deleteProduct(p.id)}
+                      className="px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition"
+                    >
+                      Borrar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Estadísticas (recaudación, inscripciones, clases en vivo) */}
         <TeacherAnalytics />
 
@@ -264,6 +379,7 @@ const Dashboard: React.FC = () => {
         <div className={`grid gap-4 ${usuario?.tipo === 'admin' ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
           {[
             { to: '/students', icon: '👥', title: 'Mis estudiantes', desc: 'Quién se inscribió y quién pagó' },
+            { to: '/tienda/pedidos', icon: '🧾', title: 'Pedidos de la tienda', desc: 'Compras a coordinar/entregar' },
             { to: '/ayuda', icon: '❓', title: 'Ayuda', desc: 'Guía paso a paso para usar el campus' },
             { to: '/profile', icon: '👤', title: 'Mi perfil', desc: 'Nombre, foto y contraseña' },
             ...(usuario?.tipo === 'admin' ? [{ to: '/admin/users', icon: '🛡️', title: 'Gestión de usuarios', desc: 'Crear profesoras y gestionar cuentas' }] : []),
@@ -290,6 +406,15 @@ const Dashboard: React.FC = () => {
           onClose={() => setShowNewCourse(false)}
           onCreated={fetchDashboard}
           navigate={navigate}
+        />
+      )}
+
+      {showNewProduct && (
+        <NewProductModal
+          product={editingProduct}
+          defaultWhatsapp={(usuario as any)?.telefono || ''}
+          onClose={() => { setShowNewProduct(false); setEditingProduct(null); }}
+          onSaved={() => { setShowNewProduct(false); setEditingProduct(null); fetchProducts(); }}
         />
       )}
     </div>
@@ -456,5 +581,243 @@ const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, 
     {children}
   </div>
 );
+
+/* ─── Modal nuevo/editar producto ─── */
+const NewProductModal: React.FC<{
+  product: ProductItem | null;
+  defaultWhatsapp?: string;
+  onClose: () => void;
+  onSaved: () => void;
+}> = ({ product, defaultWhatsapp = '', onClose, onSaved }) => {
+  const editing = !!product;
+  const [form, setForm] = useState({
+    nombre: product?.nombre || '',
+    descripcion: product?.descripcion || '',
+    precio: Number(product?.precio || 0),
+    tipo: (product?.tipo as 'fisico' | 'digital') || 'fisico',
+    imagen: product?.imagen || '',
+    archivo_url: product?.archivo_url || '',
+    stock: product?.stock != null ? String(product.stock) : '',
+    whatsapp: product?.whatsapp || defaultWhatsapp || '',
+    permite_pago_online: product ? product.permite_pago_online !== false && product.permite_pago_online !== 0 : true,
+    permite_whatsapp: product ? product.permite_whatsapp !== false && product.permite_whatsapp !== 0 : true,
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [err, setErr] = useState('');
+
+  const upload = async (file: File, setBusy: (b: boolean) => void): Promise<string | null> => {
+    setBusy(true);
+    setErr('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: fd,
+      });
+      const d = await res.json();
+      if (res.ok && d.url) return d.url as string;
+      setErr(d.error || 'No se pudo subir el archivo');
+      return null;
+    } catch {
+      setErr('No se pudo subir el archivo');
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submit = async () => {
+    if (!form.nombre.trim()) { setErr('Poné un nombre al producto'); return; }
+    if (form.tipo === 'digital' && !form.archivo_url) { setErr('Subí el archivo descargable (PDF, etc.)'); return; }
+    if (!form.permite_pago_online && !form.permite_whatsapp) { setErr('Activá al menos una forma de compra (online o WhatsApp)'); return; }
+    setSubmitting(true);
+    setErr('');
+    try {
+      const payload = {
+        ...form,
+        precio: Number(form.precio) || 0,
+        stock: form.stock === '' ? null : Number(form.stock),
+        imagen: form.imagen || null,
+        archivo_url: form.tipo === 'digital' ? (form.archivo_url || null) : null,
+      };
+      const res = await fetch(editing ? `/api/products/${product!.id}` : '/api/products', {
+        method: editing ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify(payload),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Error');
+      onSaved();
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
+          <h3 className="text-xl font-bold text-gray-900">{editing ? 'Editar producto' : 'Nuevo producto'}</h3>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 text-xl transition">&times;</button>
+        </div>
+        <div className="p-6 space-y-4">
+          <Field label="Nombre *">
+            <input
+              type="text"
+              value={form.nombre}
+              onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+              placeholder="Ej: Libro de Costura Básica"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition"
+            />
+          </Field>
+
+          <Field label="Descripción">
+            <textarea
+              value={form.descripcion}
+              onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+              rows={2}
+              placeholder="¿Qué incluye? ¿Para qué sirve?"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-blue-500 outline-none transition resize-none"
+            />
+          </Field>
+
+          <Field label="Tipo de producto">
+            <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+              {([['fisico', '📦 Físico (libro, fotocopias)'], ['digital', '⬇ Digital (PDF descargable)']] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setForm({ ...form, tipo: val })}
+                  className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${form.tipo === val ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Precio en ARS">
+              <input
+                type="number"
+                min={0}
+                value={form.precio}
+                onChange={(e) => setForm({ ...form, precio: Number(e.target.value) })}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-blue-500 outline-none transition"
+              />
+              <p className="text-xs text-gray-400 mt-1">0 = solo consulta</p>
+            </Field>
+            <Field label="Stock (opcional)">
+              <input
+                type="number"
+                min={0}
+                value={form.stock}
+                onChange={(e) => setForm({ ...form, stock: e.target.value })}
+                placeholder="Sin límite"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-blue-500 outline-none transition"
+              />
+            </Field>
+          </div>
+
+          <Field label="Foto del producto">
+            {form.imagen && form.imagen.startsWith('http') ? (
+              <div className="relative">
+                <img src={form.imagen} alt="Producto" className="w-full h-36 object-cover rounded-xl border border-gray-200" />
+                <button
+                  type="button"
+                  onClick={() => setForm({ ...form, imagen: '' })}
+                  className="absolute top-2 right-2 bg-white/90 hover:bg-white rounded-full w-7 h-7 flex items-center justify-center text-gray-600 shadow"
+                >
+                  ×
+                </button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center h-36 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition">
+                <span className="text-3xl">🖼️</span>
+                <span className="text-sm text-gray-500 mt-1">{uploadingImg ? 'Subiendo...' : 'Subir una foto'}</span>
+                <span className="text-xs text-gray-400">JPG o PNG</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => { const f = e.target.files?.[0]; if (f) { const url = await upload(f, setUploadingImg); if (url) setForm((s) => ({ ...s, imagen: url })); } }}
+                />
+              </label>
+            )}
+          </Field>
+
+          {form.tipo === 'digital' && (
+            <Field label="Archivo descargable *">
+              {form.archivo_url ? (
+                <div className="flex items-center justify-between px-4 py-3 border border-gray-200 rounded-xl bg-green-50">
+                  <span className="text-sm text-green-700 truncate">✓ Archivo cargado</span>
+                  <button type="button" onClick={() => setForm({ ...form, archivo_url: '' })} className="text-gray-500 hover:text-red-600 text-sm">Quitar</button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center h-24 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition">
+                  <span className="text-2xl">📄</span>
+                  <span className="text-sm text-gray-500 mt-1">{uploadingFile ? 'Subiendo...' : 'Subir PDF / archivo'}</span>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip"
+                    className="hidden"
+                    onChange={async (e) => { const f = e.target.files?.[0]; if (f) { const url = await upload(f, setUploadingFile); if (url) setForm((s) => ({ ...s, archivo_url: url })); } }}
+                  />
+                </label>
+              )}
+              <p className="text-xs text-gray-400 mt-1">El alumno lo descarga después de pagar.</p>
+            </Field>
+          )}
+
+          <Field label="Formas de compra">
+            <div className="space-y-2">
+              <label className="flex items-center gap-3 px-4 py-2.5 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50">
+                <input type="checkbox" checked={form.permite_pago_online} onChange={(e) => setForm({ ...form, permite_pago_online: e.target.checked })} className="w-4 h-4" />
+                <span className="text-sm text-gray-700">🛒 Pago online (MercadoPago)</span>
+              </label>
+              <label className="flex items-center gap-3 px-4 py-2.5 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50">
+                <input type="checkbox" checked={form.permite_whatsapp} onChange={(e) => setForm({ ...form, permite_whatsapp: e.target.checked })} className="w-4 h-4" />
+                <span className="text-sm text-gray-700">💬 Consultar por WhatsApp</span>
+              </label>
+            </div>
+          </Field>
+
+          {form.permite_whatsapp && (
+            <Field label="Número de WhatsApp">
+              <input
+                type="tel"
+                value={form.whatsapp}
+                onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
+                placeholder="Ej: 549351..."
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-blue-500 outline-none transition"
+              />
+              <p className="text-xs text-gray-400 mt-1">Con código de país y área, sin espacios ni +.</p>
+            </Field>
+          )}
+
+          {err && <p className="text-red-500 text-sm bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{err}</p>}
+        </div>
+        <div className="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end sticky bottom-0 bg-white">
+          <button onClick={onClose} className="px-5 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition">
+            Cancelar
+          </button>
+          <button
+            onClick={submit}
+            disabled={submitting || uploadingImg || uploadingFile}
+            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white rounded-xl font-semibold transition"
+          >
+            {submitting ? 'Guardando...' : editing ? 'Guardar cambios' : 'Publicar producto'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default Dashboard;

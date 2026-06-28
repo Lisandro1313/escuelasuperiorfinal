@@ -1,0 +1,117 @@
+/*
+ * Estilo CLÁSICO — "pizarrón verde de escuela".
+ *
+ * La app usa clases utilitarias de Tailwind hardcodeadas. En vez de reescribir
+ * cada componente, repintamos las superficies dominantes con overrides globales
+ * scopeados bajo html[data-theme="clasico"] (lo setea ThemeContext en <html>).
+ * El estilo "Moderno" = sin el atributo, queda intacto.
+ */
+
+html[data-theme="clasico"] {
+  --pz-bg: #14352a;        /* verde pizarra (fondo) */
+  --pz-surface: #1c4031;   /* tarjetas / navbar / modales */
+  --pz-surface-2: #234a3a; /* chips / botones secundarios */
+  --pz-surface-3: #2e5544; /* hover / bordes */
+  --pz-border: #2f5a47;
+  --pz-chalk: #f4f1e8;     /* texto principal (tiza) */
+  --pz-chalk-soft: #e6e2d5;
+  --pz-chalk-muted: #aebfb1;
+  --pz-brick: #b5532f;     /* acento ladrillo */
+  --pz-brick-hover: #9c4527;
+  --pz-brick-soft: #e0a07d;
+}
+
+/* Fondo general (incluye zonas fuera de los contenedores) */
+html[data-theme="clasico"],
+html[data-theme="clasico"] body {
+  background-color: var(--pz-bg);
+  color: var(--pz-chalk);
+}
+
+/* Aire de "pizarra": leve textura de tiza en el fondo */
+html[data-theme="clasico"] body {
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    radial-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 22px 22px, 36px 36px;
+  background-position: 0 0, 11px 18px;
+}
+
+/* Encabezados con aire escolar (serif) y leve polvo de tiza */
+html[data-theme="clasico"] h1,
+html[data-theme="clasico"] h2,
+html[data-theme="clasico"] h3 {
+  font-family: Georgia, 'Times New Roman', serif;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ── Fondos ── */
+html[data-theme="clasico"] .bg-white { background-color: var(--pz-surface) !important; }
+html[data-theme="clasico"] .bg-gray-50 { background-color: var(--pz-bg) !important; }
+html[data-theme="clasico"] .bg-gray-100 { background-color: var(--pz-surface-2) !important; }
+html[data-theme="clasico"] .bg-gray-200 { background-color: var(--pz-surface-3) !important; }
+html[data-theme="clasico"] .bg-gray-50\/50 { background-color: rgba(255, 255, 255, 0.03) !important; }
+
+/* hover de fondos */
+html[data-theme="clasico"] .hover\:bg-gray-50:hover,
+html[data-theme="clasico"] .hover\:bg-gray-100:hover { background-color: var(--pz-surface-3) !important; }
+html[data-theme="clasico"] .hover\:bg-gray-200:hover { background-color: var(--pz-border) !important; }
+
+/* inputs/áreas que pasan a blanco al enfocar */
+html[data-theme="clasico"] .focus\:bg-white:focus { background-color: var(--pz-surface-2) !important; }
+
+/* ── Texto ── */
+html[data-theme="clasico"] .text-gray-900,
+html[data-theme="clasico"] .text-gray-800 { color: var(--pz-chalk) !important; }
+html[data-theme="clasico"] .text-gray-700 { color: var(--pz-chalk-soft) !important; }
+html[data-theme="clasico"] .text-gray-600,
+html[data-theme="clasico"] .text-gray-500,
+html[data-theme="clasico"] .text-gray-400 { color: var(--pz-chalk-muted) !important; }
+html[data-theme="clasico"] input,
+html[data-theme="clasico"] textarea,
+html[data-theme="clasico"] select { color: var(--pz-chalk) !important; }
+html[data-theme="clasico"] input::placeholder,
+html[data-theme="clasico"] textarea::placeholder { color: rgba(174, 191, 177, 0.7) !important; }
+
+/* ── Bordes ── */
+html[data-theme="clasico"] .border-gray-100,
+html[data-theme="clasico"] .border-gray-200,
+html[data-theme="clasico"] .border-gray-300 { border-color: var(--pz-border) !important; }
+html[data-theme="clasico"] .divide-gray-50 > :not([hidden]) ~ :not([hidden]),
+html[data-theme="clasico"] .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--pz-border) !important;
+}
+html[data-theme="clasico"] .border-dashed { border-color: var(--pz-surface-3) !important; }
+
+/* ── Acento de marca (azul → ladrillo) ── */
+html[data-theme="clasico"] .bg-blue-600 { background-color: var(--pz-brick) !important; }
+html[data-theme="clasico"] .hover\:bg-blue-700:hover,
+html[data-theme="clasico"] .bg-blue-700 { background-color: var(--pz-brick-hover) !important; }
+html[data-theme="clasico"] .text-blue-600,
+html[data-theme="clasico"] .text-blue-700 { color: var(--pz-brick-soft) !important; }
+html[data-theme="clasico"] .hover\:text-blue-600:hover { color: var(--pz-brick-soft) !important; }
+html[data-theme="clasico"] .bg-blue-50,
+html[data-theme="clasico"] .group-hover\:bg-blue-50:hover,
+html[data-theme="clasico"] .hover\:bg-blue-50:hover { background-color: rgba(181, 83, 47, 0.15) !important; }
+html[data-theme="clasico"] .bg-blue-100 { background-color: rgba(181, 83, 47, 0.25) !important; }
+html[data-theme="clasico"] .border-blue-200,
+html[data-theme="clasico"] .hover\:border-blue-200:hover { border-color: var(--pz-brick) !important; }
+html[data-theme="clasico"] .focus\:border-blue-500:focus { border-color: var(--pz-brick) !important; }
+
+/* Pestañas/píldoras activas (fondo blanco sobre gris): que el activo resalte */
+html[data-theme="clasico"] .bg-white.shadow-sm,
+html[data-theme="clasico"] .bg-white.text-blue-600 { background-color: var(--pz-surface) !important; }
+
+/* Sombras un poco más marcadas para separar tarjetas del fondo oscuro */
+html[data-theme="clasico"] .shadow-sm { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important; }
+html[data-theme="clasico"] .shadow,
+html[data-theme="clasico"] .shadow-md { box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4) !important; }
+html[data-theme="clasico"] .shadow-lg,
+html[data-theme="clasico"] .shadow-xl,
+html[data-theme="clasico"] .shadow-2xl { box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5) !important; }
+
+/* Logo de la escuela: un marco tipo "guarda" para el aire clásico */
+html[data-theme="clasico"] nav img[alt*="Escuela"] {
+  outline: 2px solid var(--pz-brick);
+  outline-offset: 1px;
+}

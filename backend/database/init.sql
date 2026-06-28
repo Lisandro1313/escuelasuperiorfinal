@@ -566,6 +566,53 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_password_reset_token ON password_reset_tokens(token);
 
+-- ================================
+-- TIENDA: productos + pedidos
+-- ================================
+-- Productos que vende la escuela (libros, fotocopias = fisico; apuntes/PDF = digital).
+CREATE TABLE IF NOT EXISTS products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre VARCHAR(255) NOT NULL,
+    descripcion TEXT,
+    precio DECIMAL(10,2) DEFAULT 0,
+    imagen VARCHAR(500),
+    tipo VARCHAR(20) DEFAULT 'fisico',        -- fisico | digital
+    archivo_url TEXT,                          -- solo digital: archivo a descargar tras pagar
+    stock INTEGER,                             -- NULL = ilimitado
+    whatsapp VARCHAR(30),                      -- numero destino para "Consultar por WhatsApp"
+    permite_pago_online BOOLEAN DEFAULT 1,
+    permite_whatsapp BOOLEAN DEFAULT 1,
+    profesor_id INTEGER,
+    profesor VARCHAR(255),
+    activo BOOLEAN DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (profesor_id) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_products_activo ON products(activo);
+
+-- Pedidos de la tienda (uno por compra online via MercadoPago).
+CREATE TABLE IF NOT EXISTS product_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    cantidad INTEGER DEFAULT 1,
+    amount DECIMAL(10,2) NOT NULL,
+    tipo VARCHAR(20) DEFAULT 'fisico',         -- snapshot del tipo de producto
+    status VARCHAR(20) DEFAULT 'pending',      -- pending | paid | failed
+    payment_id VARCHAR(255),
+    preference_id VARCHAR(255),
+    comprador_nombre VARCHAR(255),
+    comprador_email VARCHAR(255),
+    comprador_telefono VARCHAR(30),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (product_id) REFERENCES products(id)
+);
+CREATE INDEX IF NOT EXISTS idx_product_orders_user ON product_orders(user_id);
+CREATE INDEX IF NOT EXISTS idx_product_orders_status ON product_orders(status);
+
 -- Avatar/foto de perfil del usuario
 -- (columna agregada por ALTER TABLE en database.js si no existe)
 

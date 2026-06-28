@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import './styles/classic-theme.css';
 import { API_BASE } from './config';
 
 // Interceptor global de fetch: los componentes que usan fetch directo (sin

@@ -1,5 +1,9 @@
-// Cargar variables de entorno
+// Cargar variables de entorno.
+// 1) .env del cwd (o backend/.env si se corre desde backend/).
+// 2) Fallback: .env de la raíz del repo, para que `npm run dev` funcione aunque
+//    el backend se ejecute con cwd = backend/ (dotenv NO pisa vars ya definidas).
 require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const express = require('express');
 const cors = require('cors');
@@ -696,6 +700,188 @@ app.delete('/api/courses/:id', authenticateToken, requireProfessor, async (req, 
     res.json({ message: 'Curso eliminado exitosamente' });
   } catch (error) {
     console.error('Error al eliminar curso:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ================================
+// RUTAS DE TIENDA (productos + pedidos)
+// ================================
+
+// Listado público de productos activos.
+app.get('/api/products', async (req, res) => {
+  try {
+    const products = await db.getActiveProducts();
+    res.json(Array.isArray(products) ? products : []);
+  } catch (error) {
+    console.error('Error al obtener productos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Detalle de un producto.
+app.get('/api/products/:id', async (req, res) => {
+  try {
+    const product = await db.getProductById(req.params.id);
+    if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
+    res.json(product);
+  } catch (error) {
+    console.error('Error al obtener producto:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Crear producto (solo profesores/admin).
+app.post('/api/products', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const { nombre, descripcion, precio, imagen, tipo, archivo_url, stock, whatsapp, permite_pago_online, permite_whatsapp } = req.body;
+    if (!nombre || !nombre.trim()) return res.status(400).json({ error: 'El nombre es requerido' });
+
+    const profesor = await db.getUserById(req.user.userId);
+    const tipoNorm = tipo === 'digital' ? 'digital' : 'fisico';
+
+    const product = await db.createProduct({
+      nombre: nombre.trim(),
+      descripcion: descripcion || null,
+      precio: parseFloat(precio) || 0,
+      imagen: imagen || null,
+      tipo: tipoNorm,
+      archivo_url: tipoNorm === 'digital' ? (archivo_url || null) : null,
+      stock: (stock === '' || stock === null || stock === undefined) ? null : Number(stock),
+      whatsapp: whatsapp ? String(whatsapp).replace(/[^\d+]/g, '') : null,
+      permite_pago_online: permite_pago_online !== false,
+      permite_whatsapp: permite_whatsapp !== false,
+      profesor_id: req.user.userId,
+      profesor: profesor?.nombre || null,
+    });
+
+    res.status(201).json({ message: 'Producto creado', product });
+  } catch (error) {
+    console.error('Error al crear producto:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Actualizar producto (dueño del producto o admin).
+app.put('/api/products/:id', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const product = await db.getProductById(req.params.id);
+    if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
+    if (product.profesor_id !== req.user.userId && req.user.tipo !== 'admin') {
+      return res.status(403).json({ error: 'No tenés permisos para editar este producto' });
+    }
+    const { nombre, descripcion, precio, imagen, tipo, archivo_url, stock, whatsapp, permite_pago_online, permite_whatsapp, activo } = req.body;
+    const tipoNorm = tipo === 'digital' ? 'digital' : 'fisico';
+
+    const updated = await db.updateProduct(req.params.id, {
+      nombre: (nombre || product.nombre).trim(),
+      descripcion: descripcion ?? product.descripcion,
+      precio: parseFloat(precio) || 0,
+      imagen: imagen || null,
+      tipo: tipoNorm,
+      archivo_url: tipoNorm === 'digital' ? (archivo_url || null) : null,
+      stock: (stock === '' || stock === null || stock === undefined) ? null : Number(stock),
+      whatsapp: whatsapp ? String(whatsapp).replace(/[^\d+]/g, '') : null,
+      permite_pago_online: permite_pago_online !== false,
+      permite_whatsapp: permite_whatsapp !== false,
+      activo: activo !== false,
+    });
+    res.json({ message: 'Producto actualizado', product: updated });
+  } catch (error) {
+    console.error('Error al actualizar producto:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Eliminar producto (dueño del producto o admin).
+app.delete('/api/products/:id', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const product = await db.getProductById(req.params.id);
+    if (!product) return res.status(404).json({ error: 'Producto no encontrado' });
+    if (product.profesor_id !== req.user.userId && req.user.tipo !== 'admin') {
+      return res.status(403).json({ error: 'No tenés permisos para eliminar este producto' });
+    }
+    await db.deleteProduct(req.params.id);
+    res.json({ message: 'Producto eliminado' });
+  } catch (error) {
+    console.error('Error al eliminar producto:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Iniciar compra online de un producto: crea preferencia MP + orden pendiente.
+app.post('/api/products/:id/buy', authenticateToken, async (req, res) => {
+  try {
+    const product = await db.getProductById(req.params.id);
+    if (!product || !product.activo) return res.status(404).json({ error: 'Producto no encontrado' });
+    if (!product.permite_pago_online) return res.status(400).json({ error: 'Este producto no acepta pago online' });
+    if (Number(product.precio || 0) <= 0) return res.status(400).json({ error: 'Este producto no tiene precio para compra online' });
+
+    const qty = Math.max(1, parseInt(req.body?.cantidad, 10) || 1);
+    const user = await db.getUserById(req.user.userId);
+
+    const result = await mercadoPagoService.createProductPreference(
+      { id: product.id, nombre: product.nombre, descripcion: product.descripcion, precio: product.precio, imagen: product.imagen },
+      { id: user.id, nombre: user.nombre, email: user.email },
+      qty
+    );
+    if (!result.success) {
+      console.error('createProductPreference fallo:', result.error);
+      return res.status(502).json({ error: 'No se pudo crear la preferencia de pago', detail: result.error });
+    }
+
+    await db.createOrder({
+      user_id: user.id,
+      product_id: product.id,
+      cantidad: qty,
+      amount: Number(product.precio || 0) * qty,
+      tipo: product.tipo,
+      status: 'pending',
+      preference_id: result.preferenceId,
+      comprador_nombre: user.nombre,
+      comprador_email: user.email,
+      comprador_telefono: user.telefono || null,
+    });
+
+    res.json({ initPoint: result.initPoint, sandboxInitPoint: result.sandboxInitPoint, preferenceId: result.preferenceId });
+  } catch (error) {
+    console.error('Error al iniciar compra de producto:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Compras del usuario logueado (para "Mis compras").
+app.get('/api/orders/mine', authenticateToken, async (req, res) => {
+  try {
+    const orders = await db.getOrdersByUser(req.user.userId);
+    res.json(Array.isArray(orders) ? orders : []);
+  } catch (error) {
+    console.error('Error al obtener compras:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Todos los pedidos (vendedora/admin) para coordinar entrega.
+app.get('/api/orders', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const orders = await db.getOrdersForSeller();
+    res.json(Array.isArray(orders) ? orders : []);
+  } catch (error) {
+    console.error('Error al obtener pedidos:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Descarga de un producto digital ya pagado por el usuario.
+app.get('/api/orders/:id/download', authenticateToken, async (req, res) => {
+  try {
+    const order = await db.getOrderById(req.params.id);
+    if (!order || order.user_id !== req.user.userId) return res.status(404).json({ error: 'Pedido no encontrado' });
+    if (order.status !== 'paid') return res.status(403).json({ error: 'El pedido todavía no está pagado' });
+    if (order.product_tipo !== 'digital' || !order.archivo_url) return res.status(400).json({ error: 'Este producto no tiene archivo descargable' });
+    res.json({ url: order.archivo_url });
+  } catch (error) {
+    console.error('Error al descargar producto:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -2367,6 +2553,17 @@ app.post('/api/payments/webhook', async (req, res) => {
 
     const p = info.payment;
     const externalRef = p.external_reference || '';
+
+    // Compra de la tienda (producto): marca la orden como pagada y corta acá.
+    if (externalRef.startsWith('product_')) {
+      const orderPrefId = (p.order && p.order.id) || p.preference_id || '';
+      if (orderPrefId) {
+        const status = p.status === 'approved' ? 'paid' : (p.status === 'rejected' ? 'failed' : 'pending');
+        await db.updateOrderByPreferenceId(orderPrefId, { payment_id: dataId, status });
+      }
+      return res.status(200).send('OK');
+    }
+
     const m = externalRef.match(/^course_(\d+)_user_(\d+)_type_(course|module|lesson|live)(?:_module_(\d+))?(?:_lesson_(\d+))?(?:_event_(\d+))?_/);
     if (!m) return res.status(200).send('OK');
 

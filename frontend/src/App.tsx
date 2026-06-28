@@ -18,9 +18,12 @@ import PaymentPage from './components/Payment/PaymentPage';
 import { PaymentSuccess, PaymentFailure, PaymentPending } from './components/Payment/PaymentResults';
 import UsersManagement from './pages/UsersManagement';
 import MisEstudiantes from './pages/MisEstudiantes';
+import MisCompras from './pages/MisCompras';
+import Pedidos from './pages/Pedidos';
 import Profile from './components/Profile/Profile';
 import Navbar from './components/Layout/Navbar';
 import { ToastProvider } from './components/Toast/ToastProvider';
+import { ThemeProvider } from './context/ThemeContext';
 import RotatingQuote from './components/Common/RotatingQuote';
 import InstallBanner from './components/Common/InstallBanner';
 
@@ -73,6 +76,8 @@ function AppContent() {
           <Route path="/payment/pending" element={isAuthenticated ? <PaymentPending /> : <Navigate to="/login" />} />
 
           <Route path="/students" element={isAuthenticated ? <MisEstudiantes /> : <Navigate to="/login" />} />
+          <Route path="/mis-compras" element={isAuthenticated ? <MisCompras /> : <Navigate to="/login" />} />
+          <Route path="/tienda/pedidos" element={isAuthenticated ? <Pedidos /> : <Navigate to="/login" />} />
 
           <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
           <Route path="/admin/users" element={isAuthenticated ? <UsersManagement /> : <Navigate to="/login" />} />
@@ -88,11 +93,13 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <ToastProvider>
-        <AppContent />
-      </ToastProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
