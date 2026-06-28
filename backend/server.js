@@ -657,9 +657,9 @@ app.put('/api/courses/:id', authenticateToken, requireProfessor, async (req, res
     const { nombre, descripcion, categoria, precio, duracion, imagen, modalidad_precio, drip_habilitado, drip_intervalo_dias, unlock_mode,
       certificado_habilitado, firma_url, firmante, firma2_url, firmante2 } = req.body;
 
-    // Verificar que el curso pertenece al profesor
+    // Verificar que el curso pertenece al profesor (o sea admin)
     const course = await db.getCourseById(courseId);
-    if (!course || course.profesor_id !== req.user.userId) {
+    if (!course || (course.profesor_id !== req.user.userId && req.user.tipo !== 'admin')) {
       return res.status(403).json({ error: 'No tienes permisos para editar este curso' });
     }
 
@@ -696,9 +696,9 @@ app.delete('/api/courses/:id', authenticateToken, requireProfessor, async (req, 
   try {
     const courseId = req.params.id;
 
-    // Verificar que el curso pertenece al profesor
+    // Verificar que el curso pertenece al profesor (o sea admin)
     const course = await db.getCourseById(courseId);
-    if (!course || course.profesor_id !== req.user.userId) {
+    if (!course || (course.profesor_id !== req.user.userId && req.user.tipo !== 'admin')) {
       return res.status(403).json({ error: 'No tienes permisos para eliminar este curso' });
     }
 
@@ -1326,6 +1326,65 @@ app.post('/api/live-class', authenticateToken, requireProfessor, async (req, res
     res.status(201).json({ id: eventId, title, meeting_url: meetingUrl, start_date: startDate, end_date: endDate, course_id: null });
   } catch (error) {
     console.error('Error programando charla en vivo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Listar las clases en vivo del profe (o todas si es admin) para gestionarlas,
+// con la cantidad de personas que reservaron/pagaron.
+app.get('/api/live-classes/manage', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const isAdmin = req.user.tipo === 'admin';
+    const rows = await db.getLiveClassesForManage(req.user.userId, isAdmin);
+    res.json((rows || []).map((e) => ({
+      id: e.id,
+      title: e.title,
+      start_date: e.start_date,
+      end_date: e.end_date,
+      precio: Number(e.precio || 0),
+      meeting_url: e.meeting_url || e.description || null,
+      course_id: e.course_id,
+      course_name: e.course_name || null,
+      instructor_nombre: e.instructor_nombre || null,
+      reservas: Number(e.reservas || 0),
+    })));
+  } catch (error) {
+    console.error('Error listando clases en vivo:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Editar una clase en vivo (dueño o admin).
+app.put('/api/live-class/:id', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const eventId = Number(req.params.id);
+    const event = await db.getEventById(eventId);
+    if (!event || event.type !== 'live_class') return res.status(404).json({ error: 'Clase en vivo no encontrada' });
+    const isAdmin = req.user.tipo === 'admin';
+    if (!isAdmin && event.instructor_id !== req.user.userId) {
+      return res.status(403).json({ error: 'No tenés permisos para editar esta clase' });
+    }
+
+    const { title, scheduled_at, duration_minutes = 60, meeting_url, precio = 0, cover_url } = req.body;
+    if (!title || !scheduled_at) return res.status(400).json({ error: 'Poné título y fecha/hora.' });
+    // Si no mandan link, conservamos el que ya tenía (no generamos uno nuevo).
+    const meetingUrl = (meeting_url && /^https?:\/\//.test(meeting_url))
+      ? meeting_url.trim()
+      : (liveUrl(event) || `https://meet.jit.si/ESF-charla-${Date.now().toString(36)}`);
+    const startDate = new Date(scheduled_at).toISOString();
+    const endDate = new Date(new Date(scheduled_at).getTime() + Number(duration_minutes || 60) * 60 * 1000).toISOString();
+
+    const ok = await db.updateLiveClass(
+      eventId,
+      { title, startDate, endDate, precio: Number(precio || 0), meetingUrl, coverUrl: cover_url || null },
+      req.user.userId,
+      isAdmin
+    );
+    if (!ok) return res.status(404).json({ error: 'No se pudo actualizar la clase' });
+    const updated = await db.getEventById(eventId);
+    res.json({ id: updated.id, title: updated.title, start_date: updated.start_date, end_date: updated.end_date, precio: Number(updated.precio || 0), meeting_url: liveUrl(updated) });
+  } catch (error) {
+    console.error('Error actualizando clase en vivo:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -3069,7 +3128,7 @@ app.delete('/api/events/:id', authenticateToken, requireProfessor, async (req, r
     const eventId = req.params.id;
     const instructorId = req.user.userId;
 
-    const deleted = await db.deleteEvent(eventId, instructorId);
+    const deleted = await db.deleteEvent(eventId, instructorId, req.user.tipo === 'admin');
 
     if (!deleted) {
       return res.status(404).json({ error: 'Evento no encontrado o sin permisos' });

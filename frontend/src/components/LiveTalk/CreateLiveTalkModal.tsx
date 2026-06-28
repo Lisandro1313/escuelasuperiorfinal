@@ -3,9 +3,36 @@ import { useToast } from '../Toast/ToastProvider';
 
 const auth = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` });
 
-const CreateLiveTalkModal: React.FC<{ onClose: () => void; onCreated?: () => void }> = ({ onClose, onCreated }) => {
+interface LiveToEdit {
+  id: number;
+  title: string;
+  start_date: string;
+  end_date?: string;
+  precio: number;
+  meeting_url?: string | null;
+}
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
+const buildInitial = (live?: LiveToEdit | null) => {
+  if (!live) return { title: '', date: '', time: '', duration_minutes: 60, meeting_url: '', precio: 0 };
+  const d = new Date(live.start_date);
+  let dur = 60;
+  if (live.end_date) dur = Math.max(15, Math.round((new Date(live.end_date).getTime() - d.getTime()) / 60000));
+  return {
+    title: live.title || '',
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+    duration_minutes: dur,
+    meeting_url: live.meeting_url || '',
+    precio: Number(live.precio || 0),
+  };
+};
+
+const CreateLiveTalkModal: React.FC<{ onClose: () => void; onCreated?: () => void; live?: LiveToEdit | null }> = ({ onClose, onCreated, live }) => {
   const toast = useToast();
-  const [form, setForm] = useState({ title: '', date: '', time: '', duration_minutes: 60, meeting_url: '', precio: 0 });
+  const editing = !!live;
+  const [form, setForm] = useState(() => buildInitial(live));
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -14,12 +41,14 @@ const CreateLiveTalkModal: React.FC<{ onClose: () => void; onCreated?: () => voi
     setSaving(true);
     try {
       const scheduled_at = `${form.date}T${form.time}:00`;
-      const r = await fetch('/api/live-class', {
-        method: 'POST', headers: auth(),
-        body: JSON.stringify({ title: form.title, scheduled_at, duration_minutes: form.duration_minutes, meeting_url: form.meeting_url, precio: form.precio }),
+      const body = JSON.stringify({ title: form.title, scheduled_at, duration_minutes: form.duration_minutes, meeting_url: form.meeting_url, precio: form.precio });
+      const r = await fetch(editing ? `/api/live-class/${live!.id}` : '/api/live-class', {
+        method: editing ? 'PUT' : 'POST', headers: auth(), body,
       });
-      if (r.ok) { toast.success('¡Charla programada! Ya les avisamos a los alumnos.'); onCreated?.(); onClose(); }
-      else { const d = await r.json().catch(() => ({})); toast.error(d.error || 'No se pudo programar'); }
+      if (r.ok) {
+        toast.success(editing ? 'Clase en vivo actualizada.' : '¡Charla programada! Ya les avisamos a los alumnos.');
+        onCreated?.(); onClose();
+      } else { const d = await r.json().catch(() => ({})); toast.error(d.error || 'No se pudo guardar'); }
     } finally { setSaving(false); }
   };
 
@@ -27,11 +56,13 @@ const CreateLiveTalkModal: React.FC<{ onClose: () => void; onCreated?: () => voi
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="bg-gradient-to-r from-red-600 to-rose-600 text-white p-5 rounded-t-2xl flex items-center justify-between">
-          <h3 className="text-lg font-bold">🔴 Programar charla en vivo</h3>
+          <h3 className="text-lg font-bold">🔴 {editing ? 'Editar clase en vivo' : 'Programar charla en vivo'}</h3>
           <button onClick={onClose} className="bg-white/20 hover:bg-white/30 rounded-lg w-8 h-8">✕</button>
         </div>
         <div className="p-5 space-y-4">
-          <p className="text-sm text-gray-500 -mt-1">Una charla abierta, que no es de un curso. Les avisa a todos los alumnos.</p>
+          <p className="text-sm text-gray-500 -mt-1">
+            {editing ? 'Editá los datos de la clase. Los cambios se ven al instante.' : 'Una charla abierta, que no es de un curso. Les avisa a todos los alumnos.'}
+          </p>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Título</label>
             <input value={form.title} onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))} placeholder="Ej: Charla abierta sobre composición"
@@ -68,7 +99,7 @@ const CreateLiveTalkModal: React.FC<{ onClose: () => void; onCreated?: () => voi
             </div>
           </div>
           <button onClick={save} disabled={saving} className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold px-5 py-3 rounded-xl">
-            {saving ? 'Programando…' : '🔴 Programar charla'}
+            {saving ? 'Guardando…' : editing ? '💾 Guardar cambios' : '🔴 Programar charla'}
           </button>
         </div>
       </div>

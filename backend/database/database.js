@@ -1290,16 +1290,51 @@ class Database {
     });
   }
 
-  deleteEvent(eventId, instructorId) {
+  deleteEvent(eventId, instructorId, isAdmin = false) {
     return new Promise((resolve, reject) => {
-      const sql = `DELETE FROM events WHERE id = ? AND instructor_id = ?`;
-      
-      this.db.run(sql, [eventId, instructorId], function(err) {
+      const sql = isAdmin
+        ? `DELETE FROM events WHERE id = ?`
+        : `DELETE FROM events WHERE id = ? AND instructor_id = ?`;
+      const params = isAdmin ? [eventId] : [eventId, instructorId];
+
+      this.db.run(sql, params, function(err) {
         if (err) {
           reject(err);
         } else {
           resolve(this.changes > 0);
         }
+      });
+    });
+  }
+
+  // Clases en vivo del profe (o todas si es admin) con cantidad de reservas.
+  getLiveClassesForManage(professorId, isAdmin = false) {
+    return new Promise((resolve, reject) => {
+      const where = isAdmin
+        ? `e.type = 'live_class'`
+        : `e.type = 'live_class' AND (e.instructor_id = ? OR c.profesor_id = ?)`;
+      const params = isAdmin ? [] : [professorId, professorId];
+      const sql = `
+        SELECT e.*, c.nombre AS course_name, u.nombre AS instructor_nombre,
+               (SELECT COUNT(DISTINCT ag.user_id) FROM access_grants ag WHERE ag.event_id = e.id) AS reservas
+        FROM events e
+        LEFT JOIN courses c ON c.id = e.course_id
+        LEFT JOIN users u ON u.id = e.instructor_id
+        WHERE ${where}
+        ORDER BY e.start_date DESC`;
+      this.db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows || [])));
+    });
+  }
+
+  // Actualiza los campos propios de una clase en vivo (titulo, fecha, precio, link).
+  updateLiveClass(eventId, f, professorId, isAdmin = false) {
+    return new Promise((resolve, reject) => {
+      const cond = isAdmin ? '' : ' AND instructor_id = ?';
+      const sql = `UPDATE events SET title = ?, start_date = ?, end_date = ?, precio = ?, meeting_url = ?, description = ?, cover_url = COALESCE(?, cover_url) WHERE id = ?${cond}`;
+      const params = [f.title, f.startDate, f.endDate, Number(f.precio || 0), f.meetingUrl, f.meetingUrl, f.coverUrl ?? null, eventId];
+      if (!isAdmin) params.push(professorId);
+      this.db.run(sql, params, function (err) {
+        if (err) reject(err); else resolve(this.changes > 0);
       });
     });
   }

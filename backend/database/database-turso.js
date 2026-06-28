@@ -728,8 +728,39 @@ class TursoDatabase {
     return r.rowsAffected > 0;
   }
 
-  async deleteEvent(eventId, instructorId) {
-    const r = await this._query('DELETE FROM events WHERE id = ? AND instructor_id = ?', [eventId, instructorId]);
+  async deleteEvent(eventId, instructorId, isAdmin = false) {
+    const r = isAdmin
+      ? await this._query('DELETE FROM events WHERE id = ?', [eventId])
+      : await this._query('DELETE FROM events WHERE id = ? AND instructor_id = ?', [eventId, instructorId]);
+    return r.rowsAffected > 0;
+  }
+
+  async getLiveClassesForManage(professorId, isAdmin = false) {
+    const where = isAdmin
+      ? `e.type = 'live_class'`
+      : `e.type = 'live_class' AND (e.instructor_id = ? OR c.profesor_id = ?)`;
+    const params = isAdmin ? [] : [professorId, professorId];
+    const r = await this._query(
+      `SELECT e.*, c.nombre AS course_name, u.nombre AS instructor_nombre,
+              (SELECT COUNT(DISTINCT ag.user_id) FROM access_grants ag WHERE ag.event_id = e.id) AS reservas
+       FROM events e
+       LEFT JOIN courses c ON c.id = e.course_id
+       LEFT JOIN users u ON u.id = e.instructor_id
+       WHERE ${where}
+       ORDER BY e.start_date DESC`,
+      params
+    );
+    return r.rows || [];
+  }
+
+  async updateLiveClass(eventId, f, professorId, isAdmin = false) {
+    const cond = isAdmin ? '' : ' AND instructor_id = ?';
+    const params = [f.title, f.startDate, f.endDate, Number(f.precio || 0), f.meetingUrl, f.meetingUrl, f.coverUrl ?? null, eventId];
+    if (!isAdmin) params.push(professorId);
+    const r = await this._query(
+      `UPDATE events SET title = ?, start_date = ?, end_date = ?, precio = ?, meeting_url = ?, description = ?, cover_url = COALESCE(?, cover_url) WHERE id = ?${cond}`,
+      params
+    );
     return r.rowsAffected > 0;
   }
 

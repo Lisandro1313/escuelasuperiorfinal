@@ -90,6 +90,9 @@ const CourseCatalog: React.FC = () => {
       {/* Hero del catálogo */}
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+          <Link to={usuario ? '/dashboard' : '/'} className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 font-medium mb-4 transition">
+            ← Volver {usuario ? 'al panel' : 'al inicio'}
+          </Link>
           <h1 className="text-4xl font-extrabold text-gray-900 mb-2">
             {tab === 'tienda' ? 'Tienda' : 'Catálogo de cursos'}
           </h1>

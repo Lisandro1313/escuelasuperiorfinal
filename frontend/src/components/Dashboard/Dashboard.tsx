@@ -31,6 +31,18 @@ interface ProductItem {
   permite_whatsapp?: boolean | number;
 }
 
+interface LiveClassRow {
+  id: number;
+  title: string;
+  start_date: string;
+  end_date?: string;
+  precio: number;
+  meeting_url?: string | null;
+  course_id?: number | null;
+  course_name?: string | null;
+  reservas: number;
+}
+
 interface DashboardData {
   stats: { courses: number; published: number; students: number; revenue_month: number };
   courses: CourseStat[];
@@ -60,6 +72,8 @@ const Dashboard: React.FC = () => {
   const [showNewProduct, setShowNewProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductItem | null>(null);
   const [products, setProducts] = useState<ProductItem[]>([]);
+  const [liveClasses, setLiveClasses] = useState<LiveClassRow[]>([]);
+  const [editingLive, setEditingLive] = useState<LiveClassRow | null>(null);
 
   const fetchDashboard = async () => {
     try {
@@ -95,7 +109,42 @@ const Dashboard: React.FC = () => {
     } catch { /* noop */ }
   };
 
-  useEffect(() => { fetchDashboard(); fetchProducts(); }, []);
+  const deleteCourse = async (id: number, nombre: string) => {
+    if (!window.confirm(`¿Eliminar el curso "${nombre}"? Se borran sus módulos, clases e inscripciones. No se puede deshacer.`)) return;
+    try {
+      const res = await fetch(`/api/courses/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (res.ok) fetchDashboard();
+      else { const d = await res.json().catch(() => ({})); alert(d.error || 'No se pudo eliminar'); }
+    } catch { alert('No se pudo eliminar'); }
+  };
+
+  const fetchLiveClasses = async () => {
+    try {
+      const res = await fetch('/api/live-classes/manage', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      setLiveClasses(res.ok ? await res.json() : []);
+    } catch {
+      setLiveClasses([]);
+    }
+  };
+
+  const deleteLiveClass = async (id: number, title: string) => {
+    if (!window.confirm(`¿Eliminar la clase en vivo "${title}"?`)) return;
+    try {
+      const res = await fetch(`/api/events/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (res.ok) fetchLiveClasses();
+      else { const d = await res.json().catch(() => ({})); alert(d.error || 'No se pudo eliminar'); }
+    } catch { alert('No se pudo eliminar'); }
+  };
+
+  useEffect(() => { fetchDashboard(); fetchProducts(); fetchLiveClasses(); }, []);
 
   if (loading) {
     return (
@@ -293,9 +342,81 @@ const Dashboard: React.FC = () => {
                     >
                       Ver
                     </Link>
+                    <button
+                      onClick={() => deleteCourse(c.id, c.nombre)}
+                      className="bg-white hover:bg-red-50 text-red-600 text-sm font-medium px-4 py-2 rounded-lg border border-red-200 whitespace-nowrap transition"
+                    >
+                      Borrar
+                    </button>
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Clases en vivo */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-gray-900">🔴 Clases en vivo</h2>
+            <button
+              onClick={() => { setEditingLive(null); setShowLiveTalk(true); }}
+              className="text-sm text-red-600 hover:underline font-medium"
+            >
+              + Nueva charla
+            </button>
+          </div>
+
+          {liveClasses.length === 0 ? (
+            <div className="text-center py-12 px-6">
+              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4">🔴</div>
+              <h3 className="text-base font-bold text-gray-900 mb-1">Todavía no hay clases en vivo</h3>
+              <p className="text-gray-500 text-sm mb-5 max-w-sm mx-auto">
+                Programá una charla en vivo. Les avisamos a los alumnos y se anotan desde acá.
+              </p>
+              <button
+                onClick={() => { setEditingLive(null); setShowLiveTalk(true); }}
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition"
+              >
+                🔴 Programar charla en vivo
+              </button>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {liveClasses.map((lc) => {
+                const past = lc.end_date ? new Date(lc.end_date) < new Date() : new Date(lc.start_date) < new Date();
+                return (
+                  <div key={lc.id} className="px-6 py-4 flex items-center gap-4 hover:bg-gray-50/50 transition">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center text-2xl shrink-0">🔴</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-gray-900 truncate">{lc.title}</span>
+                        {past && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Finalizada</span>}
+                      </div>
+                      <p className="text-sm text-gray-500">
+                        {new Date(lc.start_date).toLocaleString('es-AR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} hs
+                        {' · '}{lc.precio > 0 ? formatARS(lc.precio) : 'Gratis'}
+                        {lc.course_name ? ` · ${lc.course_name}` : ''}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">👥 {lc.reservas} {lc.reservas === 1 ? 'persona anotada' : 'personas anotadas'}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => { setEditingLive(lc); setShowLiveTalk(true); }}
+                        className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => deleteLiveClass(lc.id, lc.title)}
+                        className="px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition"
+                      >
+                        Borrar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -402,7 +523,13 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {showLiveTalk && <CreateLiveTalkModal onClose={() => setShowLiveTalk(false)} onCreated={fetchDashboard} />}
+      {showLiveTalk && (
+        <CreateLiveTalkModal
+          live={editingLive}
+          onClose={() => { setShowLiveTalk(false); setEditingLive(null); }}
+          onCreated={() => { fetchDashboard(); fetchLiveClasses(); setEditingLive(null); }}
+        />
+      )}
 
       {showNewCourse && (
         <NewCourseModal
