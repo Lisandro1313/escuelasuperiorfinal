@@ -1,6 +1,7 @@
-﻿import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+﻿import React, { useEffect, useRef } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { trackPageView } from './lib/track';
 import LandingPage from './components/Landing/LandingPage';
 import Login from './components/Auth/Login';
 import Register from './pages/Register';
@@ -20,6 +21,7 @@ import UsersManagement from './pages/UsersManagement';
 import MisEstudiantes from './pages/MisEstudiantes';
 import MisCompras from './pages/MisCompras';
 import Pedidos from './pages/Pedidos';
+import Estadisticas from './pages/Estadisticas';
 import Profile from './components/Profile/Profile';
 import Navbar from './components/Layout/Navbar';
 import { ToastProvider } from './components/Toast/ToastProvider';
@@ -33,6 +35,19 @@ const loadingQuotes = [
   'Cargar tambien es cuidar la experiencia del estudiante.',
   'Si no hay vinculo, no hay aprendizaje.',
 ];
+
+// Registra cada cambio de página para las estadísticas de la web (admin).
+function PageTracker() {
+  const location = useLocation();
+  const last = useRef<string>('');
+  useEffect(() => {
+    const p = location.pathname;
+    if (p === last.current) return; // evita doble conteo (StrictMode / misma ruta)
+    last.current = p;
+    trackPageView(p);
+  }, [location.pathname]);
+  return null;
+}
 
 function AppContent() {
   const { isAuthenticated, loading } = useAuth();
@@ -51,6 +66,7 @@ function AppContent() {
 
   return (
     <Router>
+      <PageTracker />
       <div className="min-h-screen">
         {isAuthenticated && <Navbar />}
         <InstallBanner />
@@ -81,6 +97,7 @@ function AppContent() {
 
           <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
           <Route path="/admin/users" element={isAuthenticated ? <UsersManagement /> : <Navigate to="/login" />} />
+          <Route path="/admin/estadisticas" element={isAuthenticated ? <Estadisticas /> : <Navigate to="/login" />} />
 
           <Route path="/profile" element={isAuthenticated ? <Profile /> : <Navigate to="/login" />} />
 

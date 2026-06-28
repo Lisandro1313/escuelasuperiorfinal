@@ -156,6 +156,13 @@ const requireProfessor = (req, res, next) => {
   next();
 };
 
+const requireAdmin = (req, res, next) => {
+  if (req.user.tipo !== 'admin') {
+    return res.status(403).json({ error: 'Se requiere ser administrador para esta acción' });
+  }
+  next();
+};
+
 // Paywall: verifica que el usuario pueda acceder al contenido del curso.
 // Reglas:
 //   - admin y el profesor del curso siempre pueden acceder
@@ -882,6 +889,52 @@ app.get('/api/orders/:id/download', authenticateToken, async (req, res) => {
     res.json({ url: order.archivo_url });
   } catch (error) {
     console.error('Error al descargar producto:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ================================
+// ESTADÍSTICAS WEB (visitas)
+// ================================
+
+// Registrar una visita de página. Público (sin token), con auth OPCIONAL: si
+// viene un token válido, se atribuye la visita al usuario. Nunca falla al cliente.
+app.post('/api/track', async (req, res) => {
+  try {
+    let path = (req.body && req.body.path) || '';
+    if (typeof path !== 'string') path = String(path || '');
+    path = path.slice(0, 255);
+    if (!path) return res.status(204).end();
+
+    let visitorId = (req.body && req.body.visitorId) || null;
+    if (visitorId) visitorId = String(visitorId).slice(0, 64);
+
+    // Auth opcional: intentamos decodificar el token si vino, sin exigirlo.
+    let userId = null;
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (token) {
+      try { userId = jwt.verify(token, JWT_SECRET).userId || null; } catch { /* token inválido → anónimo */ }
+    }
+
+    const referrer = (req.headers['referer'] || '').toString().slice(0, 255) || null;
+    const userAgent = (req.headers['user-agent'] || '').toString().slice(0, 255) || null;
+
+    await db.trackPageView({ path, visitor_id: visitorId, user_id: userId, referrer, user_agent: userAgent });
+    res.status(204).end();
+  } catch (error) {
+    // No molestamos al cliente por un fallo de tracking.
+    res.status(204).end();
+  }
+});
+
+// Panel de estadísticas de la web (solo admin).
+app.get('/api/admin/analytics', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const data = await db.getWebAnalytics();
+    res.json(data);
+  } catch (error) {
+    console.error('Error al obtener analytics:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

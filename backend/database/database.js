@@ -221,6 +221,19 @@ class Database {
       )`,
       (err) => { if (err) console.error('Error creando product_orders:', err.message); }
     );
+    this.db.run(
+      `CREATE TABLE IF NOT EXISTS page_views (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        path VARCHAR(255),
+        visitor_id VARCHAR(64),
+        user_id INTEGER,
+        referrer VARCHAR(255),
+        user_agent VARCHAR(255),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      (err) => { if (err) console.error('Error creando page_views:', err.message); }
+    );
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_page_views_created ON page_views(created_at)`, () => {});
   }
 
   async createDefaultAdmin() {
@@ -892,6 +905,70 @@ class Database {
         if (err) reject(err); else resolve({ updated: this.changes > 0 });
       });
     });
+  }
+
+  // ================================
+  // ESTADÍSTICAS WEB (page_views)
+  // ================================
+
+  async trackPageView({ path, visitor_id = null, user_id = null, referrer = null, user_agent = null }) {
+    return new Promise((resolve, reject) => {
+      this.db.run(
+        `INSERT INTO page_views (path, visitor_id, user_id, referrer, user_agent) VALUES (?, ?, ?, ?, ?)`,
+        [path, visitor_id, user_id, referrer, user_agent],
+        function (err) { if (err) reject(err); else resolve({ id: this.lastID }); }
+      );
+    });
+  }
+
+  async getWebAnalytics() {
+    const all = (sql, p = []) => new Promise((res, rej) => this.db.all(sql, p, (e, r) => (e ? rej(e) : res(r || []))));
+    const one = async (sql, p = []) => (await all(sql, p))[0] || {};
+
+    const win = async (whereDate) => {
+      const r = await one(`SELECT COUNT(*) AS views, COUNT(DISTINCT visitor_id) AS visitors FROM page_views WHERE ${whereDate}`);
+      return { views: Number(r.views || 0), visitors: Number(r.visitors || 0) };
+    };
+
+    const [totals, today, last7, last30, onlineRow, usersRow, series, topPages, split] = await Promise.all([
+      win(`1=1`),
+      win(`created_at >= date('now')`),
+      win(`created_at >= datetime('now','-7 days')`),
+      win(`created_at >= datetime('now','-30 days')`),
+      one(`SELECT COUNT(DISTINCT visitor_id) AS n FROM page_views WHERE created_at >= datetime('now','-5 minutes')`),
+      one(`SELECT
+             (SELECT COUNT(*) FROM users) AS total,
+             (SELECT COUNT(*) FROM users WHERE tipo = 'alumno') AS alumnos,
+             (SELECT COUNT(*) FROM users WHERE created_at >= datetime('now','-7 days')) AS new7,
+             (SELECT COUNT(*) FROM users WHERE created_at >= datetime('now','-30 days')) AS new30`),
+      all(`SELECT date(created_at) AS dia, COUNT(*) AS views, COUNT(DISTINCT visitor_id) AS visitors
+           FROM page_views WHERE created_at >= datetime('now','-29 days')
+           GROUP BY dia ORDER BY dia ASC`),
+      all(`SELECT path, COUNT(*) AS views, COUNT(DISTINCT visitor_id) AS visitors
+           FROM page_views WHERE created_at >= datetime('now','-30 days')
+           GROUP BY path ORDER BY views DESC LIMIT 8`),
+      one(`SELECT
+             SUM(CASE WHEN user_id IS NOT NULL THEN 1 ELSE 0 END) AS logueados,
+             SUM(CASE WHEN user_id IS NULL THEN 1 ELSE 0 END) AS anonimos
+           FROM page_views WHERE created_at >= datetime('now','-30 days')`),
+    ]);
+
+    return {
+      totals,
+      today,
+      last7,
+      last30,
+      online_now: Number(onlineRow.n || 0),
+      users: {
+        total: Number(usersRow.total || 0),
+        alumnos: Number(usersRow.alumnos || 0),
+        new7: Number(usersRow.new7 || 0),
+        new30: Number(usersRow.new30 || 0),
+      },
+      split: { logueados: Number(split.logueados || 0), anonimos: Number(split.anonimos || 0) },
+      series: series.map((s) => ({ dia: s.dia, views: Number(s.views || 0), visitors: Number(s.visitors || 0) })),
+      top_pages: topPages.map((t) => ({ path: t.path, views: Number(t.views || 0), visitors: Number(t.visitors || 0) })),
+    };
   }
 
   // ================================

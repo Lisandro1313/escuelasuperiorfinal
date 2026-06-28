@@ -613,6 +613,22 @@ CREATE TABLE IF NOT EXISTS product_orders (
 CREATE INDEX IF NOT EXISTS idx_product_orders_user ON product_orders(user_id);
 CREATE INDEX IF NOT EXISTS idx_product_orders_status ON product_orders(status);
 
+-- ================================
+-- ESTADÍSTICAS WEB: visitas de página
+-- ================================
+CREATE TABLE IF NOT EXISTS page_views (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    path VARCHAR(255),
+    visitor_id VARCHAR(64),    -- id anónimo guardado en el navegador
+    user_id INTEGER,           -- si está logueado
+    referrer VARCHAR(255),
+    user_agent VARCHAR(255),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_page_views_created ON page_views(created_at);
+CREATE INDEX IF NOT EXISTS idx_page_views_visitor ON page_views(visitor_id);
+CREATE INDEX IF NOT EXISTS idx_page_views_path ON page_views(path);
+
 -- Avatar/foto de perfil del usuario
 -- (columna agregada por ALTER TABLE en database.js si no existe)
 
