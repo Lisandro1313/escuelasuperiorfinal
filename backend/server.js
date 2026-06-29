@@ -1153,6 +1153,45 @@ app.get('/api/professor/my-students', authenticateToken, requireProfessor, async
   }
 });
 
+// Anotados a las clases en vivo (quién reservó/pagó cada charla). Admin ve todas;
+// el profe, las suyas (por instructor o por curso propio).
+app.get('/api/professor/live-attendees', authenticateToken, requireProfessor, async (req, res) => {
+  try {
+    const isAdmin = req.user.tipo === 'admin';
+    const where = isAdmin
+      ? `ev.type = 'live_class'`
+      : `ev.type = 'live_class' AND (ev.instructor_id = ? OR c.profesor_id = ?)`;
+    const params = isAdmin ? [] : [req.user.userId, req.user.userId];
+    const rows = await sqlAll(
+      `SELECT ev.id as event_id, ev.title as event_title, ev.start_date, ev.precio,
+              u.id as student_id, u.nombre as student_name, u.email as student_email,
+              ag.granted_at,
+              (SELECT COUNT(*) FROM payments p WHERE p.event_id = ev.id AND p.user_id = u.id AND p.status = 'approved') as pago
+       FROM access_grants ag
+       JOIN events ev ON ev.id = ag.event_id
+       JOIN users u ON u.id = ag.user_id
+       LEFT JOIN courses c ON c.id = ev.course_id
+       WHERE ${where}
+       ORDER BY ev.start_date DESC, ag.granted_at DESC`,
+      params
+    );
+    res.json(rows.map((r) => ({
+      event_id: r.event_id,
+      event_title: r.event_title,
+      start_date: r.start_date,
+      precio: Number(r.precio || 0),
+      student_id: r.student_id,
+      student_name: r.student_name,
+      student_email: r.student_email,
+      granted_at: r.granted_at,
+      pago: Number(r.pago || 0) > 0,
+    })));
+  } catch (error) {
+    console.error('Error en /api/professor/live-attendees:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 // Ficha de un alumno (para el docente/admin): cursos con progreso real, actividad y último ingreso.
 app.get('/api/professor/students/:studentId', authenticateToken, requireProfessor, async (req, res) => {
   try {
