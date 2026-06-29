@@ -97,7 +97,8 @@ function AppContent() {
 
           <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
           <Route path="/admin/users" element={isAuthenticated ? <UsersManagement /> : <Navigate to="/login" />} />
-          <Route path="/admin/estadisticas" element={isAuthenticated ? <Estadisticas /> : <Navigate to="/login" />} />
+          <Route path="/estadisticas" element={isAuthenticated ? <Estadisticas /> : <Navigate to="/login" />} />
+          <Route path="/admin/estadisticas" element={<Navigate to="/estadisticas#web" replace />} />
 
           <Route path="/profile" element={isAuthenticated ? <Profile /> : <Navigate to="/login" />} />
 

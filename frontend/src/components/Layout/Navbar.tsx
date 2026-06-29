@@ -69,6 +69,7 @@ const Navbar: React.FC = () => {
                 <NavLink to="/dashboard">Mi panel</NavLink>
                 <NavLink to="/courses">{isProfesor ? 'Catálogo' : 'Cursos'}</NavLink>
                 {isProfesor && <NavLink to="/students">Estudiantes</NavLink>}
+                {isProfesor && <NavLink to="/estadisticas">Estadísticas</NavLink>}
               </div>
             )}
           </div>
@@ -141,6 +142,15 @@ const Navbar: React.FC = () => {
                             className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
                           >
                             Estudiantes
+                          </Link>
+                        )}
+                        {isProfesor && (
+                          <Link
+                            to="/estadisticas"
+                            onClick={() => setShowUserMenu(false)}
+                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            Estadísticas
                           </Link>
                         )}
                       </div>

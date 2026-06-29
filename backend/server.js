@@ -3490,15 +3490,21 @@ app.get('/api/analytics', authenticateToken, async (req, res) => {
       };
     });
 
+    // Recaudación: cuenta pagos aprobados por CURSO o por EVENTO (charlas sueltas),
+    // así no se pierde lo cobrado de clases en vivo sin curso. created_at existe siempre.
+    const revenueWhere = isAdmin
+      ? `p.status = 'approved'`
+      : `p.status = 'approved' AND (p.course_id IN (SELECT id FROM courses WHERE profesor_id = ?) OR p.event_id IN (SELECT id FROM events WHERE instructor_id = ?))`;
+    const revenueScopeParams = isAdmin ? [] : [req.user.userId, req.user.userId];
+
     const revenueData = await sqlAll(
-      `SELECT substr(COALESCE(p.date_created, p.date_approved),1,7) as month, SUM(p.amount) as revenue
+      `SELECT substr(p.created_at,1,7) as month, COALESCE(SUM(p.amount),0) as revenue
        FROM payments p
-       JOIN courses c ON c.id = p.course_id
-       WHERE p.status = 'approved' ${isAdmin ? '' : 'AND c.profesor_id = ?'}
+       WHERE ${revenueWhere}
        GROUP BY month
        ORDER BY month DESC
        LIMIT 12`,
-      scopeParams
+      revenueScopeParams
     );
 
     const userActivity = await sqlAll(
@@ -3524,30 +3530,40 @@ app.get('/api/analytics', authenticateToken, async (req, res) => {
     );
 
     // Clases en vivo: anotados (reservaron) vs pagaron vs asistieron (entraron) + recaudado.
+    // LEFT JOIN para incluir charlas SUELTAS (sin curso). Scope: del profe por
+    // instructor o por curso propio; admin ve todas.
+    const liveWhere = isAdmin
+      ? `ev.type = 'live_class'`
+      : `ev.type = 'live_class' AND (ev.instructor_id = ? OR c.profesor_id = ?)`;
+    const liveParams = isAdmin ? [] : [req.user.userId, req.user.userId];
     const liveClasses = await sqlAll(
-      `SELECT ev.id, ev.title, ev.start_date, ev.precio,
+      `SELECT ev.id, ev.title, ev.start_date, ev.precio, c.nombre as course_name,
          (SELECT COUNT(*) FROM access_grants ag WHERE ag.event_id = ev.id) as anotados,
          (SELECT COUNT(*) FROM payments p WHERE p.event_id = ev.id AND p.status = 'approved') as pagaron,
          (SELECT COUNT(*) FROM live_attendance la WHERE la.event_id = ev.id) as asistieron,
          (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.event_id = ev.id AND p.status = 'approved') as recaudado
        FROM events ev
-       JOIN courses c ON c.id = ev.course_id
-       WHERE ev.type = 'live_class' ${isAdmin ? '' : 'AND c.profesor_id = ?'}
+       LEFT JOIN courses c ON c.id = ev.course_id
+       WHERE ${liveWhere}
        ORDER BY ev.start_date DESC
-       LIMIT 30`,
-      scopeParams
+       LIMIT 50`,
+      liveParams
     );
 
     const revenueTotalRow = await sqlGet(
       `SELECT COALESCE(SUM(p.amount),0) as total, COUNT(*) as count
-       FROM payments p JOIN courses c ON c.id = p.course_id
-       WHERE p.status = 'approved' ${isAdmin ? '' : 'AND c.profesor_id = ?'}`,
-      scopeParams
+       FROM payments p
+       WHERE ${revenueWhere}`,
+      revenueScopeParams
     );
 
     const totalEnrollments = Number(completionRow?.totalEnrollments || 0);
     const completedEnrollments = Number(completionRow?.completedEnrollments || 0);
     const completionRate = totalEnrollments > 0 ? (completedEnrollments * 100) / totalEnrollments : 0;
+
+    const liveClassesCount = liveClasses.length;
+    const liveAnotados = liveClasses.reduce((s, l) => s + Number(l.anotados || 0), 0);
+    const liveRecaudado = liveClasses.reduce((s, l) => s + Number(l.recaudado || 0), 0);
 
     res.json({
       overview: {
@@ -3560,6 +3576,9 @@ app.get('/api/analytics', authenticateToken, async (req, res) => {
         totalRevenue: Number(revenueTotalRow?.total || 0),
         totalPayments: Number(revenueTotalRow?.count || 0),
         totalEnrollments,
+        liveClassesCount,
+        liveAnotados,
+        liveRecaudado,
       },
       studentEngagement: [],
       coursePerformance,

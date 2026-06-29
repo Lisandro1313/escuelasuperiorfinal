@@ -422,12 +422,12 @@ class TursoDatabase {
   }
 
   // Pagos
-  async createPayment({ user_id, course_id, amount, payment_id = null, preference_id = null, status = 'pending' }) {
+  async createPayment({ user_id, course_id, module_id = null, lesson_id = null, event_id = null, target_type = 'course', amount, payment_id = null, preference_id = null, status = 'pending' }) {
     const r = await this._query(
-      'INSERT INTO payments (user_id, course_id, amount, payment_id, preference_id, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [user_id, course_id, amount, payment_id, preference_id, status]
+      'INSERT INTO payments (user_id, course_id, module_id, lesson_id, event_id, target_type, amount, payment_id, preference_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [user_id, course_id, module_id, lesson_id, event_id, target_type, amount, payment_id, preference_id, status]
     );
-    return { id: Number(r.lastInsertRowid), user_id, course_id, amount, payment_id, preference_id, status };
+    return { id: Number(r.lastInsertRowid), user_id, course_id, module_id, lesson_id, event_id, target_type, amount, payment_id, preference_id, status };
   }
 
   async updatePaymentStatus(paymentId, status) {

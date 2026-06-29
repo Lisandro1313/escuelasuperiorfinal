@@ -503,8 +503,8 @@ const Dashboard: React.FC = () => {
             { to: '/tienda/pedidos', icon: '🧾', title: 'Pedidos de la tienda', desc: 'Compras a coordinar/entregar' },
             { to: '/ayuda', icon: '❓', title: 'Ayuda', desc: 'Guía paso a paso para usar el campus' },
             { to: '/profile', icon: '👤', title: 'Mi perfil', desc: 'Nombre, foto y contraseña' },
+            { to: '/estadisticas', icon: '📊', title: 'Estadísticas', desc: 'Recaudado, alumnos, cursos y clases en vivo' },
             ...(usuario?.tipo === 'admin' ? [
-              { to: '/admin/estadisticas', icon: '📊', title: 'Estadísticas de la web', desc: 'Visitas, visitantes y usuarios' },
               { to: '/admin/users', icon: '🛡️', title: 'Gestión de usuarios', desc: 'Crear profesoras y gestionar cuentas' },
             ] : []),
           ].map((item) => (
