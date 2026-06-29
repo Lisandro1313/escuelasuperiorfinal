@@ -22,6 +22,7 @@ import MisEstudiantes from './pages/MisEstudiantes';
 import MisCompras from './pages/MisCompras';
 import Pedidos from './pages/Pedidos';
 import Estadisticas from './pages/Estadisticas';
+import Notificaciones from './pages/Notificaciones';
 import Profile from './components/Profile/Profile';
 import Navbar from './components/Layout/Navbar';
 import { ToastProvider } from './components/Toast/ToastProvider';
@@ -93,6 +94,7 @@ function AppContent() {
 
           <Route path="/students" element={isAuthenticated ? <MisEstudiantes /> : <Navigate to="/login" />} />
           <Route path="/mis-compras" element={isAuthenticated ? <MisCompras /> : <Navigate to="/login" />} />
+          <Route path="/notificaciones" element={isAuthenticated ? <Notificaciones /> : <Navigate to="/login" />} />
           <Route path="/tienda/pedidos" element={isAuthenticated ? <Pedidos /> : <Navigate to="/login" />} />
 
           <Route path="/admin" element={<Navigate to="/admin/users" replace />} />

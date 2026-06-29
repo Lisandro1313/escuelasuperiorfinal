@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import socketService from '../../services/socket';
 
@@ -20,6 +21,7 @@ interface Notification {
 
 const NotificationCenter: React.FC = () => {
   const { usuario } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -285,7 +287,10 @@ const NotificationCenter: React.FC = () => {
           {/* Footer */}
           {notifications.length > 0 && (
             <div className="p-3 border-t bg-gray-50">
-              <button className="w-full text-center text-sm text-blue-600 hover:text-blue-800">
+              <button
+                onClick={() => { setShowDropdown(false); navigate('/notificaciones'); }}
+                className="w-full text-center text-sm text-blue-600 hover:text-blue-800"
+              >
                 Ver todas las notificaciones
               </button>
             </div>

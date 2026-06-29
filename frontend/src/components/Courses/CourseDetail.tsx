@@ -15,6 +15,16 @@ interface Course {
   estudiantes: number;
   rating: number;
   imagen: string;
+  // Config avanzada (se preserva al editar lo básico desde la ficha)
+  modalidad_precio?: string;
+  drip_habilitado?: number | boolean;
+  drip_intervalo_dias?: number | null;
+  unlock_mode?: string;
+  certificado_habilitado?: number | boolean;
+  firma_url?: string | null;
+  firmante?: string | null;
+  firma2_url?: string | null;
+  firmante2?: string | null;
 }
 
 interface Module {
@@ -56,6 +66,7 @@ const CourseDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [enrolling, setEnrolling] = useState(false);
   const [error, setError] = useState('');
+  const [showEdit, setShowEdit] = useState(false);
 
   const isInstructor = useMemo(
     () => course && usuario && (usuario.tipo === 'admin' || course.profesor_id === usuario.id),
@@ -250,6 +261,12 @@ const CourseDetail: React.FC = () => {
                   >
                     Ver el aula
                   </Link>
+                  <button
+                    onClick={() => setShowEdit(true)}
+                    className="block w-full text-gray-600 hover:bg-gray-50 text-center py-2.5 rounded-lg font-medium text-sm border border-gray-200"
+                  >
+                    ✏️ Editar datos del curso
+                  </button>
                 </div>
               ) : (
                 <button
@@ -372,9 +389,151 @@ const CourseDetail: React.FC = () => {
           </section>
         </aside>
       </div>
+
+      {showEdit && (
+        <EditCourseModal
+          course={course}
+          onClose={() => setShowEdit(false)}
+          onSaved={(c) => { setCourse(c); setShowEdit(false); toast.success('Curso actualizado'); }}
+        />
+      )}
     </div>
   );
 };
+
+/* ─── Modal: editar datos básicos del curso ─── */
+const EditCourseModal: React.FC<{ course: Course; onClose: () => void; onSaved: (c: Course) => void }> = ({ course, onClose, onSaved }) => {
+  const [form, setForm] = useState({
+    nombre: course.nombre || '',
+    descripcion: course.descripcion || '',
+    categoria: course.categoria || 'General',
+    precio: Number(course.precio || 0),
+    duracion: course.duracion || '',
+    imagen: course.imagen || '',
+  });
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState('');
+
+  const uploadImage = async (file: File) => {
+    setUploading(true);
+    setErr('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: fd,
+      });
+      const d = await res.json();
+      if (res.ok && d.url) setForm((f) => ({ ...f, imagen: d.url }));
+      else setErr(d.error || 'No se pudo subir la imagen');
+    } catch { setErr('No se pudo subir la imagen'); }
+    finally { setUploading(false); }
+  };
+
+  const submit = async () => {
+    if (!form.nombre.trim()) { setErr('Poné un nombre al curso'); return; }
+    setSaving(true);
+    setErr('');
+    try {
+      // Preservamos la config avanzada del curso (certificado, goteo, etc.).
+      const payload = {
+        ...form,
+        precio: Number(form.precio) || 0,
+        imagen: form.imagen || null,
+        modalidad_precio: course.modalidad_precio,
+        drip_habilitado: course.drip_habilitado,
+        drip_intervalo_dias: course.drip_intervalo_dias,
+        unlock_mode: course.unlock_mode,
+        certificado_habilitado: course.certificado_habilitado,
+        firma_url: course.firma_url,
+        firmante: course.firmante,
+        firma2_url: course.firma2_url,
+        firmante2: course.firmante2,
+      };
+      const res = await fetch(`/api/courses/${course.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify(payload),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'No se pudo guardar');
+      onSaved({ ...course, ...form, precio: Number(form.precio) || 0 } as Course);
+    } catch (e: any) { setErr(e.message); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between sticky top-0 bg-white">
+          <h3 className="text-xl font-bold text-gray-900">Editar datos del curso</h3>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 text-xl transition">&times;</button>
+        </div>
+        <div className="p-6 space-y-4">
+          <Campo label="Nombre del curso *">
+            <input type="text" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition" />
+          </Campo>
+          <Campo label="Descripción">
+            <textarea value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} rows={3}
+              placeholder="¿De qué trata el curso? ¿A quién está dirigido?"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-blue-500 outline-none transition resize-none" />
+          </Campo>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo label="Categoría">
+              <input type="text" value={form.categoria} onChange={(e) => setForm({ ...form, categoria: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-blue-500 outline-none transition" />
+            </Campo>
+            <Campo label="Duración">
+              <input type="text" value={form.duracion} onChange={(e) => setForm({ ...form, duracion: e.target.value })} placeholder="Ej: 6 semanas"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-blue-500 outline-none transition" />
+            </Campo>
+          </div>
+          <Campo label="Precio en ARS">
+            <input type="number" min={0} value={form.precio} onChange={(e) => setForm({ ...form, precio: Number(e.target.value) })}
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:border-blue-500 outline-none transition" />
+            <p className="text-xs text-gray-400 mt-1">Poné 0 para curso gratuito</p>
+          </Campo>
+          <Campo label="Foto del curso">
+            {form.imagen && form.imagen.startsWith('http') ? (
+              <div className="relative">
+                <img src={form.imagen} alt="Portada" className="w-full h-36 object-cover rounded-xl border border-gray-200" />
+                <label className="absolute bottom-2 right-2 bg-white/90 hover:bg-white rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 shadow cursor-pointer">
+                  {uploading ? 'Subiendo…' : 'Cambiar'}
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && uploadImage(e.target.files[0])} />
+                </label>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center h-36 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition">
+                <span className="text-3xl">🖼️</span>
+                <span className="text-sm text-gray-500 mt-1">{uploading ? 'Subiendo...' : 'Subir una foto'}</span>
+                <span className="text-xs text-gray-400">JPG o PNG</span>
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && uploadImage(e.target.files[0])} />
+              </label>
+            )}
+          </Campo>
+          {err && <p className="text-red-500 text-sm bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{err}</p>}
+        </div>
+        <div className="px-6 py-4 border-t border-gray-100 flex gap-3 justify-end sticky bottom-0 bg-white">
+          <button onClick={onClose} className="px-5 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition">Cancelar</button>
+          <button onClick={submit} disabled={saving || uploading} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-xl font-semibold transition">
+            {saving ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const Campo: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>
+    {children}
+  </div>
+);
 
 const Feature: React.FC<{ icon: string; children: React.ReactNode }> = ({ icon, children }) => (
   <div className="flex items-start gap-2">

@@ -2834,6 +2834,10 @@ app.get('/api/payments/status', authenticateToken, async (req, res) => {
           const lId = m[5] ? Number(m[5]) : null;
           const eId = m[6] ? Number(m[6]) : null;
           if (uid === userId && p.status === 'approved') {
+            // Reconciliar el estado del pago en la base (si el webhook no llegó,
+            // el registro queda en 'pending' y no contaría en la recaudación).
+            const prefId = (p.order && p.order.id) || p.preference_id || preference_id || null;
+            if (prefId) { try { await db.updatePaymentByPreferenceId(prefId, { payment_id, status: 'approved' }); } catch (_) { /* noop */ } }
             if (tType === 'live') {
               await db.createAccessGrant({ user_id: uid, course_id: cid, event_id: eId });
               return res.json({ status: 'approved', enrolled: false, courseId: cid, targetType: tType, eventId: eId });
