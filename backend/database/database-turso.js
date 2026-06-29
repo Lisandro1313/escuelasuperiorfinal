@@ -161,6 +161,11 @@ class TursoDatabase {
       `ALTER TABLE access_grants ADD COLUMN event_id INTEGER`,
       `ALTER TABLE page_views ADD COLUMN country VARCHAR(80)`,
       `ALTER TABLE page_views ADD COLUMN region VARCHAR(80)`,
+      // payments tiene dos esquemas posibles (created_at vs date_created/date_approved);
+      // garantizamos las tres columnas para que los COALESCE de analytics no rompan.
+      `ALTER TABLE payments ADD COLUMN date_created DATETIME`,
+      `ALTER TABLE payments ADD COLUMN date_approved DATETIME`,
+      `ALTER TABLE payments ADD COLUMN created_at DATETIME`,
     ];
     for (const sql of alters) {
       try {

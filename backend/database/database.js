@@ -148,6 +148,14 @@ class Database {
         console.error('Error agregando columna payments.target_type:', err);
       }
     });
+    // Compatibilidad de columnas de fecha: existen DOS esquemas de payments
+    // (init.sql usa created_at; src/models/Payment.js usa date_created/date_approved).
+    // Garantizamos que las tres existan para que las consultas con COALESCE no rompan.
+    ['date_created DATETIME', 'date_approved DATETIME', 'created_at DATETIME'].forEach((col) => {
+      this.db.run(`ALTER TABLE payments ADD COLUMN ${col}`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) console.error('Error payments fecha col:', err.message);
+      });
+    });
     // Clase en vivo: precio + url de la transmision (YouTube)
     this.db.run(`ALTER TABLE events ADD COLUMN precio DECIMAL(10,2) DEFAULT 0`, (err) => {
       if (err && !err.message.includes('duplicate column name')) console.error('Error events.precio:', err);

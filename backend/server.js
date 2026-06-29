@@ -3497,8 +3497,10 @@ app.get('/api/analytics', authenticateToken, async (req, res) => {
       : `p.status = 'approved' AND (p.course_id IN (SELECT id FROM courses WHERE profesor_id = ?) OR p.event_id IN (SELECT id FROM events WHERE instructor_id = ?))`;
     const revenueScopeParams = isAdmin ? [] : [req.user.userId, req.user.userId];
 
+    // Mes de cada pago: usamos la primera columna de fecha disponible (los dos
+    // esquemas de payments difieren: created_at vs date_created/date_approved).
     const revenueData = await sqlAll(
-      `SELECT substr(p.created_at,1,7) as month, COALESCE(SUM(p.amount),0) as revenue
+      `SELECT substr(COALESCE(p.date_created, p.date_approved, p.created_at),1,7) as month, COALESCE(SUM(p.amount),0) as revenue
        FROM payments p
        WHERE ${revenueWhere}
        GROUP BY month
