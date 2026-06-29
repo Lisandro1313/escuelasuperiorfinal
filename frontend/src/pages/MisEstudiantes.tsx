@@ -160,11 +160,11 @@ const MisEstudiantes: React.FC = () => {
           {loading ? (
             <div className="text-center py-16 text-gray-500">Cargando...</div>
           ) : tab === 'cursos' ? (
-            <CursosTable rows={filteredCursos} empty={rows.length === 0} onSelect={setSelected} />
+            <CursosTable rows={filteredCursos} empty={rows.length === 0} onSelect={setSelected} signature={`${search}|${filterCourse}`} />
           ) : tab === 'vivo' ? (
-            <LiveTable rows={filteredLive} empty={liveRows.length === 0} onSelect={setSelected} />
+            <LiveTable rows={filteredLive} empty={liveRows.length === 0} onSelect={setSelected} signature={search} />
           ) : (
-            <TiendaTable rows={filteredOrders} empty={orders.length === 0} />
+            <TiendaTable rows={filteredOrders} empty={orders.length === 0} signature={search} />
           )}
         </div>
       </div>
@@ -182,122 +182,165 @@ const EmptyState: React.FC<{ icon: string; title: string; desc: string }> = ({ i
   </div>
 );
 
-const CursosTable: React.FC<{ rows: StudentRow[]; empty: boolean; onSelect: (s: { id: number; name: string }) => void }> = ({ rows, empty, onSelect }) => {
-  if (rows.length === 0) return <EmptyState icon="👥" title={empty ? 'Todavía no hay inscriptos' : 'Sin resultados'} desc={empty ? 'Cuando alguien se inscriba a un curso, aparece acá.' : 'Probá con otros filtros.'} />;
+const PAGE_SIZE = 20;
+
+const Pager: React.FC<{ page: number; pageCount: number; total: number; onPage: (p: number) => void }> = ({ page, pageCount, total, onPage }) => {
+  const from = (page - 1) * PAGE_SIZE + 1;
+  const to = Math.min(total, page * PAGE_SIZE);
+  const pages: number[] = [];
+  const add = (n: number) => { if (n >= 1 && n <= pageCount && !pages.includes(n)) pages.push(n); };
+  add(1); add(2);
+  for (let i = page - 1; i <= page + 1; i++) add(i);
+  add(pageCount - 1); add(pageCount);
+  pages.sort((a, b) => a - b);
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 text-gray-600 text-left">
-          <tr>
-            <th className="px-4 py-3 font-semibold">Alumno</th>
-            <th className="px-4 py-3 font-semibold">Curso</th>
-            <th className="px-4 py-3 font-semibold">Inscripción</th>
-            <th className="px-4 py-3 font-semibold">Pago</th>
-            <th className="px-4 py-3 font-semibold">Progreso</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {rows.map((r) => (
-            <tr key={r.enrollment_id + '-' + r.course_id} onClick={() => onSelect({ id: r.student_id, name: r.student_name })} className="hover:bg-blue-50 cursor-pointer">
-              <td className="px-4 py-3">
-                <div className="font-medium text-gray-900">{r.student_name} <span className="text-blue-500 text-xs">· ver ficha</span></div>
-                <div className="text-gray-500 text-xs">{r.student_email}</div>
-              </td>
-              <td className="px-4 py-3 text-gray-700">{r.course_name}</td>
-              <td className="px-4 py-3 text-gray-700">{fechaCorta(r.enrolled_at)}</td>
-              <td className="px-4 py-3">{Number(r.course_price) === 0 ? <span className="text-gray-500">Gratis</span> : <span className="text-green-600 font-medium">{formatARS(Number(r.course_price))}</span>}</td>
-              <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-[120px]">
-                    <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(100, Number(r.progress || 0))}%` }} />
-                  </div>
-                  <span className="text-gray-600 text-xs">{Math.round(Number(r.progress || 0))}%</span>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-100 flex-wrap">
+      <span className="text-xs text-gray-500">Mostrando {from}–{to} de {total}</span>
+      <div className="flex items-center gap-1">
+        <button disabled={page <= 1} onClick={() => onPage(page - 1)} className="px-2.5 py-1 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-100">‹</button>
+        {pages.map((n, i) => (
+          <React.Fragment key={n}>
+            {i > 0 && n - pages[i - 1] > 1 && <span className="px-1 text-gray-400">…</span>}
+            <button onClick={() => onPage(n)} className={`px-3 py-1 rounded-lg text-sm ${n === page ? 'bg-blue-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}>{n}</button>
+          </React.Fragment>
+        ))}
+        <button disabled={page >= pageCount} onClick={() => onPage(page + 1)} className="px-2.5 py-1 rounded-lg text-sm disabled:opacity-40 hover:bg-gray-100">›</button>
+      </div>
     </div>
   );
 };
 
-const LiveTable: React.FC<{ rows: LiveAttendee[]; empty: boolean; onSelect: (s: { id: number; name: string }) => void }> = ({ rows, empty, onSelect }) => {
-  if (rows.length === 0) return <EmptyState icon="🔴" title={empty ? 'Todavía no hay anotados' : 'Sin resultados'} desc={empty ? 'Cuando alguien reserve o pague una clase en vivo, aparece acá.' : 'Probá con otros filtros.'} />;
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 text-gray-600 text-left">
-          <tr>
-            <th className="px-4 py-3 font-semibold">Persona</th>
-            <th className="px-4 py-3 font-semibold">Clase en vivo</th>
-            <th className="px-4 py-3 font-semibold">Fecha de la clase</th>
-            <th className="px-4 py-3 font-semibold">Se anotó</th>
-            <th className="px-4 py-3 font-semibold">Pago</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {rows.map((r) => (
-            <tr key={r.event_id + '-' + r.student_id} onClick={() => onSelect({ id: r.student_id, name: r.student_name })} className="hover:bg-blue-50 cursor-pointer">
-              <td className="px-4 py-3">
-                <div className="font-medium text-gray-900">{r.student_name} <span className="text-blue-500 text-xs">· ver ficha</span></div>
-                <div className="text-gray-500 text-xs">{r.student_email}</div>
-              </td>
-              <td className="px-4 py-3 text-gray-700">{r.event_title}</td>
-              <td className="px-4 py-3 text-gray-700">{fechaCorta(r.start_date)}</td>
-              <td className="px-4 py-3 text-gray-500">{fechaCorta(r.granted_at)}</td>
-              <td className="px-4 py-3">
-                {Number(r.precio) === 0
-                  ? <span className="text-gray-500">Gratis</span>
-                  : r.pago
-                    ? <span className="text-green-600 font-medium">{formatARS(r.precio)} ✓</span>
-                    : <span className="text-amber-600">Sin pago</span>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
+interface Column<T> {
+  key: string;
+  label: string;
+  align?: 'right' | 'center';
+  sortVal?: (row: T) => string | number;
+  render: (row: T) => React.ReactNode;
+}
 
-const TiendaTable: React.FC<{ rows: OrderRow[]; empty: boolean }> = ({ rows, empty }) => {
-  if (rows.length === 0) return <EmptyState icon="🛍️" title={empty ? 'Todavía no hay pedidos' : 'Sin resultados'} desc={empty ? 'Cuando alguien compre en la tienda, aparece acá.' : 'Probá con otros filtros.'} />;
+// Tabla genérica con ordenamiento por columna y paginación. `signature` resetea
+// la página cuando cambian los filtros/búsqueda de afuera.
+function DataTable<T>({ columns, rows, signature, onRowClick, rowKey, defaultSort }: {
+  columns: Column<T>[];
+  rows: T[];
+  signature: string;
+  rowKey: (row: T) => React.Key;
+  onRowClick?: (row: T) => void;
+  defaultSort?: { key: string; dir: 'asc' | 'desc' };
+}) {
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>(
+    defaultSort || { key: columns.find((c) => c.sortVal)?.key || '', dir: 'desc' }
+  );
+
+  useEffect(() => { setPage(1); }, [signature]);
+
+  const sorted = useMemo(() => {
+    const col = columns.find((c) => c.key === sort.key);
+    if (!col || !col.sortVal) return rows;
+    const dir = sort.dir === 'asc' ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const va = col.sortVal!(a); const vb = col.sortVal!(b);
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+      return String(va).localeCompare(String(vb), 'es') * dir;
+    });
+  }, [rows, sort, columns]);
+
+  const pageCount = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const p = Math.min(page, pageCount);
+  const slice = sorted.slice((p - 1) * PAGE_SIZE, p * PAGE_SIZE);
+
+  const toggleSort = (key: string) => {
+    setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }));
+    setPage(1);
+  };
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 text-gray-600 text-left">
-          <tr>
-            <th className="px-4 py-3 font-semibold">Comprador</th>
-            <th className="px-4 py-3 font-semibold">Producto</th>
-            <th className="px-4 py-3 font-semibold">Fecha</th>
-            <th className="px-4 py-3 font-semibold">Estado</th>
-            <th className="px-4 py-3 font-semibold text-right">Monto</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {rows.map((o) => {
-            const st = ORDER_STATUS[o.status] || ORDER_STATUS.pending;
-            return (
-              <tr key={o.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3">
-                  <div className="font-medium text-gray-900">{o.user_nombre}</div>
-                  <div className="text-gray-500 text-xs">{o.user_email}</div>
-                </td>
-                <td className="px-4 py-3 text-gray-700">
-                  {o.product_nombre}
-                  <span className="block text-xs text-gray-400">{o.tipo === 'digital' ? 'Digital' : 'Físico'}</span>
-                </td>
-                <td className="px-4 py-3 text-gray-500">{fechaCorta(o.created_at)}</td>
-                <td className="px-4 py-3"><span className={`text-xs font-medium px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span></td>
-                <td className="px-4 py-3 text-right font-semibold text-gray-900">{formatARS(Number(o.amount))}</td>
+    <>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-gray-600 text-left">
+            <tr>
+              {columns.map((c) => (
+                <th
+                  key={c.key}
+                  onClick={c.sortVal ? () => toggleSort(c.key) : undefined}
+                  className={`px-4 py-3 font-semibold whitespace-nowrap ${c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : ''} ${c.sortVal ? 'cursor-pointer select-none hover:text-gray-900' : ''}`}
+                >
+                  {c.label}{c.sortVal && sort.key === c.key ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {slice.map((row) => (
+              <tr
+                key={rowKey(row)}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                className={onRowClick ? 'hover:bg-blue-50 cursor-pointer' : 'hover:bg-gray-50'}
+              >
+                {columns.map((c) => (
+                  <td key={c.key} className={`px-4 py-3 ${c.align === 'right' ? 'text-right' : c.align === 'center' ? 'text-center' : ''}`}>{c.render(row)}</td>
+                ))}
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {pageCount > 1 && <Pager page={p} pageCount={pageCount} total={sorted.length} onPage={setPage} />}
+    </>
   );
+}
+
+const CursosTable: React.FC<{ rows: StudentRow[]; empty: boolean; signature: string; onSelect: (s: { id: number; name: string }) => void }> = ({ rows, empty, signature, onSelect }) => {
+  if (rows.length === 0) return <EmptyState icon="👥" title={empty ? 'Todavía no hay inscriptos' : 'Sin resultados'} desc={empty ? 'Cuando alguien se inscriba a un curso, aparece acá.' : 'Probá con otros filtros.'} />;
+  const columns: Column<StudentRow>[] = [
+    { key: 'alumno', label: 'Alumno', sortVal: (r) => r.student_name.toLowerCase(), render: (r) => (
+      <><div className="font-medium text-gray-900">{r.student_name} <span className="text-blue-500 text-xs">· ver ficha</span></div><div className="text-gray-500 text-xs">{r.student_email}</div></>
+    ) },
+    { key: 'curso', label: 'Curso', sortVal: (r) => (r.course_name || '').toLowerCase(), render: (r) => <span className="text-gray-700">{r.course_name}</span> },
+    { key: 'fecha', label: 'Inscripción', sortVal: (r) => new Date(r.enrolled_at).getTime() || 0, render: (r) => <span className="text-gray-700">{fechaCorta(r.enrolled_at)}</span> },
+    { key: 'pago', label: 'Pago', sortVal: (r) => Number(r.course_price || 0), render: (r) => Number(r.course_price) === 0 ? <span className="text-gray-500">Gratis</span> : <span className="text-green-600 font-medium">{formatARS(Number(r.course_price))}</span> },
+    { key: 'progreso', label: 'Progreso', sortVal: (r) => Number(r.progress || 0), render: (r) => (
+      <div className="flex items-center gap-2">
+        <div className="flex-1 bg-gray-200 rounded-full h-2 max-w-[120px]"><div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(100, Number(r.progress || 0))}%` }} /></div>
+        <span className="text-gray-600 text-xs">{Math.round(Number(r.progress || 0))}%</span>
+      </div>
+    ) },
+  ];
+  return <DataTable columns={columns} rows={rows} signature={signature} rowKey={(r) => `${r.enrollment_id}-${r.course_id}`} onRowClick={(r) => onSelect({ id: r.student_id, name: r.student_name })} defaultSort={{ key: 'fecha', dir: 'desc' }} />;
+};
+
+const LiveTable: React.FC<{ rows: LiveAttendee[]; empty: boolean; signature: string; onSelect: (s: { id: number; name: string }) => void }> = ({ rows, empty, signature, onSelect }) => {
+  if (rows.length === 0) return <EmptyState icon="🔴" title={empty ? 'Todavía no hay anotados' : 'Sin resultados'} desc={empty ? 'Cuando alguien reserve o pague una clase en vivo, aparece acá.' : 'Probá con otros filtros.'} />;
+  const columns: Column<LiveAttendee>[] = [
+    { key: 'persona', label: 'Persona', sortVal: (r) => r.student_name.toLowerCase(), render: (r) => (
+      <><div className="font-medium text-gray-900">{r.student_name} <span className="text-blue-500 text-xs">· ver ficha</span></div><div className="text-gray-500 text-xs">{r.student_email}</div></>
+    ) },
+    { key: 'clase', label: 'Clase en vivo', sortVal: (r) => (r.event_title || '').toLowerCase(), render: (r) => <span className="text-gray-700">{r.event_title}</span> },
+    { key: 'fechaclase', label: 'Fecha de la clase', sortVal: (r) => new Date(r.start_date).getTime() || 0, render: (r) => <span className="text-gray-700">{fechaCorta(r.start_date)}</span> },
+    { key: 'anoto', label: 'Se anotó', sortVal: (r) => new Date(r.granted_at).getTime() || 0, render: (r) => <span className="text-gray-500">{fechaCorta(r.granted_at)}</span> },
+    { key: 'pago', label: 'Pago', sortVal: (r) => (Number(r.precio) === 0 ? 0 : r.pago ? 2 : 1), render: (r) => Number(r.precio) === 0
+      ? <span className="text-gray-500">Gratis</span>
+      : r.pago ? <span className="text-green-600 font-medium">{formatARS(r.precio)} ✓</span> : <span className="text-amber-600">Sin pago</span> },
+  ];
+  return <DataTable columns={columns} rows={rows} signature={signature} rowKey={(r) => `${r.event_id}-${r.student_id}`} onRowClick={(r) => onSelect({ id: r.student_id, name: r.student_name })} defaultSort={{ key: 'fechaclase', dir: 'desc' }} />;
+};
+
+const TiendaTable: React.FC<{ rows: OrderRow[]; empty: boolean; signature: string }> = ({ rows, empty, signature }) => {
+  if (rows.length === 0) return <EmptyState icon="🛍️" title={empty ? 'Todavía no hay pedidos' : 'Sin resultados'} desc={empty ? 'Cuando alguien compre en la tienda, aparece acá.' : 'Probá con otros filtros.'} />;
+  const columns: Column<OrderRow>[] = [
+    { key: 'comprador', label: 'Comprador', sortVal: (o) => (o.user_nombre || '').toLowerCase(), render: (o) => (
+      <><div className="font-medium text-gray-900">{o.user_nombre}</div><div className="text-gray-500 text-xs">{o.user_email}</div></>
+    ) },
+    { key: 'producto', label: 'Producto', sortVal: (o) => (o.product_nombre || '').toLowerCase(), render: (o) => (
+      <>{o.product_nombre}<span className="block text-xs text-gray-400">{o.tipo === 'digital' ? 'Digital' : 'Físico'}</span></>
+    ) },
+    { key: 'fecha', label: 'Fecha', sortVal: (o) => new Date(o.created_at).getTime() || 0, render: (o) => <span className="text-gray-500">{fechaCorta(o.created_at)}</span> },
+    { key: 'estado', label: 'Estado', sortVal: (o) => o.status, render: (o) => { const st = ORDER_STATUS[o.status] || ORDER_STATUS.pending; return <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>; } },
+    { key: 'monto', label: 'Monto', align: 'right', sortVal: (o) => Number(o.amount || 0), render: (o) => <span className="font-semibold text-gray-900">{formatARS(Number(o.amount))}</span> },
+  ];
+  return <DataTable columns={columns} rows={rows} signature={signature} rowKey={(o) => o.id} defaultSort={{ key: 'fecha', dir: 'desc' }} />;
 };
 
 interface Detail {
